@@ -1,0 +1,26 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:ShellX.Desktop.Features.FileBrowser" x:DataType="vm:FileBrowserViewModel" xmlns:local="using:ShellX.Desktop.Features.FileBrowser"
+             xmlns:transfers="using:ShellX.Desktop.Features.Transfers" x:Class="ShellX.Desktop.Features.FileBrowser.FileBrowserView">
+  <Grid RowDefinitions="*,Auto">
+    <Grid ColumnDefinitions="*,5,*">
+      <local:LocalFileBrowserView x:Name="LocalPane" DataContext="{Binding Local}" />
+      <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="{DynamicResource RaisedBackground}" />
+      <local:RemoteFileBrowserView x:Name="RemotePane" Grid.Column="2" />
+    </Grid>
+    <Border Grid.Row="1" IsVisible="{Binding ShowTransfers}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,1,0,0" MaxHeight="165" Background="{DynamicResource PanelBackground}">
+      <DockPanel>
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" Margin="12,3"><TextBlock Text="传输任务" FontSize="11" VerticalAlignment="Center" /><Button Grid.Column="1" Content="清除已完成" Classes="flat" FontSize="11" Command="{Binding ClearTransfersCommand}" /><Button Grid.Column="2" Content="×" Classes="flat" Command="{Binding ToggleTransfersCommand}" /></Grid>
+        <ScrollViewer><ItemsControl ItemsSource="{Binding Transfers}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="transfers:TransferViewModel">
+          <Grid ColumnDefinitions="60,*,Auto,48" RowDefinitions="Auto,Auto,Auto" Margin="12,6" ColumnSpacing="10" RowSpacing="4" ClipToBounds="True">
+            <TextBlock Text="{Binding Direction}" FontSize="11" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding Name}" />
+            <TextBlock Grid.Column="2" Text="{Binding Status}" FontSize="11" Foreground="{DynamicResource SecondaryForeground}" VerticalAlignment="Center" />
+            <Button Grid.Column="3" Content="取消" Classes="flat" Command="{Binding CancelCommand}" IsVisible="{Binding IsActive}" FontSize="11" MinHeight="0" Padding="5,2" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding DetailText}" FontSize="11" Foreground="{DynamicResource SecondaryForeground}" TextWrapping="Wrap" ToolTip.Tip="{Binding DetailText}" />
+            <ProgressBar Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Value="{Binding Percent}" IsVisible="{Binding IsActive}" MinWidth="0" MinHeight="0" Height="3" HorizontalAlignment="Stretch" />
+          </Grid>
+        </DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer>
+      </DockPanel>
+    </Border>
+
+  </Grid>
+</UserControl>

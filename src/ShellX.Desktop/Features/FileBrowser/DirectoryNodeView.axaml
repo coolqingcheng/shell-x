@@ -1,0 +1,12 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:ShellX.Desktop.Features.FileBrowser" x:DataType="vm:DirectoryNodeViewModel" xmlns:local="using:ShellX.Desktop.Features.FileBrowser"
+             x:Class="ShellX.Desktop.Features.FileBrowser.DirectoryNodeView">
+  <StackPanel>
+    <Grid ColumnDefinitions="22,*">
+      <Button Content="{Binding ExpanderText}" Command="{Binding ToggleCommand}" Classes="flat" MinWidth="0" Padding="3,5" />
+      <Button Grid.Column="1" Command="{Binding OpenCommand}" Classes="flat" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="2,5" ToolTip.Tip="{Binding Path}">
+        <StackPanel Orientation="Horizontal" Spacing="6"><TextBlock Text="▰" Foreground="{DynamicResource FolderForeground}" /><TextBlock Text="{Binding Name}" FontSize="11" /></StackPanel>
+      </Button>
+    </Grid>
+    <ItemsControl ItemsSource="{Binding Children}" IsVisible="{Binding IsExpanded}" Margin="12,0,0,0"><ItemsControl.ItemTemplate><DataTemplate x:DataType="vm:DirectoryNodeViewModel"><local:DirectoryNodeView /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+  </StackPanel>
+</UserControl>

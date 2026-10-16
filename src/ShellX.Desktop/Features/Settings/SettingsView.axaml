@@ -1,0 +1,66 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:settings="using:ShellX.Desktop.Features.Settings" xmlns:controls="using:ShellX.Desktop.Controls" x:DataType="settings:SettingsViewModel"
+             x:Class="ShellX.Desktop.Features.Settings.SettingsView">
+  <UserControl.Styles>
+    <Style Selector="TabItem"><Setter Property="FontSize" Value="13" /><Setter Property="Padding" Value="14,8" /><Setter Property="MinHeight" Value="34" /></Style>
+  </UserControl.Styles>
+  <TabControl Margin="16,8">
+    <TabItem Header="字体">
+      <StackPanel Spacing="12" Margin="10,18">
+        <TextBlock Text="终端字体" />
+        <Grid ColumnDefinitions="*,110" ColumnSpacing="12">
+          <ComboBox Name="TerminalFontSelector" ItemsSource="{Binding Fonts}" SelectedItem="{Binding TerminalFontFamily, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+          <NumericUpDown Name="TerminalSize" Grid.Column="1" Minimum="10" Maximum="28" Increment="1" Value="{Binding TerminalFontSize, Mode=TwoWay}" />
+        </Grid>
+        <TextBlock Text="Aa Bb 0123456789 终端字体预览" FontFamily="{Binding TerminalPreviewFont}" FontSize="{Binding TerminalPreviewSize}" Margin="0,2,0,18" />
+        <TextBlock Text="文本编辑器字体" />
+        <Grid ColumnDefinitions="*,110" ColumnSpacing="12">
+          <ComboBox Name="EditorFontSelector" ItemsSource="{Binding Fonts}" SelectedItem="{Binding EditorFontFamily, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+          <NumericUpDown Name="EditorSize" Grid.Column="1" Minimum="10" Maximum="36" Increment="1" Value="{Binding EditorFontSize, Mode=TwoWay}" />
+        </Grid>
+        <TextBlock Text="Aa Bb 0123456789 配置文件预览" FontFamily="{Binding EditorPreviewFont}" FontSize="{Binding EditorPreviewSize}" Margin="0,2,0,18" />
+        <TextBlock Text="保存后立即应用。终端还可使用 Ctrl＋滚轮临时调整当前标签字号。" Foreground="{DynamicResource SecondaryForeground}" FontSize="12" TextWrapping="Wrap" />
+      </StackPanel>
+    </TabItem>
+    <TabItem Header="安全">
+      <ScrollViewer><StackPanel Spacing="12" Margin="10,18">
+        <TextBlock Text="{Binding PasswordSummary}" />
+        <CheckBox Name="ChangeLockPassword" Content="设置 / 修改锁定密码" IsChecked="{Binding ChangePassword, Mode=TwoWay}" />
+        <CheckBox Content="移除锁定密码" IsVisible="{Binding HasPassword}" IsChecked="{Binding RemovePassword, Mode=TwoWay}" />
+        <StackPanel Spacing="8" IsVisible="{Binding ShowPasswordFields}">
+          <TextBlock Text="当前锁定密码" IsVisible="{Binding HasPassword}" FontSize="12" />
+          <controls:SecretTextBox Name="CurrentLockPassword" MaxLength="256" PlaceholderText="当前锁定密码" Text="{Binding CurrentPassword, Mode=TwoWay}" IsVisible="{Binding HasPassword}" />
+          <TextBlock Text="新锁定密码" IsVisible="{Binding ShowNewPassword}" FontSize="12" />
+          <controls:SecretTextBox Name="NewLockPassword" MaxLength="256" PlaceholderText="新锁定密码" Text="{Binding NewPassword, Mode=TwoWay}" IsVisible="{Binding ShowNewPassword}" />
+          <TextBlock Text="确认新锁定密码" IsVisible="{Binding ShowNewPassword}" FontSize="12" />
+          <controls:SecretTextBox Name="ConfirmLockPassword" MaxLength="256" PlaceholderText="再次输入新锁定密码" Text="{Binding ConfirmPassword, Mode=TwoWay}" IsVisible="{Binding ShowNewPassword}" />
+        </StackPanel>
+        <Border Height="1" Background="{DynamicResource BorderColor}" Margin="0,6" />
+        <CheckBox Name="AutoLockToggle" Content="无操作后自动锁定" IsChecked="{Binding AutoLock, Mode=TwoWay}" />
+        <StackPanel Orientation="Horizontal" Spacing="10" IsEnabled="{Binding AutoLock}">
+          <TextBlock Text="闲置" VerticalAlignment="Center" />
+          <NumericUpDown Name="AutoLockDuration" Width="130" Minimum="1" Maximum="525600" Increment="1" Value="{Binding Duration, Mode=TwoWay}" />
+          <ComboBox Name="AutoLockUnit" Width="95" ItemsSource="{Binding DurationUnits}" SelectedIndex="{Binding DurationUnit, Mode=TwoWay}" />
+          <TextBlock Text="后锁定" VerticalAlignment="Center" />
+        </StackPanel>
+        <TextBlock Text="设置锁定密码后，按 Ctrl＋L 可随时锁定。锁定时保持 SSH 连接和传输，输入密码并按 Enter 解锁。再次启动软件也需要解锁。" Foreground="{DynamicResource SecondaryForeground}" FontSize="12" TextWrapping="Wrap" />
+      </StackPanel></ScrollViewer>
+    </TabItem>
+    <TabItem Header="常规">
+      <StackPanel Spacing="14" Margin="10,18">
+        <TextBlock Text="界面主题" />
+        <ComboBox Name="ThemeSelector" ItemsSource="{Binding Themes}" SelectedIndex="{Binding ThemeIndex, Mode=TwoWay}" Width="200" />
+        <CheckBox Content="默认显示隐藏文件" IsChecked="{Binding ShowHidden, Mode=TwoWay}" />
+        <CheckBox Content="终端普通文本高亮（路径、IP、错误和成功提示）" IsChecked="{Binding HighlightText, Mode=TwoWay}" />
+        <CheckBox Name="AutoReconnectToggle" Content="断线自动重连" IsChecked="{Binding AutoReconnect, Mode=TwoWay}" />
+        <StackPanel Orientation="Horizontal" Spacing="10" IsEnabled="{Binding AutoReconnect}">
+          <TextBlock Text="断线或重连失败后等待" VerticalAlignment="Center" />
+          <NumericUpDown Name="ReconnectInterval" Width="130" Minimum="1" Maximum="86400" Increment="1" Value="{Binding ReconnectIntervalSeconds, Mode=TwoWay}" />
+          <TextBlock Text="秒再重连" VerticalAlignment="Center" />
+        </StackPanel>
+        <TextBlock Text="重连过程显示在终端中。手动断开或关闭标签后停止重试；重连会建立新的 Shell 会话。" Foreground="{DynamicResource SecondaryForeground}" FontSize="12" TextWrapping="Wrap" />
+        <TextBlock Text="ShellX · Windows&#10;配置和日志保存于当前用户的本地应用数据目录。" Foreground="{DynamicResource SecondaryForeground}" FontSize="12" TextWrapping="Wrap" />
+      </StackPanel>
+    </TabItem>
+  </TabControl>
+</UserControl>

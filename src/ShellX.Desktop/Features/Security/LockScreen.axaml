@@ -1,0 +1,11 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:security="using:ShellX.Desktop.Features.Security" xmlns:controls="using:ShellX.Desktop.Controls" x:DataType="security:AppLockService"
+             x:Class="ShellX.Desktop.Features.Security.LockScreen">
+  <Border Background="{DynamicResource AppBackground}">
+    <StackPanel x:Name="InputPanel" Width="330" MaxWidth="600" Margin="24" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="9" IsEnabled="{Binding IsReady}">
+      <controls:SecretTextBox x:Name="UnlockPassword" Text="{Binding Password, Mode=TwoWay}" MaxLength="256"
+               PlaceholderText="输入锁定密码，按 Enter 解锁" IsEnabled="{Binding !IsVerifying}" KeyDown="PasswordKeyDown" />
+      <TextBlock Text="{Binding Error}" Foreground="{DynamicResource ErrorForeground}" FontSize="12" TextWrapping="Wrap" />
+    </StackPanel>
+  </Border>
+</UserControl>

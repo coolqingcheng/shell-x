@@ -1,0 +1,75 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:ShellX.Desktop.Features.Workspace" x:DataType="vm:WorkspaceTabViewModel"
+             xmlns:controls="using:ShellX.Desktop.Controls" xmlns:files="using:ShellX.Desktop.Features.FileBrowser"
+             xmlns:commands="using:ShellX.Desktop.Features.Commands"
+             xmlns:tunnels="using:ShellX.Desktop.Features.Tunnels" x:Class="ShellX.Desktop.Features.Workspace.WorkspaceView">
+  <Grid ColumnDefinitions="*,Auto">
+    <Grid x:Name="WorkspaceLayout" RowDefinitions="1.3*,5,*">
+      <controls:ConnectionAccentBorder Name="TerminalAccentFrame" Appearance="Frame" AccentColor="{Binding AccentColor}" BorderThickness="2">
+      <Grid RowDefinitions="30,*,Auto">
+        <Border BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1">
+          <Grid ColumnDefinitions="Auto,*,Auto" Margin="12,0,6,0" ColumnSpacing="12">
+            <TextBlock Text="终端" FontSize="11" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="{Binding Address}" FontFamily="Consolas" FontSize="11" Foreground="{DynamicResource MutedForeground}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+              <TextBlock Text="●" Foreground="{Binding StatusColor}" FontSize="8" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding Status}" Foreground="{DynamicResource SecondaryForeground}" FontSize="10" VerticalAlignment="Center" MaxWidth="180" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Status}" />
+              <Button x:Name="TunnelButton" Content="⇄" Classes="flat" Foreground="{Binding TunnelStatusColor}" Command="{Binding ToggleTunnelsCommand}" ToolTip.Tip="{Binding TunnelTooltip}" Padding="6,3" />
+              <Button Content="↻" Classes="flat" Command="{Binding ReconnectCommand}" ToolTip.Tip="重新连接" IsEnabled="{Binding !IsConnecting}" Padding="6,3" />
+              <Button Content="⏻" Classes="flat" Command="{Binding DisconnectCommand}" ToolTip.Tip="断开连接" Padding="6,3" />
+              <Button Content="▣" Classes="flat" Command="{Binding ToggleMaximizeTerminalCommand}" ToolTip.Tip="最大化 / 还原终端" Padding="6,3" />
+            </StackPanel>
+          </Grid>
+        </Border>
+        <controls:TerminalHost x:Name="Terminal" Grid.Row="1" Channel="{Binding Terminal}" TerminalFontSize="{Binding FontSize}" TerminalFontFamily="{Binding FontFamily}" HighlightText="{Binding HighlightTerminalText}" />
+        <Border Grid.Row="1" IsVisible="{Binding ShowOverlay}" Background="{DynamicResource AppBackground}">
+          <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14" MaxWidth="500" Margin="24">
+            <TextBlock Text="&gt;_" Foreground="{DynamicResource FaintForeground}" FontSize="32" FontFamily="Consolas" HorizontalAlignment="Center" />
+            <TextBlock Text="{Binding Status}" TextWrapping="Wrap" TextAlignment="Center" Foreground="{DynamicResource SecondaryForeground}" />
+            <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsConnecting}" MinWidth="0" Width="180" Height="2" />
+            <Button Content="重新连接" Classes="primary" Command="{Binding ReconnectCommand}" IsVisible="{Binding !IsConnecting}" HorizontalAlignment="Center" />
+          </StackPanel>
+        </Border>
+        <Border Grid.Row="2" Background="{DynamicResource PanelBackground}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,1,0,0" Padding="8,5">
+          <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="5">
+            <TextBox x:Name="CommandInput" Text="{Binding Commands.Input, Mode=TwoWay}" PlaceholderText="命令输入 · Enter 发送 · Alt+↑/↓ 历史" FontFamily="Consolas" FontSize="12" Foreground="{DynamicResource CommandForeground}" Padding="8,5" KeyDown="CommandKeyDown" ToolTip.Tip="{Binding Commands.Status}" />
+            <Button x:Name="HistoryButton" Grid.Column="1" Content="历史" Classes="flat" FontSize="11">
+              <Button.Flyout><Flyout><ScrollViewer MaxHeight="300" Width="420"><ItemsControl ItemsSource="{Binding Commands.History}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="commands:CommandHistoryEntry">
+                <Button Classes="flat" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Click="UseHistory" Tag="{Binding Text}"><TextBlock Text="{Binding Text}" FontFamily="Consolas" FontSize="11" TextTrimming="CharacterEllipsis" /></Button>
+              </DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer></Flyout></Button.Flyout>
+            </Button>
+            <Button Grid.Column="2" Content="发送" Classes="primary" Command="{Binding Commands.SendCommand}" FontSize="11" Padding="10,4" />
+            <Button Grid.Column="3" Content="⋯" Classes="flat" ToolTip.Tip="终端选项">
+              <Button.Flyout><MenuFlyout>
+                <MenuItem Header="复制选中内容" Click="CopyTerminal" /><MenuItem Header="粘贴到终端" Click="PasteTerminal" /><MenuItem Header="清屏" Click="ClearTerminal" /><Separator />
+                <MenuItem Header="终端进入文件面板当前目录" Command="{Binding TerminalDirectoryCommand}" /><MenuItem Header="放大字体" Command="{Binding IncreaseFontCommand}" /><MenuItem Header="缩小字体" Command="{Binding DecreaseFontCommand}" /><MenuItem Header="最大化 / 还原终端" Command="{Binding ToggleMaximizeTerminalCommand}" />
+              </MenuFlyout></Button.Flyout>
+            </Button>
+          </Grid>
+        </Border>
+      </Grid>
+      </controls:ConnectionAccentBorder>
+      <GridSplitter Grid.Row="1" ResizeDirection="Rows" Background="{DynamicResource RaisedBackground}" />
+      <TabControl Grid.Row="2" SelectedIndex="{Binding LowerTabIndex, Mode=TwoWay}" Background="{DynamicResource AppBackground}" Padding="0">
+        <TabControl.Styles><Style Selector="TabItem"><Setter Property="FontSize" Value="12" /><Setter Property="Padding" Value="14,5" /><Setter Property="MinHeight" Value="28" /></Style></TabControl.Styles>
+        <TabItem Header="文件"><files:FileBrowserView DataContext="{Binding Files}" /></TabItem>
+        <TabItem Header="命令"><commands:CommandPanelView DataContext="{Binding Commands}" /></TabItem>
+      </TabControl>
+    </Grid>
+    <Border x:Name="TunnelPanel" Grid.Column="1" IsVisible="{Binding ShowTunnels}" Width="300" Background="{DynamicResource PanelBackground}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="1,0,0,0">
+      <DockPanel>
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="14,8,6,8"><TextBlock Text="端口转发" VerticalAlignment="Center" /><Button Grid.Column="1" Content="×" Classes="flat" Command="{Binding ToggleTunnelsCommand}" /></Grid>
+        <Button DockPanel.Dock="Top" Content="＋ 新建隧道" Command="{Binding AddTunnelCommand}" Margin="10,0,10,10" Classes="primary" />
+        <TextBlock DockPanel.Dock="Bottom" Text="同一主机、SSH 端口和账号的标签共享隧道状态，可在任一标签启停；最后一个连接断开时释放。每 10 秒检测 TCP 可达性：绿色连通，红色失败，灰色停止。" TextWrapping="Wrap" FontSize="10" Foreground="{DynamicResource MutedForeground}" Margin="14" />
+        <ScrollViewer><ItemsControl ItemsSource="{Binding Tunnels}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="tunnels:TunnelViewModel">
+          <Border Padding="12" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1"><StackPanel Spacing="8">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8"><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}" /><StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5"><TextBlock Text="●" Foreground="{Binding StatusColor}" FontSize="10" VerticalAlignment="Center" /><TextBlock Text="{Binding Status}" Foreground="{Binding StatusColor}" FontSize="11" /></StackPanel></Grid>
+            <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryForeground}" FontSize="11" />
+            <TextBlock Text="{Binding Reason}" IsVisible="{Binding HasReason}" TextWrapping="Wrap" Foreground="{Binding StatusColor}" FontSize="11" />
+            <TextBlock Text="{Binding CheckedText}" Foreground="{DynamicResource MutedForeground}" FontSize="10" />
+            <StackPanel Orientation="Horizontal" Spacing="8"><Button Content="{Binding ActionText}" Command="{Binding ToggleCommand}" /><Button Content="检测" Classes="flat" Command="{Binding CheckCommand}" /><Button Name="EditTunnelRule" Content="编辑" Classes="flat" Command="{Binding EditCommand}" /><Button Content="删除规则" Classes="flat" Command="{Binding RemoveCommand}" /></StackPanel>
+          </StackPanel></Border>
+        </DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer>
+      </DockPanel>
+    </Border>
+  </Grid>
+</UserControl>

@@ -1,0 +1,23 @@
+<Project>
+  <Target Name="EmbedShellXNativeDependencies" BeforeTargets="AssignTargetPaths" DependsOnTargets="ResolvePackageAssets"
+          Condition="'$(ShellXBundleNativeLibraries)' == 'true'">
+    <Error Condition="'$(RuntimeIdentifier)' != 'win-x64'" Text="ShellX native bundling currently supports win-x64 only." />
+    <ItemGroup>
+      <_ShellXNativeLibrary Include="@(NativeCopyLocalItems)" Condition="'%(Extension)' == '.dll'" />
+      <_ShellXConPty Include="@(_ShellXNativeLibrary)" Condition="'%(Filename)%(Extension)' == 'conpty.dll'" />
+      <_ShellXConsoleHost Include="@(_ShellXConPty->'%(RootDir)%(Directory)../../../build/native/runtimes/x64/OpenConsole.exe')" />
+      <_ShellXConsoleHostArm64 Include="@(_ShellXConPty->'%(RootDir)%(Directory)../../../build/native/runtimes/arm64/OpenConsole.exe')" />
+      <EmbeddedResource Include="@(_ShellXNativeLibrary)" LogicalName="ShellX.Native/%(Filename)%(Extension)" />
+      <EmbeddedResource Include="@(_ShellXConsoleHost)" LogicalName="ShellX.Native/x64/OpenConsole.exe" />
+      <EmbeddedResource Include="@(_ShellXConsoleHostArm64)" LogicalName="ShellX.Native/arm64/OpenConsole.exe" />
+    </ItemGroup>
+    <Error Condition="'@(_ShellXNativeLibrary)' == ''" Text="No native dependencies were resolved for the AOT bundle." />
+  </Target>
+  <Target Name="RemoveBundledShellXNativeDependencies" AfterTargets="ComputeFilesToPublish"
+          Condition="'$(ShellXBundleNativeLibraries)' == 'true'">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(_ShellXNativeLibrary)" />
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Filename)%(Extension)' == 'OpenConsole.exe' or '%(Extension)' == '.pdb'" />
+    </ItemGroup>
+  </Target>
+</Project>

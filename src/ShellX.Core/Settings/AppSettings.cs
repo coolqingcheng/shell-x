@@ -1,0 +1,30 @@
+namespace ShellX.Core.Settings;
+
+public enum AppTheme { Dark, Light }
+
+public enum ProcessSortColumn { Cpu, Memory }
+
+public sealed record AppSettings
+{
+    public AppTheme Theme { get; init; } = AppTheme.Dark;
+    public int Version { get; init; } = 1;
+    public double TerminalFontSize { get; init; } = 14;
+    public string TerminalFontFamily { get; init; } = "Cascadia Mono,Consolas,monospace";
+    public string EditorFontFamily { get; init; } = "Cascadia Mono,Consolas,monospace";
+    public double EditorFontSize { get; init; } = 14;
+    public string LockPasswordHash { get; init; } = "";
+    public bool AutoLockEnabled { get; init; }
+    public int AutoLockMinutes { get; init; } = 15;
+    public bool ShowHiddenFiles { get; init; }
+    public bool HighlightTerminalText { get; init; } = true;
+    public bool AutoReconnectEnabled { get; init; } = true;
+    public int ReconnectIntervalSeconds { get; init; } = 5;
+    public ProcessSortColumn ProcessSortColumn { get; init; } = ProcessSortColumn.Cpu;
+    public bool ProcessSortDescending { get; init; } = true;
+}
+
+public interface ISettingsStore
+{
+    Task<AppSettings> LoadAsync(CancellationToken cancellationToken = default);
+    Task SaveAsync(AppSettings settings, CancellationToken cancellationToken = default);
+}

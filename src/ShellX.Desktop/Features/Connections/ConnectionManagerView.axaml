@@ -1,0 +1,41 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ShellX.Desktop.Features.Shell" xmlns:groups="using:ShellX.Desktop.Features.Connections"
+             xmlns:models="using:ShellX.Core.Connections" xmlns:controls="using:ShellX.Desktop.Controls" x:DataType="vm:MainWindowViewModel"
+             x:Class="ShellX.Desktop.Features.Connections.ConnectionManagerView">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="16,12" RowSpacing="12">
+    <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,230" ColumnSpacing="8">
+      <Button Name="NewManagedConnection" Content="＋ 新建连接" Classes="primary" Command="{Binding NewConnectionCommand}" ToolTip.Tip="Ctrl+N" />
+      <Button Name="NewConnectionFolder" Grid.Column="1" Content="新建文件夹" Command="{Binding NewFolderCommand}" ToolTip.Tip="在选中文件夹内创建 · Ctrl+Shift+N" />
+      <Button Grid.Column="2" Content="重命名" Command="{Binding RenameFolderCommand}" IsEnabled="{Binding CanManageFolder}" />
+      <Button Grid.Column="3" Content="删除空文件夹" Command="{Binding DeleteFolderCommand}" IsEnabled="{Binding CanManageFolder}" />
+      <TextBox Name="ConnectionSearch" Grid.Column="5" Text="{Binding Search, Mode=TwoWay}" PlaceholderText="搜索名称、地址、账号…" />
+    </Grid>
+    <Grid Grid.Row="1" ColumnDefinitions="200,5,*">
+      <Border BorderBrush="{DynamicResource BorderColor}" BorderThickness="1" Background="{DynamicResource PanelBackground}">
+        <TreeView Name="ConnectionFolders" ItemsSource="{Binding Groups}" SelectedItem="{Binding SelectedGroup, Mode=TwoWay}" Background="Transparent">
+          <TreeView.Styles><Style Selector="TreeViewItem"><Setter Property="IsExpanded" Value="True" /><Setter Property="Padding" Value="4,6" /></Style></TreeView.Styles>
+          <TreeView.ItemTemplate><TreeDataTemplate x:DataType="groups:ConnectionGroupViewModel" ItemsSource="{Binding Children}">
+            <StackPanel Orientation="Horizontal" Spacing="7"><PathIcon Width="14" Height="12" Foreground="{DynamicResource FolderForeground}" Data="M1,2 L6,2 8,4 15,4 15,12 1,12 Z" /><TextBlock Text="{Binding Name}" /><TextBlock Text="{Binding Count}" Foreground="{DynamicResource MutedForeground}" FontSize="11" /></StackPanel>
+          </TreeDataTemplate></TreeView.ItemTemplate>
+        </TreeView>
+      </Border>
+      <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="{DynamicResource BorderColor}" />
+      <Border Grid.Column="2" BorderBrush="{DynamicResource BorderColor}" BorderThickness="1">
+        <Grid RowDefinitions="Auto,*">
+          <Border Background="{DynamicResource PanelBackground}" Padding="12,8"><Grid ColumnDefinitions="*,180,100"><TextBlock Text="{Binding FolderCaption}" /><TextBlock Grid.Column="1" Text="主机地址" FontSize="11" Foreground="{DynamicResource MutedForeground}" /><TextBlock Grid.Column="2" Text="账号" FontSize="11" Foreground="{DynamicResource MutedForeground}" /></Grid></Border>
+          <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding VisibleConnections}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="models:ConnectionProfile">
+              <Button Classes="flat" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="12,10" Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).PickConnectionCommand}" CommandParameter="{Binding}" ToolTip.Tip="{Binding Address}">
+                <Button.ContextMenu><ContextMenu><MenuItem Header="新标签连接" Click="PickConnection" Tag="{Binding}" /><Separator /><MenuItem Header="编辑连接 / 移动到文件夹" Click="EditConnection" Tag="{Binding}" /><MenuItem Header="删除连接" Click="DeleteConnection" Tag="{Binding}" /></ContextMenu></Button.ContextMenu>
+                <Grid ColumnDefinitions="*,180,100"><Grid ColumnDefinitions="4,*" ColumnSpacing="9" Margin="0,0,10,0"><controls:ConnectionAccentBorder Appearance="Indicator" AccentColor="{Binding AccentColor}" Margin="0,2" /><StackPanel Grid.Column="1" Spacing="3"><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" /><TextBlock Text="{Binding Group}" Foreground="{DynamicResource MutedForeground}" FontSize="10" TextTrimming="CharacterEllipsis" /></StackPanel></Grid><TextBlock Grid.Column="1" Text="{Binding Host}" VerticalAlignment="Center" FontFamily="Consolas" FontSize="11" TextTrimming="CharacterEllipsis" /><TextBlock Grid.Column="2" Text="{Binding Username}" VerticalAlignment="Center" FontSize="11" TextTrimming="CharacterEllipsis" /></Grid>
+              </Button>
+            </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+          </ScrollViewer>
+          <TextBlock Grid.Row="1" IsVisible="{Binding HasNoConnections}" Text="这个文件夹还没有连接，点击“新建连接”添加。" Foreground="{DynamicResource MutedForeground}" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="16" TextWrapping="Wrap" />
+          <TextBlock Grid.Row="1" IsVisible="{Binding HasNoResults}" Text="没有匹配的连接" Foreground="{DynamicResource MutedForeground}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Grid>
+      </Border>
+    </Grid>
+    <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16"><TextBlock Text="{Binding ConnectionCount, StringFormat='{}{0} 个连接'}" Foreground="{DynamicResource MutedForeground}" FontSize="11" VerticalAlignment="Center" /><TextBlock Grid.Column="1" Text="点击连接即新开标签 · 右键编辑、移动或删除 · 选中左侧文件夹后创建子文件夹" Foreground="{DynamicResource MutedForeground}" FontSize="11" TextWrapping="Wrap" VerticalAlignment="Center" /><Button Grid.Column="2" Name="ExportConfiguration" Content="导出配置…" Command="{Binding ExportConfigurationCommand}" ToolTip.Tip="导出全部连接、文件夹、隧道和常规设置，不包含密码和私钥内容" /></Grid>
+  </Grid>
+</UserControl>

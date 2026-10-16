@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <title>ShellX</title>
+  <desc>A terminal prompt and a blue X on a dark slate tile.</desc>
+  <rect x="32" y="32" width="448" height="448" rx="88" fill="#142B41" stroke="#29465F" stroke-width="4" />
+  <polyline points="120,166 218,256 120,346" fill="none" stroke="#F5FAFF" stroke-width="38" stroke-linecap="round" stroke-linejoin="round" />
+  <polyline points="286,166 392,346" fill="none" stroke="#1795D3" stroke-width="38" stroke-linecap="round" />
+  <polyline points="392,166 286,346" fill="none" stroke="#4CC9FF" stroke-width="38" stroke-linecap="round" />
+</svg>

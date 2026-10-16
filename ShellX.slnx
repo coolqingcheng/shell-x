@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ShellX.Core/ShellX.Core.csproj" />
+    <Project Path="src/ShellX.Desktop/ShellX.Desktop.csproj" />
+    <Project Path="src/ShellX.Infrastructure/ShellX.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ShellX.Core.Tests/ShellX.Core.Tests.csproj" />
+    <Project Path="tests/ShellX.Desktop.Tests/ShellX.Desktop.Tests.csproj" />
+    <Project Path="tests/ShellX.Infrastructure.Tests/ShellX.Infrastructure.Tests.csproj" />
+  </Folder>
+</Solution>

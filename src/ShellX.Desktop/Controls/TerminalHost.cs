@@ -1,0 +1,79 @@
+using Avalonia;
+using System.Diagnostics.CodeAnalysis;
+using Avalonia.Controls;
+using Avalonia.Media;
+using Iciclecreek.Terminal;
+using Porta.Pty;
+using Avalonia.Styling;
+using ShellX.Desktop.Services;
+using ShellX.Core.Sessions;
+
+namespace ShellX.Desktop.Controls;
+
+// 仅适配控件与终端通道，不创建 SSH 连接。标签隐藏时保留此控件及其缓冲区。
+public sealed class TerminalHost : Border
+{
+    public static readonly StyledProperty<ITerminalChannel?> ChannelProperty = AvaloniaProperty.Register<TerminalHost, ITerminalChannel?>(nameof(Channel));
+    public static readonly StyledProperty<double> TerminalFontSizeProperty = AvaloniaProperty.Register<TerminalHost, double>(nameof(TerminalFontSize), 14);
+    public static readonly StyledProperty<string> TerminalFontFamilyProperty = AvaloniaProperty.Register<TerminalHost, string>(nameof(TerminalFontFamily), "Cascadia Mono,Consolas,monospace");
+    public static readonly StyledProperty<bool> HighlightTextProperty = AvaloniaProperty.Register<TerminalHost, bool>(nameof(HighlightText), true);
+    private TerminalHighlighter _highlighter = new();
+    private readonly TerminalControl _terminal = new()
+    {
+        FontFamily = new FontFamily("Cascadia Mono,Consolas,monospace"), FontSize = 14,
+        BufferSize = 5000,
+        AllowWindowOps = false, Process = ""
+    };
+    private ITerminalChannel? _attached;
+    public ITerminalChannel? Channel { get => GetValue(ChannelProperty); set => SetValue(ChannelProperty, value); }
+    public double TerminalFontSize { get => GetValue(TerminalFontSizeProperty); set => SetValue(TerminalFontSizeProperty, value); }
+    public string TerminalFontFamily { get => GetValue(TerminalFontFamilyProperty); set => SetValue(TerminalFontFamilyProperty, value); }
+    public bool HighlightText { get => GetValue(HighlightTextProperty); set => SetValue(HighlightTextProperty, value); }
+    public Task CopyAsync() => _terminal.CopyAsync();
+    public Task PasteAsync() => _terminal.PasteAsync();
+    public void ClearScreen() => _terminal.ClearScreen();
+    public void FocusTerminal() => _terminal.Focus();
+    // The terminal also resolves its compiled theme through this loader in its static constructor.
+    [DynamicDependency(DynamicallyAccessedMemberTypes.PublicMethods, "CompiledAvaloniaXaml.!XamlLoader", "Iciclecreek.Avalonia.Terminal")]
+    public TerminalHost()
+    {
+        ThemeService.Bind(_terminal, TerminalControl.BackgroundProperty, "AppBackground");
+        ThemeService.Bind(_terminal, TerminalControl.ForegroundProperty, "EditorForeground");
+        ActualThemeVariantChanged += (_, _) => _highlighter.LightTheme = ActualThemeVariant == ThemeVariant.Light;
+        Padding = new Thickness(12, 6, 4, 4); Child = _terminal;
+        Loaded += (_, _) => Attach();
+        DetachedFromVisualTree += (_, _) => { _terminal.DetachConnection(); _terminal.Dispose(); _attached = null; };
+    }
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == ChannelProperty && IsLoaded) Attach();
+        if (change.Property == TerminalFontSizeProperty) _terminal.FontSize = TerminalFontSize;
+        if (change.Property == TerminalFontFamilyProperty) _terminal.FontFamily = new FontFamily(TerminalFontFamily);
+        if (change.Property == HighlightTextProperty) _highlighter.Enabled = HighlightText;
+    }
+    private void Attach()
+    {
+        if (ReferenceEquals(_attached, Channel)) return;
+        _terminal.DetachConnection(); _attached = Channel;
+        if (Channel != null)
+        {
+            _highlighter = new() { Enabled = HighlightText, LightTheme = ActualThemeVariant == ThemeVariant.Light };
+            _terminal.AttachConnection(new RemotePtyConnection(Channel, _highlighter)); _terminal.Focus();
+        }
+    }
+}
+
+internal sealed class RemotePtyConnection(ITerminalChannel terminal, TerminalHighlighter highlighter) : IPtyConnection
+{
+    private readonly Stream _reader = new HighlightedTerminalStream(terminal.Stream, highlighter);
+    public event EventHandler<PtyExitedEventArgs>? ProcessExited { add { } remove { } }
+    public Stream ReaderStream => _reader;
+    public Stream WriterStream => terminal.Stream;
+    public int Pid => -1;
+    public int ExitCode => 0;
+    public bool WaitForExit(int milliseconds) => false;
+    public void Kill() { }
+    public void Resize(int cols, int rows) { try { terminal.Resize(cols, rows); } catch (ObjectDisposedException) { } }
+    public void Dispose() { /* 会话由 Workspace 持有，控件不重复释放。 */ }
+}
