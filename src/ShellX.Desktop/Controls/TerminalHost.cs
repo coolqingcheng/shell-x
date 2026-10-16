@@ -41,6 +41,9 @@ public sealed class TerminalHost : Border
         ThemeService.Bind(_terminal, TerminalControl.ForegroundProperty, "EditorForeground");
         ActualThemeVariantChanged += (_, _) => _highlighter.LightTheme = ActualThemeVariant == ThemeVariant.Light;
         Padding = new Thickness(12, 6, 4, 4); Child = _terminal;
+        var contextMenu = BuildContextMenu();
+        ContextMenu = contextMenu;
+        _terminal.ContextMenu = contextMenu;
         Loaded += (_, _) => Attach();
         DetachedFromVisualTree += (_, _) => { _terminal.DetachConnection(); _terminal.Dispose(); _attached = null; };
     }
@@ -52,6 +55,18 @@ public sealed class TerminalHost : Border
         if (change.Property == TerminalFontFamilyProperty) _terminal.FontFamily = new FontFamily(TerminalFontFamily);
         if (change.Property == HighlightTextProperty) _highlighter.Enabled = HighlightText;
     }
+    private ContextMenu BuildContextMenu()
+    {
+        var menu = new ContextMenu();
+        var copy = new MenuItem { Header = "复制选中内容" };
+        copy.Click += async (_, _) => await CopyAsync();
+        var paste = new MenuItem { Header = "粘贴剪贴板内容" };
+        paste.Click += async (_, _) => await PasteAsync();
+        menu.Items.Add(copy);
+        menu.Items.Add(paste);
+        return menu;
+    }
+
     private void Attach()
     {
         if (ReferenceEquals(_attached, Channel)) return;
