@@ -10,15 +10,20 @@
 dotnet run --project src/ShellX.Desktop
 ```
 
-生成 Windows x64 独立程序：
+生成 Windows x64 Native AOT 单文件程序（默认）：
 
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/publish.ps1
+```bat
+build.bat
 ```
 
-输出：`artifacts/release/win-x64/ShellX.exe`，包含 .NET 运行时，无需在使用电脑上另行安装 .NET。首次启动会解压所需的原生组件到 .NET 的用户临时目录。
+也可以直接调用底层脚本：
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/publish.ps1 -Aot
+```
 
-默认发布脚本会先更新普通 `src/ShellX.Desktop/bin/Release/net10.0`，再生成运行时目录及发布包，避免普通 Release 留在旧版本。日常运行可使用 `scripts/start.ps1`，它优先启动上述独立发布程序。使用 `-BuildArtifactsPath` 时产物保持在指定独立目录，常规 `bin/Release` 不会同步。
+输出：`artifacts/release/win-x64-aot/ShellX.exe`，无需在使用电脑上另行安装 .NET。首次启动会将内嵌的原生组件释放到 `%LOCALAPPDATA%/ShellX/native/win-x64/<内容版本>/`。
+
+根目录 `build.bat` 默认调用 `scripts/publish.ps1 -Aot`，生成 Native AOT 单文件包。需要普通自包含单文件时可直接调用 `scripts/publish.ps1`；使用 `-BuildArtifactsPath` 时产物保持在指定独立目录，常规 `bin/Release` 不会同步。
 
 Native AOT 发布入口：
 
