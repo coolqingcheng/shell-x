@@ -96,16 +96,13 @@ public partial class ServerMonitorViewModel(string host, IDialogService dialogs,
     [ObservableProperty] private string _response = "—";
     [ObservableProperty] private IReadOnlyList<double> _responseHistory = [];
     [ObservableProperty] private bool _isMonitoring;
-    [ObservableProperty] private bool _isPaused;
-    public string PauseLabel => IsPaused ? "继续" : "暂停";
-    partial void OnIsPausedChanged(bool value) { OnPropertyChanged(nameof(PauseLabel)); Status = value ? "已暂停监控" : "正在采样…"; }
 
     public void Start(IServerMonitor? source, CancellationToken token)
     {
         _source = source; _previous = null; _latest = null; _lastError = null; ++_generation;
         Networks.Clear(); Processes.Clear(); Disks.Clear(); SelectedNetwork = null; ResponseHistory = [];
         Cpu = Memory = Swap = 0; CpuText = MemoryText = SwapText = Uptime = Load = Response = "—";
-        IsPaused = false; IsMonitoring = source != null;
+        IsMonitoring = source != null;
         if (source == null) { Status = "当前连接不提供系统监控"; return; }
         _cancel = CancellationTokenSource.CreateLinkedTokenSource(token);
         Status = "正在采样…"; _loop = PollAsync(_cancel.Token);
@@ -117,7 +114,7 @@ public partial class ServerMonitorViewModel(string host, IDialogService dialogs,
         {
             while (!token.IsCancellationRequested)
             {
-                if (!IsPaused) await SampleAsync(token);
+                await SampleAsync(token);
                 if (!IsMonitoring) break;
                 await Task.Delay(_lastError == null ? 2000 : 6000, token);
             }
@@ -175,7 +172,6 @@ public partial class ServerMonitorViewModel(string host, IDialogService dialogs,
         _previous = data;
     }
 
-    [RelayCommand] private void TogglePause() => IsPaused = !IsPaused;
     [RelayCommand] private Task RefreshAsync() => _cancel == null ? Task.CompletedTask : SampleAsync(_cancel.Token);
     [RelayCommand] private Task OpenDiskAsync(DiskRow? disk) => disk == null ? Task.CompletedTask : navigate(disk.Path);
     [RelayCommand]

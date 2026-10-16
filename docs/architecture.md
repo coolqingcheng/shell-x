@@ -300,7 +300,7 @@ Assets/ShellX.svg 为图标源稿，脚本导出 PNG 与多尺寸 ICO；Applicat
 
 Core 的 ConnectionCatalog 定义连接及文件夹快照，ConnectionFolders 处理路径规范、祖先展开及名称校验；ConnectionProfile.Group 继续保存文件夹路径，兼容原有平面分组。Infrastructure 的 connections.json 在保留版本 1 的基础上增加 Folders 字段，保存空目录和多层级目录；旧 SaveAsync 只更新连接并保留 Folders，目录和连接变更通过一次原子快照写入。Desktop 的连接目录编辑由目录门锁串行提交，文件夹重命名同步更新后代和连接路径；非空目录不能直接删除。连接编辑窗口提供文件夹选择，新建连接默认使用管理器当前文件夹。嵌套弹窗使用当前活动对话框作为所属窗口，继续受全局锁定保护。
 
-Core 的 ConnectionEndpoint 统一按规范主机名、SSH 端口、账号标识共享边界，隧道与监控使用一致的规则，不进行 DNS 别名归并。Desktop 的 SharedMonitorRegistry 为每个地址维护同一个 ServerMonitorViewModel 和唯一轮询循环，各标签持有租约并提供各自 IServerMonitor 来源；终端和 SFTP 不共享。采样借用一个仍连通标签的 SSH exec 通道，不新增监控专用 SSH 连接。关闭来源标签先取消并等待其正在执行的采样，再释放 SSH，之后使用其他标签来源；最后一个来源断开时停止轮询，最后一个标签关闭时移除共享组。暂停、网卡选择、曲线和排序随共享模型保留；磁盘导航按当前选中标签路由。切换连接配置地址后，重连时重新取得对应地址的监控租约。
+Core 的 ConnectionEndpoint 统一按规范主机名、SSH 端口、账号标识共享边界，隧道与监控使用一致的规则，不进行 DNS 别名归并。Desktop 的 SharedMonitorRegistry 为每个地址维护同一个 ServerMonitorViewModel 和唯一轮询循环，各标签持有租约并提供各自 IServerMonitor 来源；终端和 SFTP 不共享。采样借用一个仍连通标签的 SSH exec 通道，不新增监控专用 SSH 连接。关闭来源标签先取消并等待其正在执行的采样，再释放 SSH，之后使用其他标签来源；最后一个来源断开时停止轮询，最后一个标签关闭时移除共享组。网卡选择、曲线和排序随共享模型保留；磁盘导航按当前选中标签路由。切换连接配置地址后，重连时重新取得对应地址的监控租约。
 
 
 连接标识色使用 ConnectionProfile.AccentColor 保存不透明 #RRGGBB 或空字符串。Core 校验格式，Infrastructure 的 StoredConnection 源生成 DTO 保留旧配置空值默认和颜色字段，连接编辑器 Build 显式带回颜色；现有 with 更新、文件夹移动和快捷命令保存继续保留该值。配色不进入 ConnectionEndpoint，因此不会拆分原有共享监控或隧道。

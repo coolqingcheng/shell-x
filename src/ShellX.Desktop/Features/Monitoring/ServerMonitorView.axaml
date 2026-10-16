@@ -5,7 +5,7 @@
   </UserControl.Styles>
   <ScrollViewer HorizontalScrollBarVisibility="Disabled">
     <StackPanel Margin="10,8" Spacing="9">
-      <Grid ColumnDefinitions="*,Auto"><TextBlock Text="{Binding Hostname}" Foreground="{DynamicResource SuccessForeground}" TextTrimming="CharacterEllipsis" /><StackPanel Grid.Column="1" Orientation="Horizontal"><Button Content="{Binding PauseLabel}" Command="{Binding TogglePauseCommand}" Classes="flat" FontSize="10" Padding="4,2" /><Button Content="↻" Command="{Binding RefreshCommand}" Classes="flat" Padding="4,2" ToolTip.Tip="刷新监控" /></StackPanel></Grid>
+      <Grid ColumnDefinitions="*,Auto"><TextBlock Text="{Binding Hostname}" Foreground="{DynamicResource SuccessForeground}" TextTrimming="CharacterEllipsis" /><Button Grid.Column="1" Content="↻" Command="{Binding RefreshCommand}" Classes="flat" Padding="4,2" ToolTip.Tip="刷新监控" /></Grid>
       <Grid ColumnDefinitions="*,Auto"><TextBlock Text="{Binding Address}" FontSize="11" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Address}" VerticalAlignment="Center" /><Button Grid.Column="1" Content="复制" Classes="flat" FontSize="10" Padding="4,2" Click="CopyAddress" /></Grid>
       <Button Content="系统信息" Command="{Binding SystemInfoCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="11" Padding="6,4" />
       <Grid ColumnDefinitions="38,*" RowDefinitions="Auto,Auto" RowSpacing="5"><TextBlock Text="运行" FontSize="11" Foreground="{DynamicResource MutedForeground}" /><TextBlock Grid.Column="1" Text="{Binding Uptime}" FontSize="11" /><TextBlock Grid.Row="1" Text="负载" FontSize="11" Foreground="{DynamicResource MutedForeground}" /><TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Load}" FontFamily="Consolas" FontSize="11" /></Grid>

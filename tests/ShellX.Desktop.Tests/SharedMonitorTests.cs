@@ -9,7 +9,7 @@ namespace ShellX.Desktop.Tests;
 public sealed class SharedMonitorTests
 {
     [AvaloniaFact]
-    public async Task SameEndpointSamplesOnceAndRetainsPauseHistoryAndNavigationWhenFirstTabCloses()
+    public async Task SameEndpointSamplesOnceAndRetainsHistoryAndNavigationWhenFirstTabCloses()
     {
         var registry = new SharedMonitorRegistry(null!, NullLoggerFactory.Instance);
         var profile = new ConnectionProfile { Host = "EXAMPLE.com.", Username = "root" };
@@ -24,11 +24,10 @@ public sealed class SharedMonitorTests
         await first.Monitor.RefreshCommand.ExecuteAsync(null);
         Assert.Equal(2, one.Reads); Assert.Equal(0, two.Reads);
         var history = first.Monitor.ResponseHistory;
-        first.Monitor.TogglePauseCommand.Execute(null); Assert.True(second.Monitor.IsPaused);
         selected = 2;
         await first.Monitor.OpenDiskCommand.ExecuteAsync(first.Monitor.Disks.Single());
         Assert.Equal(["2:/data"], navigation);
-        await first.DisposeAsync(); Assert.True(second.Monitor.IsMonitoring); Assert.True(second.Monitor.IsPaused);
+        await first.DisposeAsync(); Assert.True(second.Monitor.IsMonitoring);
         Assert.Same(history, second.Monitor.ResponseHistory);
         await second.Monitor.RefreshCommand.ExecuteAsync(null);
         Assert.Equal(1, two.Reads); Assert.Equal("two", second.Monitor.Hostname);
