@@ -18,7 +18,28 @@ internal sealed class LinuxServerMonitor(SshClient ssh) : IServerMonitor
         printf '__SX_CPU__\n'; head -n 1 /proc/stat
         printf '__SX_MEMORY__\n'; cat /proc/meminfo
         printf '__SX_NETWORK__\n'; cat /proc/net/dev
-        printf '__SX_PROCESS__\n'; ps -eo pid=,pcpu=,rss=,comm= 2>/dev/null
+        printf '__SX_PROCESS__\n'
+        processes=$(ps -eo pid=,pcpu=,rss=,comm= 2>/dev/null)
+        if ! printf '%s\n' "$processes" | awk 'NF >= 4 { found=1 } END { exit(found ? 0 : 1) }'; then
+            processes=$(ps -eo pid,pcpu,rss,comm 2>/dev/null)
+        fi
+        if ! printf '%s\n' "$processes" | awk 'NF >= 4 { found=1 } END { exit(found ? 0 : 1) }'; then
+            processes=$(ps -ax -o pid,pcpu,rss,comm 2>/dev/null)
+        fi
+        if printf '%s\n' "$processes" | awk 'NF >= 4 { found=1 } END { exit(found ? 0 : 1) }'; then
+            printf '%s\n' "$processes"
+        else
+            page_size=$(getconf PAGESIZE 2>/dev/null || printf '4096\n')
+            for proc_stat in /proc/[0-9]*/stat; do
+                [ -r "$proc_stat" ] || continue
+                proc_dir=${proc_stat%/stat}
+                pid=${proc_dir#/proc/}
+                rss_pages=$(awk '{print $2}' "$proc_dir/statm" 2>/dev/null)
+                [ -n "$rss_pages" ] || continue
+                comm=$(tr -d '\n' < "$proc_dir/comm" 2>/dev/null)
+                printf '%s 0 %s %s\n' "$pid" "$((rss_pages * page_size))" "$comm"
+            done
+        fi
         printf '__SX_DISK__\n'; df -Pk -x tmpfs -x devtmpfs -x squashfs 2>/dev/null
         """;
 
