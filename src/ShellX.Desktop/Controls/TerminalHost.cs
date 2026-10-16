@@ -1,6 +1,8 @@
 using Avalonia;
 using System.Diagnostics.CodeAnalysis;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Iciclecreek.Terminal;
 using Porta.Pty;
@@ -44,6 +46,9 @@ public sealed class TerminalHost : Border
         var contextMenu = BuildContextMenu();
         ContextMenu = contextMenu;
         _terminal.ContextMenu = contextMenu;
+        AddHandler(InputElement.PointerPressedEvent, OnTerminalPointerPressed, RoutingStrategies.Tunnel, true);
+        AddHandler(InputElement.PointerReleasedEvent, OnTerminalPointerReleased, RoutingStrategies.Tunnel, true);
+        AddHandler(InputElement.ContextRequestedEvent, OnTerminalContextRequested, RoutingStrategies.Bubble, true);
         Loaded += (_, _) => Attach();
         DetachedFromVisualTree += (_, _) => { _terminal.DetachConnection(); _terminal.Dispose(); _attached = null; };
     }
@@ -55,6 +60,26 @@ public sealed class TerminalHost : Border
         if (change.Property == TerminalFontFamilyProperty) _terminal.FontFamily = new FontFamily(TerminalFontFamily);
         if (change.Property == HighlightTextProperty) _highlighter.Enabled = HighlightText;
     }
+    private void OnTerminalPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(this).Properties.IsRightButtonPressed) return;
+        e.Handled = true;
+    }
+
+    private void OnTerminalPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (e.InitialPressMouseButton != MouseButton.Right || ContextMenu is not { IsOpen: false } menu) return;
+        menu.Open(this);
+        e.Handled = true;
+    }
+
+    private void OnTerminalContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (ContextMenu is not { IsOpen: false } menu) return;
+        menu.Open(this);
+        e.Handled = true;
+    }
+
     private ContextMenu BuildContextMenu()
     {
         var menu = new ContextMenu();
