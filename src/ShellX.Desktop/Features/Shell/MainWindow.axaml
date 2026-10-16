@@ -35,13 +35,13 @@
     <GridSplitter Grid.Row="1" Grid.Column="1" ResizeDirection="Columns" Background="{DynamicResource BorderColor}" />
     <Grid Grid.Row="1" Grid.Column="2">
       <StackPanel IsVisible="{Binding HasNoTabs}" VerticalAlignment="Center" HorizontalAlignment="Center" Width="520" Spacing="20" Margin="32">
-        <Image Source="/Assets/ShellX.png" Width="80" Height="80" Margin="0,0,0,8" />
-        <TextBlock Text="ShellX" FontSize="36" FontWeight="Light" />
-        <TextBlock Text="终端、文件与服务器状态，集中在一个工作区。" Foreground="{DynamicResource MutedForeground}" FontSize="15" />
+        <Image Source="/Assets/ShellX.png" Width="80" Height="80" Margin="0,0,0,8" HorizontalAlignment="Center" />
+        <TextBlock Text="ShellX" FontSize="36" FontWeight="Light" HorizontalAlignment="Center" TextAlignment="Center" />
+        <TextBlock Text="终端、文件与服务器状态，集中在一个工作区。" Foreground="{DynamicResource MutedForeground}" FontSize="15" HorizontalAlignment="Center" TextAlignment="Center" />
         <Border Height="1" Background="{DynamicResource BorderColor}" Margin="0,4" />
-        <Button Content="打开连接管理器" Classes="primary" Command="{Binding ToggleConnectionsCommand}" HorizontalAlignment="Left" />
-        <TextBlock Text="点击顶部文件夹管理连接，连接后左侧显示实时监控。" FontSize="12" Foreground="{DynamicResource SecondaryForeground}" />
-        <TextBlock Text="密码 / 私钥认证 · 多标签 · SFTP · 端口转发" FontSize="11" Foreground="{DynamicResource PlaceholderForeground}" />
+        <Button Content="打开连接管理器" Classes="primary" Command="{Binding ToggleConnectionsCommand}" HorizontalAlignment="Center" />
+        <TextBlock Text="点击顶部文件夹管理连接，连接后左侧显示实时监控。" FontSize="12" Foreground="{DynamicResource SecondaryForeground}" HorizontalAlignment="Center" TextAlignment="Center" />
+        <TextBlock Text="密码 / 私钥认证 · 多标签 · SFTP · 端口转发" FontSize="11" Foreground="{DynamicResource PlaceholderForeground}" HorizontalAlignment="Center" TextAlignment="Center" />
       </StackPanel>
       <ItemsControl ItemsSource="{Binding Tabs}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><Grid /></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate x:DataType="workspace:WorkspaceTabViewModel"><workspace:WorkspaceView IsVisible="{Binding IsSelected}" /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
     </Grid>
