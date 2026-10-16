@@ -104,6 +104,40 @@ public sealed class LocalFileSystem(string? initialDirectory = null) : ILocalFil
         else File.Move(path, target);
     });
 
+    public Task DeleteAsync(string path, CancellationToken cancellationToken = default) => Task.Run(() =>
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var full = Path.GetFullPath(path);
+        var root = Path.GetPathRoot(full);
+        if (root != null && string.Equals(Path.TrimEndingDirectorySeparator(full), Path.TrimEndingDirectorySeparator(root), StringComparison.OrdinalIgnoreCase))
+            throw new IOException("不能删除磁盘根目录。");
+        FileAttributes attributes;
+        try { attributes = File.GetAttributes(full); }
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+        { throw new IOException("本地项目不存在或已被其他程序删除。", ex); }
+        FileSystemInfo entry = (attributes & FileAttributes.Directory) != 0 ? new DirectoryInfo(full) : new FileInfo(full);
+        DeleteEntry(entry, cancellationToken);
+    }, cancellationToken);
+
+    private static void DeleteEntry(FileSystemInfo entry, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if ((entry.Attributes & FileAttributes.ReparsePoint) != 0)
+        {
+            if (entry is DirectoryInfo) Directory.Delete(entry.FullName, false);
+            else File.Delete(entry.FullName);
+            return;
+        }
+        if (entry is not DirectoryInfo directory)
+        {
+            File.Delete(entry.FullName);
+            return;
+        }
+        foreach (var child in directory.EnumerateFileSystemInfos()) DeleteEntry(child, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        Directory.Delete(directory.FullName, false);
+    }
+
     public Task OpenAsync(string path)
     {
         Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });

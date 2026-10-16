@@ -21,5 +21,6 @@ public interface ILocalFileSystem
     Task<TextDocument> SaveTextAsync(TextDocument original, string content, CancellationToken cancellationToken = default);
     Task CreateAsync(string directory, string name, bool folder);
     Task RenameAsync(string path, string name);
+    Task DeleteAsync(string path, CancellationToken cancellationToken = default);
     Task OpenAsync(string path);
 }

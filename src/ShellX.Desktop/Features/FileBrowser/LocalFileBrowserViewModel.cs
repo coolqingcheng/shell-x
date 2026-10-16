@@ -113,6 +113,19 @@ public partial class LocalFileBrowserViewModel(ILocalFileSystem files, IDialogSe
         if (name != null && name != entry.Name) await RunAsync(async () => { await files.RenameAsync(entry.FullPath, name); await RefreshAsync(); });
     }
     [RelayCommand]
+    private async Task DeleteAsync()
+    {
+        var entries = SelectedEntries.Count > 0 ? SelectedEntries.ToArray() : SelectedEntry == null ? [] : new[] { SelectedEntry };
+        if (entries.Length == 0) return;
+        if (!await dialogs.ConfirmAsync("删除本地项目", $"永久删除以下 {entries.Length} 个项目？目录会递归删除，符号链接只删除链接本身。\n\n" + string.Join("\n", entries.Take(8).Select(e => e.FullPath)) + "\n\n此操作不会进入回收站。", true)) return;
+        await RunAsync(async () =>
+        {
+            foreach (var entry in entries) await files.DeleteAsync(entry.FullPath, _lifetime.Token);
+            await RefreshAsync();
+        });
+    }
+
+    [RelayCommand]
     private async Task UploadAsync()
     {
         if (!IsRemoteAvailable) return;

@@ -198,7 +198,7 @@ SSH.NET 的 SSH 与 SFTP 客户端按独立连接管理，不假设它们共享�
 - 文本编辑采用独立编辑面板，首版支持 UTF-8，检测二进制文件并设置大小上限；保存前检查远程文件是否已变化。
 - 权限对话框提供所有者/组/其他的 rwx 复选框和八进制数值，保留并明确处理特殊权限位。
 - 首版权限修改只作用于所选文件或目录；递归权限修改需单独明确范围。
-- 递归下载/删除明确符号链接边界，默认不递归跟随符号链接，避免循环和跨目录操作。
+- 递归下载/删除明确符号链接边界，默认不递归跟随符号链接，避免循环和跨目录操作；本地删除与远程删除同样只删除链接本身，目录逐项递归并在取消时停止。
 - 删除远程文件不可依赖 Windows 回收站语义，对实际路径和操作范围做明确确认。
 - SSH.NET 客户端访问和传输并发由会话服务协调，首版限制并发，避免同一个 SFTP 客户端被任意线程同时调用。
 
@@ -259,7 +259,7 @@ Native AOT 适配使用 Avalonia 编译绑定和 System.Text.Json 源生成。In
 
 AOT 发布配置独立于普通单文件发布。Desktop 的 NativeBundle.targets 从当前 NuGet 解析结果取得 Windows x64 原生 DLL 和匹配版本的 OpenConsole 辅助程序，作为资源嵌入原生 EXE，并从发布文件列表移除这些独立组件。NativeDependencies 在 Avalonia 启动前按资源内容 SHA-256 确定缓存版本，使用命名互斥锁协调多实例、临时文件与原子替换释放组件，校验已有缓存后通过绝对路径预加载原生 DLL。缓存位于当前用户 LocalApplicationData；分发包只需一个 EXE，运行时仍需要可写缓存。第三方裁剪分析告警保留，不以构建配置代替原生运行验证。
 
-文件页签使用本地/远程双栏：`Core/Files/LocalEntry.cs` 定义本地模型与 `ILocalFileSystem`，`Infrastructure/Files/LocalFileSystem.cs` 实现本地磁盘枚举、创建、重命名和系统打开。Desktop 的 `LocalFileBrowserViewModel` 维护本地导航、筛选和选择；原 `FileBrowserViewModel` 保留远程操作，并协调双向传输与统一任务列表。两个 View 独立处理快捷键和选择事件；本地面板不依赖 SSH 会话。实际文件传输继续由 `IRemoteFileSystem` 完成，上传目标取右侧当前目录，下载目标取左侧当前目录。
+文件页签使用本地/远程双栏：`Core/Files/LocalEntry.cs` 定义本地模型与 `ILocalFileSystem`，`Infrastructure/Files/LocalFileSystem.cs` 实现本地磁盘枚举、创建、重命名、递归删除和系统打开。Desktop 的 `LocalFileBrowserViewModel` 维护本地导航、筛选和选择；原 `FileBrowserViewModel` 保留远程操作，并协调双向传输与统一任务列表。两个 View 独立处理快捷键和选择事件；本地面板不依赖 SSH 会话。实际文件传输继续由 `IRemoteFileSystem` 完成，上传目标取右侧当前目录，下载目标取左侧当前目录。
 
 目录上传由 `ILocalFileSystem.PlanDirectoryUploadAsync` 在后台扫描，生成包含目录、文件、总字节数和跳过链接数量的计划。Core 的 `DirectoryUploader` 编排目录创建、已有目录合并、文件上传和总进度，不引用 UI 或 SSH.NET。Desktop 负责合并确认、任务状态和取消。空目录与隐藏文件包含在计划内；本地链接不跟随，远端同名项目类型不兼容或为链接时明确失败，避免当作普通目录继续写入。
 

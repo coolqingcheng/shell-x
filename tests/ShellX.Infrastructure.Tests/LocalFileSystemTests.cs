@@ -59,6 +59,42 @@ public sealed class LocalFileSystemTests
         finally { Directory.Delete(root, true); }
     }
     [Fact]
+    public async Task LocalDeleteRemovesFilesAndDirectories()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "shellx-delete-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, "folder", "nested"));
+        await File.WriteAllTextAsync(Path.Combine(root, "file.txt"), "delete");
+        await File.WriteAllTextAsync(Path.Combine(root, "folder", "nested", "child.txt"), "delete");
+        try
+        {
+            var files = new LocalFileSystem(root);
+            await files.DeleteAsync(Path.Combine(root, "file.txt"));
+            Assert.False(File.Exists(Path.Combine(root, "file.txt")));
+            await files.DeleteAsync(Path.Combine(root, "folder"));
+            Assert.False(Directory.Exists(Path.Combine(root, "folder")));
+            await Assert.ThrowsAsync<IOException>(() => files.DeleteAsync(Path.Combine(root, "missing")));
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public async Task DeletingLocalSymbolicLinkOnlyRemovesTheLinkWhenSupported()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "shellx-link-delete-" + Guid.NewGuid().ToString("N"));
+        var target = Path.Combine(root, "target"); var link = Path.Combine(root, "link");
+        Directory.CreateDirectory(target); await File.WriteAllTextAsync(Path.Combine(target, "keep.txt"), "keep");
+        try
+        {
+            try { Directory.CreateSymbolicLink(link, target); }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException) { return; }
+            await new LocalFileSystem(root).DeleteAsync(link);
+            Assert.False(Directory.Exists(link));
+            Assert.True(File.Exists(Path.Combine(target, "keep.txt")));
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
+
+    [Fact]
     public async Task LocalChangesRejectPathsAndNeverOverwriteExistingFiles()
     {
         var root = Path.Combine(Path.GetTempPath(), "shellx-local-" + Guid.NewGuid().ToString("N"));

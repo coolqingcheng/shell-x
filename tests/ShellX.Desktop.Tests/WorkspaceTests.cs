@@ -89,6 +89,8 @@ public sealed class WorkspaceTests
             Assert.Equal("target.txt", browser.Local.SelectedEntry?.Name);
             menu = localGrid.ContextMenu!.Items.OfType<MenuItem>().Single(i => Equals(i.Header, "编辑文本"));
             Assert.Same(browser.Local.EditTextCommand, menu.Command); Assert.True(menu.IsEnabled);
+            menu = localGrid.ContextMenu!.Items.OfType<MenuItem>().Single(i => Equals(i.Header, "删除    Delete"));
+            Assert.Same(browser.Local.DeleteCommand, menu.Command);
             localGrid.ContextMenu.Close(); await browser.Local.EditTextCommand.ExecuteAsync(null);
             Assert.Equal("local edited\n", await File.ReadAllTextAsync(Path.Combine(localRoot, "target.txt")));
             Assert.Equal("original", await File.ReadAllTextAsync(Path.Combine(localRoot, "first.txt")));
