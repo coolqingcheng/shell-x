@@ -40,6 +40,8 @@ public partial class MainWindowViewModel : ObservableObject
     public bool CanManageFolder => SelectedGroup is { Path.Length: > 0 };
     public string FolderCaption => SelectedGroup?.Name ?? "全部连接";
     private AppSettings _settings = new();
+    public AppSettings LayoutSettings => _settings;
+    public event Action<AppSettings>? LayoutChanged;
     private bool _configurationLoaded;
     public ObservableCollection<ConnectionGroupViewModel> Groups { get; } = [];
     public ObservableCollection<WorkspaceTabViewModel> Tabs { get; } = [];
@@ -302,6 +304,40 @@ public partial class MainWindowViewModel : ObservableObject
         }
         catch (Exception ex) { Status = "进程排序保存失败：" + ex.Message; }
     }
+    private async Task SaveLayoutAsync(Func<AppSettings, AppSettings> update)
+    {
+        var settings = update(_settings);
+        if (settings == _settings) return;
+        try
+        {
+            await _settingsStore.SaveAsync(settings);
+            _settings = settings;
+            LayoutChanged?.Invoke(settings);
+            Status = "布局已保存";
+        }
+        catch (Exception ex) { Status = "布局保存失败：" + ex.Message; }
+    }
+    public Task SaveMonitorPaneWidthAsync(double width)
+        => SaveLayoutAsync(settings => settings with { MonitorPaneWidth = Math.Clamp(width, 160, 420) });
+    public Task SaveWorkspaceLayoutAsync(double terminalStar, double lowerStar)
+        => SaveLayoutAsync(settings => settings with { TerminalPaneStar = Math.Clamp(lowerStar <= 0 ? terminalStar : terminalStar / lowerStar, 0.3, 8) });
+    public Task SaveFilePaneLayoutAsync(double localStar, double remoteStar)
+        => SaveLayoutAsync(settings => settings with { LocalPaneStar = Math.Clamp(remoteStar <= 0 ? localStar : localStar / remoteStar, 0.3, 8) });
+    public Task SaveRemoteTreeWidthAsync(double width)
+        => SaveLayoutAsync(settings => settings with { RemoteTreeWidth = Math.Clamp(width, 100, 320) });
+    [RelayCommand]
+    private Task ResetLayoutAsync()
+    {
+        var defaults = new AppSettings();
+        return SaveLayoutAsync(settings => settings with
+        {
+            MonitorPaneWidth = defaults.MonitorPaneWidth,
+            TerminalPaneStar = defaults.TerminalPaneStar,
+            LocalPaneStar = defaults.LocalPaneStar,
+            RemoteTreeWidth = defaults.RemoteTreeWidth
+        });
+    }
+
     [RelayCommand]
     private async Task SettingsAsync()
     {

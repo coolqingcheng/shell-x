@@ -48,7 +48,7 @@
         </Border>
       </Grid>
       </controls:ConnectionAccentBorder>
-      <GridSplitter Grid.Row="1" ResizeDirection="Rows" Background="{DynamicResource RaisedBackground}" />
+      <GridSplitter x:Name="WorkspaceSplitter" Grid.Row="1" ResizeDirection="Rows" Background="{DynamicResource RaisedBackground}" DragCompleted="WorkspaceSplitterDragCompleted" />
       <TabControl Grid.Row="2" SelectedIndex="{Binding LowerTabIndex, Mode=TwoWay}" Background="{DynamicResource AppBackground}" Padding="0">
         <TabControl.Styles><Style Selector="TabItem"><Setter Property="FontSize" Value="12" /><Setter Property="Padding" Value="14,5" /><Setter Property="MinHeight" Value="28" /></Style></TabControl.Styles>
         <TabItem Header="文件"><files:FileBrowserView DataContext="{Binding Files}" /></TabItem>

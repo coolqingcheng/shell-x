@@ -37,10 +37,10 @@
     </Grid>
     <Border Grid.Row="2" IsVisible="{Binding HasError}" Background="{DynamicResource WarningBackground}" Padding="12,7"><TextBlock Text="{Binding Error}" Foreground="{DynamicResource WarningForeground}" FontSize="12" TextWrapping="Wrap" /></Border>
     <Grid Grid.Row="3" ColumnDefinitions="Auto,4,*">
-      <Border Width="150" MinWidth="80" IsVisible="{Binding ShowTree}" Background="{DynamicResource TreeBackground}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,1,0">
+      <Border x:Name="RemoteTree" Width="150" MinWidth="80" IsVisible="{Binding ShowTree}" Background="{DynamicResource TreeBackground}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,1,0">
         <ScrollViewer HorizontalScrollBarVisibility="Auto"><ItemsControl ItemsSource="{Binding DirectoryRoots}" Margin="4"><ItemsControl.ItemTemplate><DataTemplate x:DataType="vm:DirectoryNodeViewModel"><local:DirectoryNodeView /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer>
       </Border>
-      <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="{DynamicResource BorderColor}" IsVisible="{Binding ShowTree}" />
+      <GridSplitter x:Name="RemoteTreeSplitter" Grid.Column="1" ResizeDirection="Columns" Background="{DynamicResource BorderColor}" IsVisible="{Binding ShowTree}" DragCompleted="RemoteTreeSplitterDragCompleted" />
       <DataGrid Grid.Column="2" x:Name="FileGrid" ItemsSource="{Binding Entries}" SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
                 FontSize="12" RowHeight="28" IsReadOnly="True" AutoGenerateColumns="False" SelectionMode="Extended" CanUserSortColumns="True" CanUserResizeColumns="True" HorizontalScrollBarVisibility="Auto"
                 DoubleTapped="FileDoubleTapped" SelectionChanged="SelectionChanged">

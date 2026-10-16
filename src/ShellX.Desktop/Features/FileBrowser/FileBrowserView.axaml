@@ -1,9 +1,9 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:ShellX.Desktop.Features.FileBrowser" x:DataType="vm:FileBrowserViewModel" xmlns:local="using:ShellX.Desktop.Features.FileBrowser"
              xmlns:transfers="using:ShellX.Desktop.Features.Transfers" x:Class="ShellX.Desktop.Features.FileBrowser.FileBrowserView">
   <Grid RowDefinitions="*,Auto">
-    <Grid ColumnDefinitions="*,5,*">
+    <Grid x:Name="FileLayout" ColumnDefinitions="*,5,*">
       <local:LocalFileBrowserView x:Name="LocalPane" DataContext="{Binding Local}" />
-      <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="{DynamicResource RaisedBackground}" />
+      <GridSplitter x:Name="FileSplitter" Grid.Column="1" ResizeDirection="Columns" Background="{DynamicResource RaisedBackground}" DragCompleted="FileSplitterDragCompleted" />
       <local:RemoteFileBrowserView x:Name="RemotePane" Grid.Column="2" />
     </Grid>
     <Border Grid.Row="1" IsVisible="{Binding ShowTransfers}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,1,0,0" MaxHeight="165" Background="{DynamicResource PanelBackground}">
