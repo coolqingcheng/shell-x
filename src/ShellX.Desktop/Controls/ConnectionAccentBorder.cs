@@ -1,7 +1,9 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Documents;
 using Avalonia.Media;
 using Avalonia.Styling;
+using Avalonia.VisualTree;
 
 namespace ShellX.Desktop.Controls;
 
@@ -24,7 +26,7 @@ public sealed class ConnectionAccentBorder : Border
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
-        if (change.Property == AccentColorProperty || change.Property == AppearanceProperty || change.Property == IsActiveProperty) ApplyColor();
+        if (change.Property == AccentColorProperty || change.Property == AppearanceProperty || change.Property == IsActiveProperty || change.Property == Border.ChildProperty) ApplyColor();
     }
     private void ApplyColor()
     {
@@ -33,17 +35,65 @@ public sealed class ConnectionAccentBorder : Border
         var header = Color.Parse(light ? "#EAEAEA" : "#2D2D30");
         var marked = !string.IsNullOrEmpty(AccentColor) && AccentColor.Length == 7 && AccentColor[0] == '#' && Color.TryParse(AccentColor, out _);
         var accent = marked ? Muted(Color.Parse(AccentColor), light) : Colors.Transparent;
+        var activeFallback = Color.Parse(light ? "#CCE8FF" : "#094771");
         switch (Appearance)
         {
             case ConnectionAccentAppearance.Indicator:
-                Background = new SolidColorBrush(accent); break;
+                Background = new SolidColorBrush(marked ? accent : IsActive ? activeFallback : Colors.Transparent); break;
             case ConnectionAccentAppearance.Tab:
-                var activeFallback = Color.Parse(light ? "#CCE8FF" : "#094771");
-                var baseline = IsActive ? marked ? Blend(surface, accent, light ? .24 : .26) : activeFallback : header;
-                Background = new SolidColorBrush(marked && !IsActive ? Blend(baseline, accent, light ? .08 : .10) : baseline); break;
+                if (IsActive)
+                {
+                    var active = marked ? AccentSurface(surface, accent) : activeFallback;
+                    Background = new SolidColorBrush(active);
+                    ApplyForeground(ReadableForeground(active));
+                }
+                else
+                {
+                    Background = new SolidColorBrush(marked ? Blend(header, accent, light ? .08 : .10) : header);
+                    ApplyForeground(Color.Parse(light ? "#333333" : "#CCCCCC"));
+                }
+                break;
             case ConnectionAccentAppearance.Frame:
                 BorderBrush = new SolidColorBrush(marked ? Blend(surface, accent, light ? .38 : .52) : Colors.Transparent); break;
         }
+    }
+    private void ApplyForeground(Color color)
+    {
+        var brush = new SolidColorBrush(color);
+        TextElement.SetForeground(this, brush);
+        if (Child is not Control root) return;
+        SetForegroundRecursive(root, brush);
+        foreach (var control in root.GetVisualDescendants().OfType<Control>()) SetForegroundRecursive(control, brush);
+    }
+    private static void SetForegroundRecursive(Control control, IBrush brush)
+    {
+        if (control is TextBlock text) text.Foreground = brush;
+        else TextElement.SetForeground(control, brush);
+    }
+
+    private static Color AccentSurface(Color surface, Color accent)
+    {
+        for (var weight = 1d; weight >= 0; weight -= .05)
+        {
+            var candidate = Blend(surface, accent, weight);
+            if (Contrast(ReadableForeground(candidate), candidate) >= 4.5) return candidate;
+        }
+        return Blend(surface, accent, .4);
+    }
+
+    private static double Contrast(Color first, Color second)
+    {
+        static double Channel(byte value) { var c = value / 255d; return c <= .04045 ? c / 12.92 : Math.Pow((c + .055) / 1.055, 2.4); }
+        static double Luminance(Color color) => .2126 * Channel(color.R) + .7152 * Channel(color.G) + .0722 * Channel(color.B);
+        var a = Luminance(first); var b = Luminance(second);
+        return (Math.Max(a, b) + .05) / (Math.Min(a, b) + .05);
+    }
+
+    private static Color ReadableForeground(Color background)
+    {
+        var white = Colors.White;
+        var dark = Color.Parse("#1E1E1E");
+        return Contrast(white, background) >= Contrast(dark, background) ? white : dark;
     }
     private static Color Muted(Color color, bool light)
     {
