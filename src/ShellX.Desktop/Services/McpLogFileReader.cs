@@ -47,6 +47,7 @@ public sealed class McpLogFileReader(string logDirectory)
             var connection = root.TryGetProperty("ConnectionName", out var name) ? name.GetString() ?? "" : "";
             var status = root.TryGetProperty("Status", out var state) ? StatusText(state.GetString()) : "";
             var command = root.TryGetProperty("Command", out var value) ? value.GetString() ?? "" : "";
+            if (root.TryGetProperty("DecodedCommand", out var decoded) && !string.IsNullOrWhiteSpace(decoded.GetString())) command = decoded.GetString() ?? command;
             var exit = root.TryGetProperty("ExitCode", out var exitCode) && exitCode.ValueKind == JsonValueKind.Number ? exitCode.GetInt32().ToString() : "—";
             var duration = root.TryGetProperty("DurationMilliseconds", out var elapsed) && elapsed.ValueKind == JsonValueKind.Number ? elapsed.GetInt64() : 0;
             return new($"{timestamp}  [{status}]  {connection}  > {command}  (exit={exit}, {duration} ms)", line);

@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Encodings.Web;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using ShellX.Core.Connections;
 using ShellX.Core.Settings;
@@ -21,7 +22,7 @@ public sealed record LocalCommandResult(bool Success, string Status, int? ExitCo
 
 public sealed record McpAuditEntry(DateTimeOffset Timestamp, string RequestId, Guid ConnectionId, string ConnectionName,
     string Command, string WorkingDirectory, int TimeoutSeconds, string Status, int? ExitCode, long DurationMilliseconds,
-    string Stdout, string Stderr, int StdoutLength, int StderrLength, string? Error);
+    string Stdout, string Stderr, int StdoutLength, int StderrLength, string? Error, string DecodedCommand = "");
 
 [JsonSourceGenerationOptions(WriteIndented = false)]
 [JsonSerializable(typeof(McpAuditEntry))]
@@ -129,7 +130,7 @@ public sealed class LocalCommandExecutor(IConnectionRepository connections, McpA
         watch.Stop();
         var result = ToResult(status, exitCode, watch.ElapsedMilliseconds, stdout, stderr, error);
         await audit.WriteAsync(new(started, requestId, request.ConnectionId, connectionName, request.Command, workingDirectory,
-            timeoutSeconds, status, result.ExitCode, result.DurationMilliseconds, result.Stdout, result.Stderr, result.StdoutLength, result.StderrLength, error), CancellationToken.None).ConfigureAwait(false);
+            timeoutSeconds, status, result.ExitCode, result.DurationMilliseconds, result.Stdout, result.Stderr, result.StdoutLength, result.StderrLength, error, DecodePowerShellCommand(request.Command)), CancellationToken.None).ConfigureAwait(false);
         return result;
     }
 
@@ -142,7 +143,7 @@ public sealed class LocalCommandExecutor(IConnectionRepository connections, McpA
             Truncate(stdout), Truncate(stderr), stdoutLength, stderrLength, error);
         await audit.WriteAsync(new(started, requestId, request.ConnectionId, connectionName, request.Command,
             request.WorkingDirectory ?? "", request.TimeoutSeconds, status, exitCode, result.DurationMilliseconds,
-            result.Stdout, result.Stderr, result.StdoutLength, result.StderrLength, error), cancellationToken).ConfigureAwait(false);
+            result.Stdout, result.Stderr, result.StdoutLength, result.StderrLength, error, DecodePowerShellCommand(request.Command)), cancellationToken).ConfigureAwait(false);
         return result;
     }
 
@@ -151,6 +152,18 @@ public sealed class LocalCommandExecutor(IConnectionRepository connections, McpA
         var outLength = stdout.Length; var errorLength = stderr.Length;
         return new(status == "succeeded", status, exitCode, duration, Truncate(stdout), Truncate(stderr), outLength, errorLength, error);
     }
+    private static string DecodePowerShellCommand(string command)
+    {
+        var match = Regex.Match(command, @"(?:^|\s)-(?:EncodedCommand|enc|e)\s+([A-Za-z0-9+/=]+)", RegexOptions.IgnoreCase);
+        if (!match.Success) return command;
+        try
+        {
+            var decoded = Encoding.Unicode.GetString(Convert.FromBase64String(match.Groups[1].Value));
+            return string.IsNullOrWhiteSpace(decoded) ? command : decoded;
+        }
+        catch (FormatException) { return command; }
+    }
+
     private static string Truncate(string value) => value.Length <= MaxOutputCharacters ? value : value[..MaxOutputCharacters];
 }
 
