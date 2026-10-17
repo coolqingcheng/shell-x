@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:services="using:ShellX.Desktop.Services" x:DataType="services:McpLogRow"
              x:Class="ShellX.Desktop.Services.McpLogRowView">
-  <Border BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1" Padding="10,7">
-    <TextBlock Text="{Binding Text}" ToolTip.Tip="{Binding Detail}" FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" />
+  <Border BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1" Padding="10,7" HorizontalAlignment="Stretch">
+    <TextBlock Text="{Binding Text}" ToolTip.Tip="{Binding Detail}" FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" HorizontalAlignment="Stretch" />
   </Border>
 </UserControl>
