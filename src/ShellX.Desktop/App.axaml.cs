@@ -24,7 +24,11 @@ public sealed partial class App : Application
             _services.GetRequiredService<AppLockCoordinator>().Protect(window);
             _services.GetRequiredService<DialogService>().Owner = window;
             desktop.MainWindow = window;
-            window.Opened += async (_, _) => await vm.InitializeAsync();
+            window.Opened += async (_, _) =>
+            {
+                await vm.InitializeAsync();
+                await vm.ToggleConnectionsCommand.ExecuteAsync(null);
+            };
             desktop.Exit += (_, _) => { _services.Dispose(); Log.CloseAndFlush(); };
         }
         base.OnFrameworkInitializationCompleted();
