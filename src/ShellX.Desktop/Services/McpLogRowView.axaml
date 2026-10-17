@@ -1,7 +1,16 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:services="using:ShellX.Desktop.Services" x:DataType="services:McpLogRow"
-             x:Class="ShellX.Desktop.Services.McpLogRowView">
-  <Border BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1" Padding="10,7" HorizontalAlignment="Stretch">
-    <TextBlock Text="{Binding Text}" ToolTip.Tip="{Binding Detail}" FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" HorizontalAlignment="Stretch" />
+             x:Class="ShellX.Desktop.Services.McpLogRowView" HorizontalAlignment="Stretch">
+  <Border BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1" Padding="10,8"
+          ToolTip.Tip="{Binding Detail}" HorizontalAlignment="Stretch">
+    <Grid ColumnDefinitions="150,60,130,*" ColumnSpacing="8">
+      <TextBlock Text="{Binding Timestamp}" FontFamily="Consolas" FontSize="10" Foreground="{DynamicResource MutedForeground}" VerticalAlignment="Top" />
+      <TextBlock Grid.Column="1" Text="{Binding Status}" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Top" />
+      <TextBlock Grid.Column="2" Text="{Binding Connection}" FontSize="10" Foreground="{DynamicResource SecondaryForeground}" TextTrimming="CharacterEllipsis" VerticalAlignment="Top" />
+      <StackPanel Grid.Column="3" Spacing="3">
+        <TextBlock Text="{Binding Command}" FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" HorizontalAlignment="Stretch" />
+        <TextBlock Text="{Binding Summary}" FontSize="9" Foreground="{DynamicResource MutedForeground}" />
+      </StackPanel>
+    </Grid>
   </Border>
 </UserControl>

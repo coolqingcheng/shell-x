@@ -2,7 +2,10 @@ using System.Text.Json;
 
 namespace ShellX.Desktop.Services;
 
-public sealed record McpLogRow(string Text, string Detail);
+public sealed record McpLogRow(string Timestamp, string Status, string Connection, string Command, string ExitCode, long DurationMilliseconds, string Text, string Detail)
+{
+    public string Summary => $"exit={ExitCode}, {DurationMilliseconds} ms";
+}
 
 public sealed class McpLogFileReader(string logDirectory)
 {
@@ -51,9 +54,10 @@ public sealed class McpLogFileReader(string logDirectory)
             else command = LocalCommandExecutor.DecodePowerShellCommand(command);
             var exit = root.TryGetProperty("ExitCode", out var exitCode) && exitCode.ValueKind == JsonValueKind.Number ? exitCode.GetInt32().ToString() : "—";
             var duration = root.TryGetProperty("DurationMilliseconds", out var elapsed) && elapsed.ValueKind == JsonValueKind.Number ? elapsed.GetInt64() : 0;
-            return new($"{timestamp}  [{status}]  {connection}  > {command}  (exit={exit}, {duration} ms)", line);
+            var text = $"{timestamp}  [{status}]  {connection}  > {command}  (exit={exit}, {duration} ms)";
+            return new(timestamp, status, connection, command, exit, duration, text, line);
         }
-        catch (JsonException) { return new(line, line); }
+        catch (JsonException) { return new("", "解析失败", "", line, "—", 0, line, line); }
     }
 
     private static string StatusText(string? status) => status switch

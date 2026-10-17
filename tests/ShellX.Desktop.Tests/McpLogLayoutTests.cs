@@ -1,8 +1,8 @@
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using ShellX.Desktop.Services;
 using ShellX.Infrastructure.Persistence;
 
@@ -11,7 +11,7 @@ namespace ShellX.Desktop.Tests;
 public sealed class McpLogLayoutTests
 {
     [AvaloniaFact]
-    public async Task McpLogTextWrapsWithoutHorizontalScrolling()
+    public async Task LongMcpLogCommandWrapsInsideVirtualizedList()
     {
         var root = Path.Combine(Path.GetTempPath(), "shellx-mcp-log-window-" + Guid.NewGuid().ToString("N"));
         try
@@ -27,11 +27,12 @@ public sealed class McpLogLayoutTests
             try
             {
                 await Dispatcher.UIThread.InvokeAsync(() => { });
-                var text = window.FindControl<TextBox>("LogText")!;
-                Assert.Equal(TextWrapping.Wrap, text.TextWrapping);
-                Assert.Equal(ScrollBarVisibility.Disabled, ScrollViewer.GetHorizontalScrollBarVisibility(text));
-                Assert.True(text.Bounds.Height > 24);
-                Assert.Contains("very-long-command", text.Text);
+                var list = window.FindControl<ListBox>("LogRows")!;
+                var row = list.GetVisualDescendants().OfType<McpLogRowView>().Single();
+                var command = row.GetVisualDescendants().OfType<TextBlock>().First(x => x.Text?.Contains("very-long-command") == true);
+                Assert.Equal(TextWrapping.Wrap, command.TextWrapping);
+                Assert.True(command.Bounds.Height > 24);
+                Assert.True(command.Bounds.Width < row.Bounds.Width);
             }
             finally { window.Close(); }
         }
