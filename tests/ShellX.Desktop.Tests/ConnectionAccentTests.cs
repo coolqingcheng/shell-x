@@ -43,6 +43,24 @@ public sealed class ConnectionAccentTests
         }
         finally { ThemeService.Apply(AppTheme.Dark); window.Close(); }
     }
+    [AvaloniaFact]
+    public async Task PlainActiveTabUsesClearSelectionColorInBothThemes()
+    {
+        var active = new ConnectionAccentBorder { Appearance = ConnectionAccentAppearance.Tab, IsActive = true };
+        var inactive = new ConnectionAccentBorder { Appearance = ConnectionAccentAppearance.Tab, IsActive = false };
+        var window = new Window { Content = new StackPanel { Children = { active, inactive } }, Width = 240, Height = 120 }; window.Show();
+        try
+        {
+            foreach (var theme in new[] { AppTheme.Dark, AppTheme.Light })
+            {
+                ThemeService.Apply(theme); await Task.Delay(40);
+                Assert.NotEqual(Solid(inactive.Background), Solid(active.Background));
+                Assert.Equal(Color.Parse(theme == AppTheme.Light ? "#CCE8FF" : "#094771"), Solid(active.Background));
+            }
+        }
+        finally { ThemeService.Apply(AppTheme.Dark); window.Close(); }
+    }
+
     private static Color Solid(IBrush? brush) => Assert.IsAssignableFrom<ISolidColorBrush>(brush).Color;
     private static double Contrast(Color foreground, Color background)
     {

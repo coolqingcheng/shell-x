@@ -38,8 +38,9 @@ public sealed class ConnectionAccentBorder : Border
             case ConnectionAccentAppearance.Indicator:
                 Background = new SolidColorBrush(accent); break;
             case ConnectionAccentAppearance.Tab:
-                var baseline = IsActive ? surface : header;
-                Background = new SolidColorBrush(marked ? Blend(baseline, accent, light ? IsActive ? .14 : .08 : IsActive ? .20 : .10) : baseline); break;
+                var activeFallback = Color.Parse(light ? "#CCE8FF" : "#094771");
+                var baseline = IsActive ? marked ? Blend(surface, accent, light ? .24 : .26) : activeFallback : header;
+                Background = new SolidColorBrush(marked && !IsActive ? Blend(baseline, accent, light ? .08 : .10) : baseline); break;
             case ConnectionAccentAppearance.Frame:
                 BorderBrush = new SolidColorBrush(marked ? Blend(surface, accent, light ? .38 : .52) : Colors.Transparent); break;
         }
