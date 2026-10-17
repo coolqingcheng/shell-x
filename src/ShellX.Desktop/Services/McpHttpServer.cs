@@ -3,6 +3,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Encodings.Web;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using ShellX.Core.Connections;
@@ -31,12 +32,13 @@ internal sealed partial class McpJsonContext : JsonSerializerContext;
 public sealed class McpAuditLog(AppPaths paths)
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private static readonly McpJsonContext AuditJsonContext = new(new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
     public async Task WriteAsync(McpAuditEntry entry, CancellationToken cancellationToken = default)
     {
         var directory = Path.Combine(paths.Root, "logs");
         Directory.CreateDirectory(directory);
         var path = Path.Combine(directory, $"mcp-audit-{entry.Timestamp:yyyyMMdd}.jsonl");
-        var line = JsonSerializer.Serialize(entry, McpJsonContext.Default.McpAuditEntry) + Environment.NewLine;
+        var line = JsonSerializer.Serialize(entry, AuditJsonContext.McpAuditEntry) + Environment.NewLine;
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try { await File.AppendAllTextAsync(path, line, Encoding.UTF8, cancellationToken).ConfigureAwait(false); }
         finally { _gate.Release(); }

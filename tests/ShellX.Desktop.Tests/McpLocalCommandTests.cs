@@ -28,6 +28,8 @@ public sealed class McpLocalCommandTests
             var auditPath = Assert.Single(Directory.GetFiles(Path.Combine(root, "logs"), "mcp-audit-*.jsonl"));
             var entry = await File.ReadAllTextAsync(auditPath, TestContext.Current.CancellationToken);
             Assert.Contains("request-1", entry);
+            Assert.Contains("本机命令", entry);
+            Assert.DoesNotContain("\\u672c", entry);
             Assert.Contains("echo shellx-mcp", entry);
             Assert.Contains("\"Status\":\"succeeded\"", entry);
         }
