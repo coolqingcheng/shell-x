@@ -1,0 +1,37 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ShellX.Desktop.Features.Monitoring" xmlns:monitor="using:ShellX.Desktop.Features.Monitoring"
+        x:DataType="vm:MonitorPanelViewModel" x:Class="ShellX.Desktop.Features.Monitoring.MonitorPanelWindow"
+        Title="监控面板" Width="1280" Height="820" MinWidth="760" MinHeight="520" WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,*" Background="{DynamicResource AppBackground}">
+    <Border Background="{DynamicResource HeaderBackground}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1" Padding="14,9">
+      <Grid ColumnDefinitions="Auto,*">
+        <TextBlock Text="监控面板" FontSize="14" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Text="同一地址最多显示一个面板，可同时查看多个连接" FontSize="11" Foreground="{DynamicResource MutedForeground}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+      </Grid>
+    </Border>
+    <ScrollViewer Grid.Row="1" Padding="12">
+      <Grid>
+        <ItemsControl ItemsSource="{Binding Panels}">
+          <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate><DataTemplate x:DataType="vm:MonitorPanelItemViewModel">
+            <Border Width="420" Height="540" Margin="6" BorderBrush="{DynamicResource BorderColor}" BorderThickness="1" Background="{DynamicResource PanelBackground}">
+              <Grid RowDefinitions="36,*">
+                <Border Background="{DynamicResource HeaderBackground}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1">
+                  <Grid ColumnDefinitions="*,Auto" Margin="10,0,4,0">
+                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                      <TextBlock Text="{Binding Name}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding Address}" FontSize="9" Foreground="{DynamicResource MutedForeground}" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="×" Classes="flat" Command="{Binding CloseCommand}" ToolTip.Tip="关闭此监控面板" Padding="7,3" VerticalAlignment="Center" />
+                  </Grid>
+                </Border>
+                <monitor:ServerMonitorView Grid.Row="1" DataContext="{Binding Monitor}" />
+              </Grid>
+            </Border>
+          </DataTemplate></ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Text="点击顶部监控面板按钮，把已打开连接的状态监控添加到这里。" IsVisible="{Binding NoPanels}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource MutedForeground}" FontSize="13" />
+      </Grid>
+    </ScrollViewer>
+  </Grid>
+</Window>

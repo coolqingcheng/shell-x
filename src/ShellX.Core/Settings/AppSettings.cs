@@ -21,7 +21,6 @@ public sealed record AppSettings
     public int ReconnectIntervalSeconds { get; init; } = 5;
     public ProcessSortColumn ProcessSortColumn { get; init; } = ProcessSortColumn.Cpu;
     public bool ProcessSortDescending { get; init; } = true;
-    public double MonitorPaneWidth { get; init; } = 220;
     public double TerminalPaneStar { get; init; } = 1.3;
     public double LocalPaneStar { get; init; } = 1;
     public double RemoteTreeWidth { get; init; } = 150;
