@@ -3,12 +3,12 @@
              xmlns:models="using:ShellX.Core.Connections" xmlns:controls="using:ShellX.Desktop.Controls" x:DataType="vm:MainWindowViewModel"
              x:Class="ShellX.Desktop.Features.Connections.ConnectionManagerView">
   <Grid RowDefinitions="Auto,*,Auto" Margin="16,12" RowSpacing="12">
-    <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,230" ColumnSpacing="8">
+    <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,230,36" ColumnSpacing="8">
       <Button Name="NewManagedConnection" Content="＋ 新建连接" Classes="primary" Command="{Binding NewConnectionCommand}" ToolTip.Tip="Ctrl+N" />
       <Button Name="NewConnectionFolder" Grid.Column="1" Content="新建文件夹" Command="{Binding NewFolderCommand}" ToolTip.Tip="在选中文件夹内创建 · Ctrl+Shift+N" />
       <Button Grid.Column="2" Content="重命名" Command="{Binding RenameFolderCommand}" IsEnabled="{Binding CanManageFolder}" />
       <Button Grid.Column="3" Content="删除空文件夹" Command="{Binding DeleteFolderCommand}" IsEnabled="{Binding CanManageFolder}" />
-      <TextBox Name="ConnectionSearch" Grid.Column="5" Text="{Binding Search, Mode=TwoWay}" PlaceholderText="搜索名称、地址、账号…" />
+      <TextBox Name="ConnectionSearch" Grid.Column="5" Text="{Binding Search, Mode=TwoWay}" PlaceholderText="搜索名称、地址、账号…" /><Button Name="ManagerSettings" Grid.Column="6" Content="⚙" Classes="flat" Command="{Binding SettingsCommand}" ToolTip.Tip="设置" Padding="4,0" FontSize="17" />
     </Grid>
     <Grid Grid.Row="1" ColumnDefinitions="200,5,*">
       <Border BorderBrush="{DynamicResource BorderColor}" BorderThickness="1" Background="{DynamicResource PanelBackground}">

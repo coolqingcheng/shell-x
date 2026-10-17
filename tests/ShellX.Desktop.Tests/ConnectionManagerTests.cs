@@ -41,6 +41,7 @@ public sealed class ConnectionManagerTests
             await vm.InitializeAsync(); vm.Search = "missing"; await Task.Delay(60);
             Assert.Empty(vm.VisibleConnections);
             var export = view.FindControl<Button>("ExportConfiguration")!; Assert.Same(vm.ExportConfigurationCommand, export.Command);
+            Assert.Same(vm.SettingsCommand, view.FindControl<Button>("ManagerSettings")!.Command);
             Click(window, export); await Until(() => dialogs.Information.Count == 1);
             using var json = JsonDocument.Parse(await File.ReadAllTextAsync(dialogs.ExportPath));
             Assert.Equal(2, json.RootElement.GetProperty("Connections").GetArrayLength());

@@ -12,7 +12,7 @@
       </Grid>
     </Border>
     <Grid Grid.Row="1">
-      <ScrollViewer x:Name="LogScroller" Padding="8">
+      <ScrollViewer x:Name="LogScroller" Padding="8" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
         <ItemsControl x:Name="LogRows" />
       </ScrollViewer>
       <TextBlock x:Name="EmptyText" Text="暂无 MCP 命令执行记录。" HorizontalAlignment="Center" VerticalAlignment="Center"
