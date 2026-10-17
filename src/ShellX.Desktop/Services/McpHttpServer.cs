@@ -152,7 +152,7 @@ public sealed class LocalCommandExecutor(IConnectionRepository connections, McpA
         var outLength = stdout.Length; var errorLength = stderr.Length;
         return new(status == "succeeded", status, exitCode, duration, Truncate(stdout), Truncate(stderr), outLength, errorLength, error);
     }
-    private static string DecodePowerShellCommand(string command)
+    internal static string DecodePowerShellCommand(string command)
     {
         var match = Regex.Match(command, @"(?:^|\s)-(?:EncodedCommand|enc|e)\s+([A-Za-z0-9+/=]+)", RegexOptions.IgnoreCase);
         if (!match.Success) return command;
