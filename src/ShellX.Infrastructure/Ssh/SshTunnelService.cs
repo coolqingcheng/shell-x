@@ -88,7 +88,7 @@ internal sealed class SshTunnelService : ITunnelService, IDisposable
         catch (Exception ex)
         { Publish(new(definition.Id, TunnelState.Failed, false, Describe(ex, definition, starting: true))); throw; }
         finally { _gate.Release(); }
-        try { await CheckAsync(definition.Id, cancellationToken).ConfigureAwait(false); }
+        try { await CheckCoreAsync(definition.Id, cancellationToken, false).ConfigureAwait(false); }
         catch (OperationCanceledException)
         { Publish(new(definition.Id, TunnelState.Unverified, IsRunning(definition.Id), "检测已取消，监听状态以当前会话为准。")); throw; }
     }
@@ -127,13 +127,16 @@ internal sealed class SshTunnelService : ITunnelService, IDisposable
         // SSH.NET 不会把所有 channel-open 拒绝转为 Exception 事件，实际连接到达时再检查目标。
         _ = Task.Run(async () =>
         {
-            try { await CheckAsync(runtime.Definition.Id, _lifetimeToken).ConfigureAwait(false); }
+            try { await CheckCoreAsync(runtime.Definition.Id, _lifetimeToken, false).ConfigureAwait(false); }
             catch (OperationCanceledException) { }
             catch (Exception ex) { Publish(new(runtime.Definition.Id, TunnelState.Failed, IsRunning(runtime.Definition.Id), ex.Message)); }
         });
     }
 
-    public async Task CheckAsync(Guid id, CancellationToken cancellationToken = default)
+    public Task CheckAsync(Guid id, CancellationToken cancellationToken = default)
+        => CheckCoreAsync(id, cancellationToken, true);
+
+    private async Task CheckCoreAsync(Guid id, CancellationToken cancellationToken, bool publishProgress)
     {
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetimeToken);
         await _gate.WaitAsync(linked.Token).ConfigureAwait(false);
@@ -145,7 +148,7 @@ internal sealed class SshTunnelService : ITunnelService, IDisposable
             if (!_ssh.IsConnected || !runtime.Port.IsStarted)
             { Publish(new(id, TunnelState.Failed, false, "SSH 已断开或监听已停止，请重新启动隧道。", DateTimeOffset.Now)); return; }
             var errorVersion = Interlocked.Read(ref runtime.ErrorVersion);
-            Publish(new(id, TunnelState.Checking, true));
+            if (publishProgress) Publish(new(id, TunnelState.Checking, true));
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(linked.Token);
             timeout.CancelAfter(TimeSpan.FromSeconds(5));
             try
@@ -212,7 +215,7 @@ internal sealed class SshTunnelService : ITunnelService, IDisposable
             {
                 await Task.Delay(TimeSpan.FromSeconds(10), _lifetimeToken).ConfigureAwait(false);
                 Guid[] ids; lock (_sync) ids = _ports.Keys.ToArray();
-                foreach (var id in ids) await CheckAsync(id, _lifetimeToken).ConfigureAwait(false);
+                foreach (var id in ids) await CheckCoreAsync(id, _lifetimeToken, false).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) { }
