@@ -317,7 +317,8 @@ public partial class MainWindowViewModel : ObservableObject
         }
         catch (Exception ex) { Status = "布局保存失败：" + ex.Message; }
     }
-    public Task ShowMonitorPanelExistsAsync(string name) => _dialogs.ShowInformationAsync("监控面板", $"“{name}”的监控面板已经打开过了。\n\n每个地址只能打开一个监控面板。");
+    public Task SaveMonitorPaneWidthAsync(double width)
+        => SaveLayoutAsync(settings => settings with { MonitorPaneWidth = Math.Clamp(width, 160, 420) });
     public Task SaveWorkspaceLayoutAsync(double terminalStar, double lowerStar)
         => SaveLayoutAsync(settings => settings with { TerminalPaneStar = Math.Clamp(lowerStar <= 0 ? terminalStar : terminalStar / lowerStar, 0.3, 8) });
     public Task SaveFilePaneLayoutAsync(double localStar, double remoteStar)
@@ -330,6 +331,7 @@ public partial class MainWindowViewModel : ObservableObject
         var defaults = new AppSettings();
         return SaveLayoutAsync(settings => settings with
         {
+            MonitorPaneWidth = defaults.MonitorPaneWidth,
             TerminalPaneStar = defaults.TerminalPaneStar,
             LocalPaneStar = defaults.LocalPaneStar,
             RemoteTreeWidth = defaults.RemoteTreeWidth

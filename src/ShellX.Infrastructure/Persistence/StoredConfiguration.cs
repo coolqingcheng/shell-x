@@ -25,6 +25,7 @@ internal sealed class StoredSettings
     public int ReconnectIntervalSeconds { get; set; } = Defaults.ReconnectIntervalSeconds;
     public ProcessSortColumn ProcessSortColumn { get; set; } = Defaults.ProcessSortColumn;
     public bool ProcessSortDescending { get; set; } = Defaults.ProcessSortDescending;
+    public double MonitorPaneWidth { get; set; } = Defaults.MonitorPaneWidth;
     public double TerminalPaneStar { get; set; } = Defaults.TerminalPaneStar;
     public double LocalPaneStar { get; set; } = Defaults.LocalPaneStar;
     public double RemoteTreeWidth { get; set; } = Defaults.RemoteTreeWidth;
@@ -34,7 +35,7 @@ internal sealed class StoredSettings
         TerminalFontFamily = TerminalFontFamily, EditorFontFamily = EditorFontFamily, EditorFontSize = EditorFontSize,
         LockPasswordHash = LockPasswordHash, AutoLockEnabled = AutoLockEnabled, AutoLockMinutes = AutoLockMinutes,
         HighlightTerminalText = HighlightTerminalText, AutoReconnectEnabled = AutoReconnectEnabled, ReconnectIntervalSeconds = ReconnectIntervalSeconds,
-        ProcessSortColumn = ProcessSortColumn, ProcessSortDescending = ProcessSortDescending, TerminalPaneStar = TerminalPaneStar, LocalPaneStar = LocalPaneStar, RemoteTreeWidth = RemoteTreeWidth
+        ProcessSortColumn = ProcessSortColumn, ProcessSortDescending = ProcessSortDescending, MonitorPaneWidth = MonitorPaneWidth, TerminalPaneStar = TerminalPaneStar, LocalPaneStar = LocalPaneStar, RemoteTreeWidth = RemoteTreeWidth
     };
     public static StoredSettings From(AppSettings model) => new()
     {
@@ -42,7 +43,7 @@ internal sealed class StoredSettings
         TerminalFontFamily = model.TerminalFontFamily, EditorFontFamily = model.EditorFontFamily, EditorFontSize = model.EditorFontSize,
         LockPasswordHash = model.LockPasswordHash, AutoLockEnabled = model.AutoLockEnabled, AutoLockMinutes = model.AutoLockMinutes,
         HighlightTerminalText = model.HighlightTerminalText, AutoReconnectEnabled = model.AutoReconnectEnabled, ReconnectIntervalSeconds = model.ReconnectIntervalSeconds,
-        ProcessSortColumn = model.ProcessSortColumn, ProcessSortDescending = model.ProcessSortDescending, TerminalPaneStar = model.TerminalPaneStar, LocalPaneStar = model.LocalPaneStar, RemoteTreeWidth = model.RemoteTreeWidth
+        ProcessSortColumn = model.ProcessSortColumn, ProcessSortDescending = model.ProcessSortDescending, MonitorPaneWidth = model.MonitorPaneWidth, TerminalPaneStar = model.TerminalPaneStar, LocalPaneStar = model.LocalPaneStar, RemoteTreeWidth = model.RemoteTreeWidth
     };
 }
 
