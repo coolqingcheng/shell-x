@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using ShellX.Core.Connections;
+using ShellX.Core.Settings;
 using ShellX.Infrastructure.Persistence;
 
 namespace ShellX.Desktop.Services;
@@ -151,27 +152,62 @@ public sealed class LocalCommandExecutor(IConnectionRepository connections, McpA
     private static string Truncate(string value) => value.Length <= MaxOutputCharacters ? value : value[..MaxOutputCharacters];
 }
 
-public sealed class McpHttpServer(AppPaths paths, IConnectionRepository connections, LocalCommandExecutor executor, ILogger<McpHttpServer> log) : IDisposable
+public sealed class McpHttpServer(ISettingsStore settingsStore, IConnectionRepository connections, LocalCommandExecutor executor, ILogger<McpHttpServer> log) : IDisposable
 {
     private const string ProtocolVersion = "2025-06-18";
     private readonly HttpListener _listener = new();
     private readonly CancellationTokenSource _lifetime = new();
-    private readonly string _tokenPath = paths.File("mcp-token.txt");
     private Task? _loop;
     private bool _disposed;
-    public string Endpoint => $"http://127.0.0.1:{Port}/mcp";
-    public int Port { get; } = int.TryParse(Environment.GetEnvironmentVariable("SHELLX_MCP_PORT"), out var port) ? Math.Clamp(port, 1, 65535) : 8765;
-    public string TokenFilePath => _tokenPath;
-    private string Token { get; } = LoadOrCreateToken(paths.File("mcp-token.txt"));
+    private string _prefix = "http://127.0.0.1:8765/";
+    private string _endpoint = "http://127.0.0.1:8765/mcp";
+    private string _token = "";
+    public string Endpoint => _endpoint;
+    public bool IsListening => _listener.IsListening;
+
+    public async Task StartAsync(CancellationToken cancellationToken = default)
+    {
+        var settings = await settingsStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(settings.McpToken))
+        {
+            settings = settings with { McpToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)) };
+            await settingsStore.SaveAsync(settings, cancellationToken).ConfigureAwait(false);
+        }
+        ApplySettings(settings);
+        Start();
+    }
+
+    public void ApplySettings(AppSettings settings)
+    {
+        (_prefix, _endpoint) = NormalizeAddress(settings.McpAddress);
+        _token = settings.McpToken?.Trim() ?? "";
+    }
 
     public void Start()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (_listener.IsListening) return;
-        _listener.Prefixes.Add($"http://127.0.0.1:{Port}/");
+        if (_token.Length < 16) throw new InvalidOperationException("MCP Token 至少需要 16 个字符。");
+        _listener.Prefixes.Clear();
+        _listener.Prefixes.Add(_prefix);
         _listener.Start();
         _loop = Task.Run(() => AcceptLoopAsync(_lifetime.Token));
         log.LogInformation("MCP HTTP 已启动：{Endpoint}", Endpoint);
+    }
+
+    public void Restart()
+    {
+        var restart = _listener.IsListening;
+        Stop();
+        if (restart) Start();
+    }
+
+    private void Stop()
+    {
+        if (!_listener.IsListening) return;
+        try { _listener.Stop(); } catch (Exception) { }
+        try { _loop?.GetAwaiter().GetResult(); } catch (Exception) { }
+        _loop = null;
     }
 
     public void Dispose()
@@ -182,6 +218,16 @@ public sealed class McpHttpServer(AppPaths paths, IConnectionRepository connecti
         try { _listener.Stop(); } catch (Exception) { }
         try { _loop?.GetAwaiter().GetResult(); } catch (Exception) { }
         _lifetime.Dispose();
+    }
+
+    private static (string Prefix, string Endpoint) NormalizeAddress(string address)
+    {
+        if (!Uri.TryCreate(address, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttp)
+            throw new ArgumentException("MCP 地址必须是 http:// 开头的完整地址。");
+        var builder = new UriBuilder(uri) { Path = "/", Query = "", Fragment = "", UserName = "", Password = "" };
+        if (builder.Host == "0.0.0.0") builder.Host = "*";
+        var prefix = builder.Uri.AbsoluteUri;
+        return (prefix, new Uri(builder.Uri, "mcp").AbsoluteUri);
     }
 
     private async Task AcceptLoopAsync(CancellationToken token)
@@ -302,7 +348,7 @@ public sealed class McpHttpServer(AppPaths paths, IConnectionRepository connecti
         var header = request.Headers["Authorization"];
         if (string.IsNullOrEmpty(header) || !header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) return false;
         var supplied = Encoding.UTF8.GetBytes(header["Bearer ".Length..]);
-        var expected = Encoding.UTF8.GetBytes(Token);
+        var expected = Encoding.UTF8.GetBytes(_token);
         return supplied.Length == expected.Length && CryptographicOperations.FixedTimeEquals(supplied, expected);
     }
 
@@ -377,15 +423,4 @@ public sealed class McpHttpServer(AppPaths paths, IConnectionRepository connecti
         response.Close();
     }
 
-    private static string LoadOrCreateToken(string path)
-    {
-        if (File.Exists(path))
-        {
-            var existing = File.ReadAllText(path).Trim();
-            if (existing.Length >= 32) return existing;
-        }
-        var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
-        File.WriteAllText(path, token);
-        return token;
-    }
 }

@@ -96,13 +96,23 @@ POST http://127.0.0.1:8765/mcp
 GET  http://127.0.0.1:8765/healthz
 ```
 
-首次启动会生成 Bearer Token：
+MCP 地址和 Bearer Token 位于“设置 → MCP”，首次启动会自动生成密钥并保存到 `settings.json`。可以一键复制通用 MCP 客户端 JSON：
 
-```text
-%LOCALAPPDATA%\ShellX\mcp-token.txt
+```json
+{
+  "mcpServers": {
+    "shellx": {
+      "type": "http",
+      "url": "http://127.0.0.1:8765/mcp",
+      "headers": {
+        "Authorization": "Bearer <token>"
+      }
+    }
+  }
+}
 ```
 
-可通过 `SHELLX_MCP_PORT` 修改默认端口。提供的工具为 `list_mcp_connections` 和 `execute_local_command`。每次执行、拒绝和失败都会写入：
+地址保存后 MCP HTTP 服务会立即重启。提供的工具为 `list_mcp_connections` 和 `execute_local_command`。每次执行、拒绝和失败都会写入：
 
 ```text
 %LOCALAPPDATA%\ShellX\logs\mcp-audit-yyyyMMdd.jsonl

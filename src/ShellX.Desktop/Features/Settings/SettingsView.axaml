@@ -62,5 +62,21 @@
         <TextBlock Text="ShellX · Windows&#10;配置和日志保存于当前用户的本地应用数据目录。" Foreground="{DynamicResource SecondaryForeground}" FontSize="12" TextWrapping="Wrap" />
       </StackPanel>
     </TabItem>
+    <TabItem Header="MCP">
+      <ScrollViewer><StackPanel Spacing="12" Margin="10,18">
+        <TextBlock Text="MCP 地址" />
+        <TextBox Name="McpAddress" Text="{Binding McpAddress, Mode=TwoWay}" PlaceholderText="http://127.0.0.1:8765" />
+        <TextBlock Text="MCP 密钥" />
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+          <TextBox Name="McpToken" Text="{Binding McpToken, Mode=TwoWay}" FontFamily="Consolas" PasswordChar="●" />
+          <Button Grid.Column="1" Content="生成密钥" Click="GenerateMcpToken" />
+        </Grid>
+        <TextBlock Text="MCP 客户端 JSON" />
+        <TextBox Name="McpJsonBox" Text="{Binding McpJson, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
+                 Height="220" FontFamily="Consolas" FontSize="11" />
+        <Button Name="CopyMcpJsonButton" Content="复制 MCP JSON" Click="CopyMcpJsonClick" Classes="primary" HorizontalAlignment="Left" />
+        <TextBlock Text="MCP 可以在运行 ShellX 的本机执行任意命令。密钥会随 MCP JSON 一起复制，请妥善保管。地址保存后 MCP 服务会立即重启。" Foreground="{DynamicResource SecondaryForeground}" FontSize="12" TextWrapping="Wrap" />
+      </StackPanel></ScrollViewer>
+    </TabItem>
   </TabControl>
 </UserControl>

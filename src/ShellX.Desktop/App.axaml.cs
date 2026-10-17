@@ -25,6 +25,7 @@ public sealed partial class App : Application
             var dialogs = _services.GetRequiredService<DialogService>();
             var lockCoordinator = _services.GetRequiredService<AppLockCoordinator>();
             var mcpServer = _services.GetRequiredService<McpHttpServer>();
+            var lockState = _services.GetRequiredService<ShellX.Desktop.Features.Security.AppLockService>();
             var manager = new ConnectionManagerWindow(vm, profile =>
             {
                 var window = new MainWindow { DataContext = vm };
@@ -37,9 +38,17 @@ public sealed partial class App : Application
             lockCoordinator.Protect(manager);
             dialogs.Owner = manager;
             desktop.MainWindow = manager;
-            manager.Opened += async (_, _) => await vm.InitializeAsync();
-            try { mcpServer.Start(); }
-            catch (Exception ex) { Serilog.Log.Error(ex, "MCP HTTP 启动失败"); }
+            lockState.SettingsChanged += () =>
+            {
+                try { mcpServer.ApplySettings(lockState.Settings); mcpServer.Restart(); }
+                catch (Exception ex) { Serilog.Log.Error(ex, "MCP HTTP 配置更新失败"); }
+            };
+            manager.Opened += async (_, _) =>
+            {
+                try { await mcpServer.StartAsync(); }
+                catch (Exception ex) { Serilog.Log.Error(ex, "MCP HTTP 启动失败"); }
+                await vm.InitializeAsync();
+            };
             desktop.Exit += (_, _) => { mcpServer.Dispose(); _services.Dispose(); Log.CloseAndFlush(); };
         }
         base.OnFrameworkInitializationCompleted();
