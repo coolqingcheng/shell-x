@@ -1,0 +1,22 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:services="using:ShellX.Desktop.Services" x:Class="ShellX.Desktop.Services.McpLogWindow"
+        Title="MCP 执行日志" Width="1100" Height="720" MinWidth="720" MinHeight="420" WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,*" Background="{DynamicResource AppBackground}">
+    <Border Background="{DynamicResource HeaderBackground}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1" Padding="14,9">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Spacing="2">
+          <TextBlock Text="MCP 执行日志" FontSize="14" />
+          <TextBlock x:Name="LogPath" FontSize="10" Foreground="{DynamicResource MutedForeground}" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+        <Button Grid.Column="1" Content="立即刷新" Click="RefreshNow" VerticalAlignment="Center" />
+      </Grid>
+    </Border>
+    <Grid Grid.Row="1">
+      <ScrollViewer x:Name="LogScroller" Padding="8">
+        <ItemsControl x:Name="LogRows" />
+      </ScrollViewer>
+      <TextBlock x:Name="EmptyText" Text="暂无 MCP 命令执行记录。" HorizontalAlignment="Center" VerticalAlignment="Center"
+                 Foreground="{DynamicResource MutedForeground}" FontSize="13" />
+    </Grid>
+  </Grid>
+</Window>
