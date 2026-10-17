@@ -85,6 +85,31 @@ AOT 需要 Visual Studio 的 MSVC x64/x86 工具及 Windows SDK，本机已安�
 
 ViewModel 通过 Core 接口调用功能。本地文件读写使用 `ILocalFileSystem`，远程操作使用 `IRemoteFileSystem`；两个面板有独立的导航与选择状态。基础设施不引用 Avalonia，核心层不引用 SSH.NET。平台相关凭据实现位于基础设施层。完整设计见 [docs/architecture.md](docs/architecture.md)。
 
+## MCP 本地命令
+
+连接编辑器中的“允许 MCP 执行本机命令”默认关闭。开启后，MCP 可以在运行 ShellX 的 Windows 本机执行任意命令，不会通过 SSH 发到远程服务器，也不会尝试按命令文本区分读写。
+
+MCP 使用 Streamable HTTP 风格的 JSON-RPC 接口：
+
+```text
+POST http://127.0.0.1:8765/mcp
+GET  http://127.0.0.1:8765/healthz
+```
+
+首次启动会生成 Bearer Token：
+
+```text
+%LOCALAPPDATA%\ShellX\mcp-token.txt
+```
+
+可通过 `SHELLX_MCP_PORT` 修改默认端口。提供的工具为 `list_mcp_connections` 和 `execute_local_command`。每次执行、拒绝和失败都会写入：
+
+```text
+%LOCALAPPDATA%\ShellX\logs\mcp-audit-yyyyMMdd.jsonl
+```
+
+审计记录包含连接、完整命令、工作目录、超时、退出码、耗时、截断后的标准输出/错误输出和失败原因。MCP 默认只监听 `127.0.0.1`；开放到其他电脑前应使用 TLS、安全网络和额外访问控制。
+
 ## 配置与日志
 
 默认目录：`%LOCALAPPDATA%/ShellX`。开发和测试可通过 `SHELLX_DATA_DIR` 指定独立目录。

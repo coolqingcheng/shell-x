@@ -24,6 +24,7 @@ public sealed partial class App : Application
             var vm = _services.GetRequiredService<MainWindowViewModel>();
             var dialogs = _services.GetRequiredService<DialogService>();
             var lockCoordinator = _services.GetRequiredService<AppLockCoordinator>();
+            var mcpServer = _services.GetRequiredService<McpHttpServer>();
             var manager = new ConnectionManagerWindow(vm, profile =>
             {
                 var window = new MainWindow { DataContext = vm };
@@ -37,7 +38,9 @@ public sealed partial class App : Application
             dialogs.Owner = manager;
             desktop.MainWindow = manager;
             manager.Opened += async (_, _) => await vm.InitializeAsync();
-            desktop.Exit += (_, _) => { _services.Dispose(); Log.CloseAndFlush(); };
+            try { mcpServer.Start(); }
+            catch (Exception ex) { Serilog.Log.Error(ex, "MCP HTTP 启动失败"); }
+            desktop.Exit += (_, _) => { mcpServer.Dispose(); _services.Dispose(); Log.CloseAndFlush(); };
         }
         base.OnFrameworkInitializationCompleted();
     }

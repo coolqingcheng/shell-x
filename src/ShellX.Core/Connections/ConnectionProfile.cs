@@ -14,6 +14,7 @@ public sealed record ConnectionProfile
     public AuthenticationKind Authentication { get; init; }
     public string PrivateKeyPath { get; init; } = "";
     public bool RememberSecret { get; init; }
+    public bool McpEnabled { get; init; }
     public string InitialDirectory { get; init; } = ".";
     public List<Tunnels.TunnelDefinition> Tunnels { get; init; } = [];
     public List<Commands.SavedCommand> QuickCommands { get; init; } = [];

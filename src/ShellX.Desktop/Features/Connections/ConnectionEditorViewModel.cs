@@ -41,6 +41,7 @@ public partial class ConnectionEditorViewModel : ObservableObject
     [ObservableProperty] private string _password;
     [ObservableProperty] private string _passphrase;
     [ObservableProperty] private bool _rememberSecret;
+    [ObservableProperty] private bool _mcpEnabled;
     [ObservableProperty] private string _initialDirectory;
     [ObservableProperty] private string _error = "";
     public bool IsPassword => AuthenticationIndex == 0;
@@ -57,7 +58,7 @@ public partial class ConnectionEditorViewModel : ObservableObject
         _accentColor = profile.AccentColor; _selectedAccent = ConnectionAccentChoice.Find(_accentColor);
         _username = profile.Username; _authenticationIndex = (int)profile.Authentication;
         _privateKeyPath = profile.PrivateKeyPath; _password = secret.Password; _passphrase = secret.Passphrase;
-        _rememberSecret = profile.RememberSecret; _initialDirectory = profile.InitialDirectory;
+        _rememberSecret = profile.RememberSecret; _mcpEnabled = profile.McpEnabled; _initialDirectory = profile.InitialDirectory;
     }
     private bool CanTest => !IsTesting && !_closed && _test != null;
     [RelayCommand(CanExecute = nameof(CanTest))]
@@ -93,7 +94,7 @@ public partial class ConnectionEditorViewModel : ObservableObject
         if (!int.TryParse(Port, out var port)) throw new ArgumentException("请输入有效的端口。");
         var profile = new ConnectionProfile { Id = _id, Name = Name.Trim(), Group = string.IsNullOrWhiteSpace(Group) ? "默认分组" : Group.Trim(),
             AccentColor = AccentColor.Trim().ToUpperInvariant(), Host = Host.Trim(), Port = port, Username = Username.Trim(), Authentication = (AuthenticationKind)AuthenticationIndex,
-            PrivateKeyPath = PrivateKeyPath.Trim(), RememberSecret = RememberSecret,
+            PrivateKeyPath = PrivateKeyPath.Trim(), RememberSecret = RememberSecret, McpEnabled = McpEnabled,
             InitialDirectory = string.IsNullOrWhiteSpace(InitialDirectory) ? "." : InitialDirectory.Trim(), Tunnels = _tunnels, QuickCommands = _quickCommands };
         profile.Validate();
         return new(profile, new(Password, Passphrase));

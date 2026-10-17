@@ -66,19 +66,20 @@ internal sealed class StoredConnection
     public AuthenticationKind Authentication { get; set; }
     public string PrivateKeyPath { get; set; }
     public bool RememberSecret { get; set; }
+    public bool McpEnabled { get; set; }
     public string InitialDirectory { get; set; }
     public List<StoredTunnel> Tunnels { get; set; } = [];
     public List<StoredCommand> QuickCommands { get; set; } = [];
     public ConnectionProfile ToModel() => new()
     {
         Id = Id, Name = Name, Group = Group, AccentColor = AccentColor ?? "", Host = Host, Port = Port, Username = Username, Authentication = Authentication,
-        PrivateKeyPath = PrivateKeyPath, RememberSecret = RememberSecret, InitialDirectory = InitialDirectory,
+        PrivateKeyPath = PrivateKeyPath, RememberSecret = RememberSecret, McpEnabled = McpEnabled, InitialDirectory = InitialDirectory,
         Tunnels = Tunnels.Select(t => t.ToModel()).ToList(), QuickCommands = QuickCommands.Select(c => c.ToModel()).ToList()
     };
     public static StoredConnection From(ConnectionProfile model) => new()
     {
         Id = model.Id, Name = model.Name, Group = model.Group, AccentColor = model.AccentColor, Host = model.Host, Port = model.Port, Username = model.Username,
-        Authentication = model.Authentication, PrivateKeyPath = model.PrivateKeyPath, RememberSecret = model.RememberSecret,
+        Authentication = model.Authentication, PrivateKeyPath = model.PrivateKeyPath, RememberSecret = model.RememberSecret, McpEnabled = model.McpEnabled,
         InitialDirectory = model.InitialDirectory, Tunnels = model.Tunnels.Select(StoredTunnel.From).ToList(),
         QuickCommands = model.QuickCommands.Select(StoredCommand.From).ToList()
     };

@@ -130,6 +130,9 @@ public sealed class DialogService(ITextCodec codec, AppLockService? appLock = nu
         var passphrase = Field("私钥口令（可选）", Input((ConnectionEditorViewModel x) => x.Passphrase, true)); passphrase.Bind(Visual.IsVisibleProperty, CompiledBinding.Create((ConnectionEditorViewModel x) => x.IsKey)); body.Children.Add(passphrase);
         var remember = new CheckBox { Content = "记住凭据（由当前 Windows 用户加密保护）" };
         remember.Bind(CheckBox.IsCheckedProperty, CompiledBinding.Create((ConnectionEditorViewModel x) => x.RememberSecret, mode: BindingMode.TwoWay)); body.Children.Add(remember);
+        var mcp = new CheckBox { Content = "允许 MCP 执行本机命令" };
+        ToolTip.SetTip(mcp, "开启后，MCP 客户端可执行运行 ShellX 的电脑上的任意命令，并记录审计日志。");
+        mcp.Bind(CheckBox.IsCheckedProperty, CompiledBinding.Create((ConnectionEditorViewModel x) => x.McpEnabled, mode: BindingMode.TwoWay)); body.Children.Add(mcp);
         body.Children.Add(Field("初始目录（. 表示登录目录）", Input((ConnectionEditorViewModel x) => x.InitialDirectory)));
         var error = Text(""); ThemeService.Bind(error, TextBlock.ForegroundProperty, "ErrorForeground"); error.Bind(TextBlock.TextProperty, CompiledBinding.Create((ConnectionEditorViewModel x) => x.Error)); body.Children.Add(error);
         body.Bind(InputElement.IsEnabledProperty, CompiledBinding.Create((ConnectionEditorViewModel x) => x.CanEdit));

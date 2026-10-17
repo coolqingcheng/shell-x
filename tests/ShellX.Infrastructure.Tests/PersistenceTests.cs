@@ -42,16 +42,16 @@ public sealed class PersistenceTests : IDisposable
             """);
         var profile = Assert.Single(await new JsonConnectionRepository(paths).LoadAsync());
         Assert.Equal(22, profile.Port); Assert.Equal("root", profile.Username); Assert.Equal(".", profile.InitialDirectory);
-        Assert.Equal("", profile.AccentColor);
+        Assert.Equal("", profile.AccentColor); Assert.False(profile.McpEnabled);
         Assert.NotEqual(Guid.Empty, profile.Id); Assert.NotNull(profile.QuickCommands);
         var tunnel = Assert.Single(profile.Tunnels);
         Assert.Equal(3307, tunnel.BindPort); Assert.Equal("127.0.0.1", tunnel.TargetHost);
         Assert.NotEqual(Guid.Empty, Assert.Single(profile.QuickCommands).Id);
-        profile = profile with { AccentColor = "#BF6969" };
+        profile = profile with { AccentColor = "#BF6969", McpEnabled = true };
         await new JsonConnectionRepository(paths).SaveAsync([profile]);
         var restored = Assert.Single(await new JsonConnectionRepository(paths).LoadAsync());
         Assert.Equal(profile.Id, restored.Id); Assert.Equal(tunnel, Assert.Single(restored.Tunnels));
-        Assert.Equal("#BF6969", restored.AccentColor);
+        Assert.Equal("#BF6969", restored.AccentColor); Assert.True(restored.McpEnabled);
     }
     [Fact]
     public async Task ProcessSortPersistsAndOlderSettingsKeepDefaults()
