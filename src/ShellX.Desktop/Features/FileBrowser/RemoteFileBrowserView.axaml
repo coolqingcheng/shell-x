@@ -1,5 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:ShellX.Desktop.Features.FileBrowser" x:DataType="vm:FileBrowserViewModel" xmlns:local="using:ShellX.Desktop.Features.FileBrowser"
-             xmlns:models="using:ShellX.Core.Files" x:Class="ShellX.Desktop.Features.FileBrowser.RemoteFileBrowserView">
+             xmlns:models="using:ShellX.Core.Files" xmlns:controls="using:ShellX.Desktop.Controls" x:Class="ShellX.Desktop.Features.FileBrowser.RemoteFileBrowserView">
   <UserControl.KeyBindings>
     <KeyBinding Gesture="F5" Command="{Binding RefreshCommand}" />
     <KeyBinding Gesture="Alt+Up" Command="{Binding UpCommand}" />
@@ -53,7 +53,7 @@
         </ContextMenu></DataGrid.ContextMenu>
         <DataGrid.Columns>
           <DataGridTemplateColumn Header="名称" Width="Auto" MinWidth="130" SortMemberPath="Name">
-            <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="models:RemoteEntry"><Grid ColumnDefinitions="22,*" ColumnSpacing="8"><TextBlock Text="{Binding Icon}" Width="22" Height="22" FontSize="15" TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource FolderForeground}" /><TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding FullPath}" /></Grid></DataTemplate></DataGridTemplateColumn.CellTemplate>
+            <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="models:RemoteEntry"><Grid ColumnDefinitions="22,*" ColumnSpacing="8"><controls:FileIconView Symbol="{Binding Icon}" Foreground="{DynamicResource FolderForeground}" /><TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding FullPath}" /></Grid></DataTemplate></DataGridTemplateColumn.CellTemplate>
           </DataGridTemplateColumn>
           <DataGridTextColumn Header="大小" Binding="{Binding SizeText}" SortMemberPath="Size" Width="Auto" MinWidth="75" />
           <DataGridTextColumn Header="修改日期" Binding="{Binding ModifiedText}" SortMemberPath="ModifiedUtc" Width="Auto" MinWidth="155" />
