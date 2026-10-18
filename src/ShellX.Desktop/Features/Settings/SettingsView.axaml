@@ -74,7 +74,10 @@
         <TextBlock Text="MCP 客户端 JSON" />
         <TextBox Name="McpJsonBox" Text="{Binding McpJson, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
                  Height="220" FontFamily="Consolas" FontSize="11" />
-        <Button Name="CopyMcpJsonButton" Content="复制 MCP JSON" Click="CopyMcpJsonClick" Classes="primary" HorizontalAlignment="Left" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button Name="CopyMcpJsonButton" Content="复制 MCP JSON" Click="CopyMcpJsonClick" Classes="primary" />
+          <Button Name="OpenMcpLog" Content="MCP 日志" Click="ShowMcpLog" ToolTip.Tip="查看 MCP 命令执行日志" />
+        </StackPanel>
         <TextBlock Text="MCP 可以在运行 ShellX 的本机执行任意命令。密钥会随 MCP JSON 一起复制，请妥善保管。地址保存后 MCP 服务会立即重启。" Foreground="{DynamicResource SecondaryForeground}" FontSize="12" TextWrapping="Wrap" />
       </StackPanel></ScrollViewer>
     </TabItem>

@@ -51,6 +51,7 @@ public partial class MainWindowViewModel : ObservableObject
     [ObservableProperty] private int _connectionCount;
     public bool HasTabs => Tabs.Count > 0;
     public bool HasNoTabs => !HasTabs;
+    public bool HasMcpConnections => _profiles.Any(profile => profile.McpEnabled);
     public bool HasNoConnections => VisibleConnections.Count == 0 && string.IsNullOrEmpty(Search);
     public bool HasNoResults => VisibleConnections.Count == 0 && !string.IsNullOrEmpty(Search);
 
@@ -88,7 +89,7 @@ public partial class MainWindowViewModel : ObservableObject
             nodes.Add(path, node); nodes[parent].Children.Add(node);
         }
         Groups.Clear(); Groups.Add(root); SelectedGroup = nodes.GetValueOrDefault(selected, root);
-        RefreshVisibleConnections(); OnPropertyChanged(nameof(FolderPaths));
+        RefreshVisibleConnections(); OnPropertyChanged(nameof(FolderPaths)); OnPropertyChanged(nameof(HasMcpConnections));
     }
     private void RefreshVisibleConnections()
     {
