@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -10,6 +11,42 @@ namespace ShellX.Desktop.Tests;
 
 public sealed class McpLogLayoutTests
 {
+    [AvaloniaFact]
+    public async Task ScrollingUpPausesAutoScrollUntilUserReturnsToBottom()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "shellx-mcp-log-scroll-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var paths = new AppPaths(root);
+            var logs = Path.Combine(root, "logs");
+            Directory.CreateDirectory(logs);
+            var file = Path.Combine(logs, "mcp-audit-20261018.jsonl");
+            var rows = Enumerable.Range(0, 200).Select(i => "{\"Timestamp\":\"2026-10-18T10:00:00+08:00\",\"ConnectionName\":\"本地\",\"Status\":\"succeeded\",\"Command\":\"row-" + i + "\",\"ExitCode\":0,\"DurationMilliseconds\":1}");
+            await File.WriteAllLinesAsync(file, rows, TestContext.Current.CancellationToken);
+            var window = new McpLogWindow(paths);
+            window.Show();
+            try
+            {
+                await Dispatcher.UIThread.InvokeAsync(() => { });
+                var list = window.FindControl<ListBox>("LogRows")!;
+                var scroll = list.GetVisualDescendants().OfType<ScrollViewer>().First();
+                await Task.Delay(50);
+                scroll.Offset = new Vector(0, 0);
+                await Dispatcher.UIThread.InvokeAsync(() => { });
+                await File.AppendAllTextAsync(file, """{"Timestamp":"2026-10-18T10:01:00+08:00","ConnectionName":"本地","Status":"succeeded","Command":"new-row","ExitCode":0,"DurationMilliseconds":1}""" + Environment.NewLine, TestContext.Current.CancellationToken);
+                await Task.Delay(1200);
+                Assert.Equal(0, scroll.Offset.Y);
+
+                scroll.ScrollToEnd();
+                await Dispatcher.UIThread.InvokeAsync(() => { });
+                await File.AppendAllTextAsync(file, """{"Timestamp":"2026-10-18T10:02:00+08:00","ConnectionName":"本地","Status":"succeeded","Command":"new-row-2","ExitCode":0,"DurationMilliseconds":1}""" + Environment.NewLine, TestContext.Current.CancellationToken);
+                await Task.Delay(1200);
+                Assert.True(scroll.Offset.Y + scroll.Viewport.Height >= scroll.Extent.Height - 2);
+            }
+            finally { window.Close(); }
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
     [AvaloniaFact]
     public async Task LongMcpLogCommandWrapsInsideVirtualizedList()
     {
