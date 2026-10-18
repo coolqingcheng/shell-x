@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using Avalonia.Controls;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -23,6 +25,7 @@ public partial class McpLogWindow : Window
         InitializeComponent();
         _reader = new(Path.Combine(paths.Root, "logs"));
         LogRows.ItemsSource = _rows;
+        LogRows.SelectionChanged += (_, _) => UpdateCopyButton();
         LogPath.Text = _reader.CurrentPath;
         _timer.Tick += (_, _) => Refresh();
         Loaded += (_, _) =>
@@ -54,6 +57,34 @@ public partial class McpLogWindow : Window
         else if (atBottom) _autoScroll = true;
     }
 
+    private void LogSelectionChanged(object? sender, SelectionChangedEventArgs e) => UpdateCopyButton();
+
+    private void UpdateCopyButton() => CopyLogRowButton.IsEnabled = _rows.Count > 0;
+
+    private async void CopySelectedLogRow(object? sender, RoutedEventArgs e)
+    {
+        var row = LogRows.SelectedItem as McpLogRow ?? (_rows.Count > 0 ? _rows[^1] : null);
+        if (row == null || TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard) return;
+        await clipboard.SetTextAsync(row.Detail);
+        if (sender is Button button)
+        {
+            button.Content = "已复制";
+            await Task.Delay(1200);
+            button.Content = "复制当前行";
+        }
+    }
+
+    private void OpenLogLocation(object? sender, RoutedEventArgs e)
+    {
+        var file = _reader.CurrentPath;
+        var directory = string.IsNullOrEmpty(file) ? Path.Combine(new AppPaths().Root, "logs") : Path.GetDirectoryName(file)!;
+        Directory.CreateDirectory(directory);
+        if (!string.IsNullOrEmpty(file) && File.Exists(file))
+            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{file}\"") { UseShellExecute = true });
+        else
+            Process.Start(new ProcessStartInfo("explorer.exe", directory) { UseShellExecute = true });
+    }
+
     private void RefreshNow(object? sender, RoutedEventArgs e) => Refresh();
 
     private void Refresh()
@@ -63,6 +94,7 @@ public partial class McpLogWindow : Window
         foreach (var row in rows) _rows.Add(row);
         while (_rows.Count > MaxVisibleRows) _rows.RemoveAt(0);
         EmptyText.IsVisible = _rows.Count == 0;
+        UpdateCopyButton();
         if (_autoScroll && _rows.Count > 0)
             Dispatcher.UIThread.Post(() => _scrollViewer?.ScrollToEnd(), DispatcherPriority.Background);
     }
