@@ -65,6 +65,11 @@ public sealed class ConnectionManagerTests
         {
             await vm.InitializeAsync();
             Assert.NotNull(vm.FindFolder("生产")); Assert.NotNull(vm.FindFolder("生产/华东"));
+            Assert.Empty(vm.VisibleConnections); Assert.True(vm.NeedsLeafFolder);
+            vm.SelectedGroup = vm.FindFolder("生产"); Assert.Empty(vm.VisibleConnections);
+            vm.Search = "生产服务器"; Assert.Empty(vm.VisibleConnections); Assert.False(vm.HasNoResults);
+            vm.SelectedGroup = vm.FindFolder("生产/华东"); Assert.Equal(profile.Id, Assert.Single(vm.VisibleConnections).Id);
+            vm.Search = ""; vm.SelectedGroup = vm.FindFolder("");
             dialogs.Prompts.Enqueue("空目录"); await vm.NewFolderCommand.ExecuteAsync(null);
             Assert.Equal("空目录", vm.SelectedGroup!.Path);
             dialogs.Prompts.Enqueue("子目录"); await vm.NewFolderCommand.ExecuteAsync(null);
@@ -72,13 +77,17 @@ public sealed class ConnectionManagerTests
             vm.SelectedGroup = vm.FindFolder("生产"); dialogs.Prompts.Enqueue("线上");
             await vm.RenameFolderCommand.ExecuteAsync(null);
             Assert.Null(vm.FindFolder("生产")); Assert.NotNull(vm.FindFolder("线上/华东"));
-            Assert.Equal("线上/华东", Assert.Single(vm.VisibleConnections).Group);
+            Assert.Empty(vm.VisibleConnections); Assert.True(vm.NeedsLeafFolder);
             await vm.DeleteFolderCommand.ExecuteAsync(null);
             Assert.Contains(dialogs.Errors, error => error.Contains("先移走"));
+            vm.SelectedGroup = vm.FindFolder("线上/华东");
+            Assert.Equal("线上/华东", Assert.Single(vm.VisibleConnections).Group);
             vm.SelectedGroup = vm.FindFolder("空目录/子目录"); await vm.DeleteFolderCommand.ExecuteAsync(null);
             Assert.Null(vm.FindFolder("空目录/子目录")); Assert.NotNull(vm.FindFolder("空目录"));
             var restored = Model(root, new JsonConnectionRepository(new(root)), dialogs); await restored.InitializeAsync();
             Assert.NotNull(restored.FindFolder("空目录")); Assert.NotNull(restored.FindFolder("线上/华东"));
+            Assert.Empty(restored.VisibleConnections); Assert.True(restored.NeedsLeafFolder);
+            restored.SelectedGroup = restored.FindFolder("线上/华东");
             Assert.Equal(profile.Id, Assert.Single(restored.VisibleConnections).Id);
             restored.Search = "missing"; Assert.True(restored.HasNoResults);
             await restored.ShutdownAsync();
@@ -141,7 +150,7 @@ public sealed class ConnectionManagerTests
             await moving;
             Assert.Equal("空文件夹", (await store.LoadAsync()).Single(p => p.Id == profile.Id).Group);
             Assert.Equal("#BF6969", (await store.LoadAsync()).Single(p => p.Id == profile.Id).AccentColor);
-            vm.SelectedGroup = vm.FindFolder(""); await Task.Delay(50);
+            vm.SelectedGroup = vm.FindFolder("空文件夹"); await Task.Delay(50);
             Capture(manager, "connection-manager.png");
             await Task.Delay(40); Pick(manager, profile);
             await AcceptHostAndConnect(window, vm, 1);
@@ -180,7 +189,8 @@ public sealed class ConnectionManagerTests
             renamePrompt.Close(); await cancelRename; Assert.Equal("线上日志", first.Name);
             Click(window, window.FindControl<Button>("OpenConnectionManager")!);
             await Until(() => window.OwnedWindows.Any(w => w.Title == "连接管理器"));
-            manager = window.OwnedWindows.Single(w => w.Title == "连接管理器"); await Task.Delay(40); Pick(manager, different);
+            manager = window.OwnedWindows.Single(w => w.Title == "连接管理器");
+            vm.SelectedGroup = vm.FindFolder("测试"); await Task.Delay(40); Pick(manager, different);
             await AcceptHostAndConnect(window, vm, 3);
             var third = vm.SelectedTab!; Assert.NotSame(first.Monitor, third.Monitor);
             Assert.Same(third.Monitor, window.GetVisualDescendants().OfType<ServerMonitorView>().Single().DataContext);

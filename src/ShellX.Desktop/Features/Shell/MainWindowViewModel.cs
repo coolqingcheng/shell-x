@@ -52,8 +52,9 @@ public partial class MainWindowViewModel : ObservableObject
     public bool HasTabs => Tabs.Count > 0;
     public bool HasNoTabs => !HasTabs;
     public bool HasMcpConnections => _profiles.Any(profile => profile.McpEnabled);
-    public bool HasNoConnections => VisibleConnections.Count == 0 && string.IsNullOrEmpty(Search);
-    public bool HasNoResults => VisibleConnections.Count == 0 && !string.IsNullOrEmpty(Search);
+    public bool NeedsLeafFolder => SelectedGroup is not { Path.Length: > 0, Children.Count: 0 };
+    public bool HasNoConnections => !NeedsLeafFolder && VisibleConnections.Count == 0 && string.IsNullOrWhiteSpace(Search);
+    public bool HasNoResults => !NeedsLeafFolder && VisibleConnections.Count == 0 && !string.IsNullOrWhiteSpace(Search);
 
     public MainWindowViewModel(IConnectionRepository connections, ICredentialStore credentials, IHostKeyStore hosts,
         ISettingsStore settingsStore, IRemoteSessionFactory sessions, IDialogService dialogs, ILoggerFactory logs, ILocalFileSystem localFiles, AppLockService applicationLock, IConfigurationExporter configurationExporter)
@@ -95,10 +96,10 @@ public partial class MainWindowViewModel : ObservableObject
     {
         VisibleConnections.Clear();
         var folder = SelectedGroup?.Path ?? "";
-        foreach (var profile in _profiles.Where(p => (folder.Length == 0 || ConnectionFolders.Contains(folder, ConnectionFolders.Normalize(p.Group))) &&
+        foreach (var profile in _profiles.Where(p => !NeedsLeafFolder && folder == ConnectionFolders.Normalize(p.Group) &&
             (string.IsNullOrWhiteSpace(Search) || $"{p.Name} {p.Host} {p.Username} {p.Group}".Contains(Search, StringComparison.OrdinalIgnoreCase)))
             .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)) VisibleConnections.Add(profile);
-        OnPropertyChanged(nameof(HasNoConnections)); OnPropertyChanged(nameof(HasNoResults));
+        OnPropertyChanged(nameof(NeedsLeafFolder)); OnPropertyChanged(nameof(HasNoConnections)); OnPropertyChanged(nameof(HasNoResults));
     }
     private async Task CommitCatalogAsync(Func<ConnectionCatalog, ConnectionCatalog> update)
     {

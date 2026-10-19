@@ -7,7 +7,7 @@ using Avalonia.VisualTree;
 
 namespace ShellX.Desktop.Controls;
 
-public enum ConnectionAccentAppearance { Indicator, Tab, Frame }
+public enum ConnectionAccentAppearance { Indicator, Tab, Frame, Row }
 
 // 颜色跟随控件的实际主题计算，不重建终端；背景和边框比顶部标识线更轻。
 public sealed class ConnectionAccentBorder : Border
@@ -55,6 +55,8 @@ public sealed class ConnectionAccentBorder : Border
                 break;
             case ConnectionAccentAppearance.Frame:
                 BorderBrush = new SolidColorBrush(marked ? Blend(surface, accent, light ? .38 : .52) : Colors.Transparent); break;
+            case ConnectionAccentAppearance.Row:
+                Background = new SolidColorBrush(marked ? Color.FromArgb(light ? (byte)46 : (byte)66, accent.R, accent.G, accent.B) : Colors.Transparent); break;
         }
     }
     private void ApplyForeground(Color color)
