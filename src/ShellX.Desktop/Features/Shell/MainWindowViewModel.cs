@@ -51,7 +51,7 @@ public partial class MainWindowViewModel : ObservableObject
     [ObservableProperty] private int _connectionCount;
     public bool HasTabs => Tabs.Count > 0;
     public bool HasNoTabs => !HasTabs;
-    public bool HasMcpConnections => _profiles.Any(profile => profile.McpEnabled);
+    public bool HasMcpConnections => _settings.McpEnabled && _profiles.Any(profile => profile.McpEnabled);
     public bool NeedsLeafFolder => SelectedGroup is not { Path.Length: > 0, Children.Count: 0 };
     public bool HasNoConnections => !NeedsLeafFolder && VisibleConnections.Count == 0 && string.IsNullOrWhiteSpace(Search);
     public bool HasNoResults => !NeedsLeafFolder && VisibleConnections.Count == 0 && !string.IsNullOrWhiteSpace(Search);
@@ -345,7 +345,7 @@ public partial class MainWindowViewModel : ObservableObject
     {
         if (_applicationLock.IsLocked) return;
         if (await _dialogs.SettingsAsync(_settings) is not { } settings) return;
-        try { await _settingsStore.SaveAsync(settings); _settings = settings; ThemeService.Apply(settings.Theme); _applicationLock.Configure(settings); foreach (var tab in Tabs) tab.ApplySettings(settings); }
+        try { await _settingsStore.SaveAsync(settings); _settings = settings; OnPropertyChanged(nameof(HasMcpConnections)); ThemeService.Apply(settings.Theme); _applicationLock.Configure(settings); foreach (var tab in Tabs) tab.ApplySettings(settings); }
         catch (Exception ex) { await _dialogs.ShowErrorAsync(ex.Message); }
     }
     public async Task<bool> ShutdownAsync()

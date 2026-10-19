@@ -14,6 +14,43 @@ namespace ShellX.Desktop.Tests;
 public sealed class McpHttpServerTests
 {
     [Fact]
+    public async Task GlobalSwitchPreventsListeningAtStartupAndSupportsDisableAndReenable()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "shellx-mcp-switch-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var paths = new AppPaths(root);
+            var settingsStore = new JsonSettingsStore(paths);
+            var repository = new JsonConnectionRepository(paths);
+            var settings = new AppSettings { McpEnabled = false, McpAddress = $"http://127.0.0.1:{FreePort()}", McpToken = "test-mcp-switch-token-1234567890" };
+            await settingsStore.SaveAsync(settings, TestContext.Current.CancellationToken);
+            using var server = new McpHttpServer(settingsStore, repository, new LocalCommandExecutor(repository, new McpAuditLog(paths)), NullLogger<McpHttpServer>.Instance);
+            await server.StartAsync(TestContext.Current.CancellationToken);
+            Assert.False(server.IsListening);
+            using var client = new HttpClient();
+            client.DefaultRequestHeaders.Authorization = new("Bearer", settings.McpToken);
+
+            foreach (var enabled in new[] { true, false, true, false })
+            {
+                settings = settings with { McpEnabled = enabled };
+                await settingsStore.SaveAsync(settings, TestContext.Current.CancellationToken);
+                server.ApplySettings(settings);
+                server.Restart();
+                Assert.Equal(enabled, server.IsListening);
+                if (enabled)
+                {
+                    using var result = await PostAsync(client, server.Endpoint, """{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}""");
+                    Assert.Equal("ShellX", result.RootElement.GetProperty("result").GetProperty("serverInfo").GetProperty("name").GetString());
+                }
+            }
+
+            await server.StartAsync(TestContext.Current.CancellationToken);
+            Assert.False(server.IsListening);
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
+
+    [Fact]
     public async Task StreamableHttpEndpointExposesLocalCommandTool()
     {
         var root = Path.Combine(Path.GetTempPath(), "shellx-mcp-http-" + Guid.NewGuid().ToString("N"));

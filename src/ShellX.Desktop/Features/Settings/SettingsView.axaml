@@ -64,6 +64,8 @@
     </TabItem>
     <TabItem Header="MCP">
       <ScrollViewer><StackPanel Spacing="12" Margin="10,18">
+        <CheckBox Name="McpEnabledToggle" Content="启用 MCP 服务" IsChecked="{Binding McpEnabled, Mode=TwoWay}" />
+        <TextBlock Text="保存后生效。开启后仍需在连接中勾选“允许 MCP”；关闭后停止 MCP 服务，历史日志仍可查看。" Foreground="{DynamicResource SecondaryForeground}" FontSize="12" TextWrapping="Wrap" />
         <TextBlock Text="MCP 地址" />
         <TextBox Name="McpAddress" Text="{Binding McpAddress, Mode=TwoWay}" PlaceholderText="http://127.0.0.1:8765" />
         <TextBlock Text="MCP 密钥" />
@@ -78,7 +80,7 @@
           <Button Name="CopyMcpJsonButton" Content="复制 MCP JSON" Click="CopyMcpJsonClick" Classes="primary" />
           <Button Name="OpenMcpLog" Content="MCP 日志" Click="ShowMcpLog" ToolTip.Tip="查看 MCP 命令执行日志" />
         </StackPanel>
-        <TextBlock Text="MCP 可以在运行 ShellX 的本机执行任意命令。密钥会随 MCP JSON 一起复制，请妥善保管。地址保存后 MCP 服务会立即重启。" Foreground="{DynamicResource SecondaryForeground}" FontSize="12" TextWrapping="Wrap" />
+        <TextBlock Text="MCP 可以在运行 ShellX 的本机执行任意命令。密钥会随 MCP JSON 一起复制，请妥善保管。服务开启时，保存地址或密钥会立即重启 MCP 服务。" Foreground="{DynamicResource SecondaryForeground}" FontSize="12" TextWrapping="Wrap" />
       </StackPanel></ScrollViewer>
     </TabItem>
   </TabControl>

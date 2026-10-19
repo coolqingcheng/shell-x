@@ -65,7 +65,8 @@ public sealed class PersistenceTests : IDisposable
         Assert.True(old.AutoReconnectEnabled); Assert.Equal(5, old.ReconnectIntervalSeconds);
         Assert.Equal(220, old.MonitorPaneWidth); Assert.Equal(1.3, old.TerminalPaneStar);
         Assert.Equal(1, old.LocalPaneStar); Assert.Equal(150, old.RemoteTreeWidth);
-        await store.SaveAsync(old with { Theme = AppTheme.Light, ProcessSortColumn = ProcessSortColumn.Memory, ProcessSortDescending = false, AutoReconnectEnabled = false, ReconnectIntervalSeconds = 27, MonitorPaneWidth = 310, TerminalPaneStar = 2.4, LocalPaneStar = 0.8, RemoteTreeWidth = 185 });
+        Assert.True(old.McpEnabled);
+        await store.SaveAsync(old with { Theme = AppTheme.Light, ProcessSortColumn = ProcessSortColumn.Memory, ProcessSortDescending = false, AutoReconnectEnabled = false, ReconnectIntervalSeconds = 27, MonitorPaneWidth = 310, TerminalPaneStar = 2.4, LocalPaneStar = 0.8, RemoteTreeWidth = 185, McpEnabled = false });
         var restored = await new JsonSettingsStore(paths).LoadAsync();
         Assert.Equal(ProcessSortColumn.Memory, restored.ProcessSortColumn); Assert.False(restored.ProcessSortDescending);
         Assert.Equal(16, restored.TerminalFontSize);
@@ -73,6 +74,7 @@ public sealed class PersistenceTests : IDisposable
         Assert.False(restored.AutoReconnectEnabled); Assert.Equal(27, restored.ReconnectIntervalSeconds);
         Assert.Equal(310, restored.MonitorPaneWidth); Assert.Equal(2.4, restored.TerminalPaneStar);
         Assert.Equal(0.8, restored.LocalPaneStar); Assert.Equal(185, restored.RemoteTreeWidth);
+        Assert.False(restored.McpEnabled);
     }
     [Fact]
     public async Task ConnectionCatalogKeepsEmptyNestedFoldersAcrossLegacyConnectionSaves()

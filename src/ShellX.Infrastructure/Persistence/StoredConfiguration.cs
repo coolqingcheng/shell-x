@@ -29,6 +29,7 @@ internal sealed class StoredSettings
     public double TerminalPaneStar { get; set; } = Defaults.TerminalPaneStar;
     public double LocalPaneStar { get; set; } = Defaults.LocalPaneStar;
     public double RemoteTreeWidth { get; set; } = Defaults.RemoteTreeWidth;
+    public bool McpEnabled { get; set; } = Defaults.McpEnabled;
     public string McpAddress { get; set; } = Defaults.McpAddress;
     public string McpToken { get; set; } = Defaults.McpToken;
     public AppSettings ToModel() => new()
@@ -37,7 +38,7 @@ internal sealed class StoredSettings
         TerminalFontFamily = TerminalFontFamily, EditorFontFamily = EditorFontFamily, EditorFontSize = EditorFontSize,
         LockPasswordHash = LockPasswordHash, AutoLockEnabled = AutoLockEnabled, AutoLockMinutes = AutoLockMinutes,
         HighlightTerminalText = HighlightTerminalText, AutoReconnectEnabled = AutoReconnectEnabled, ReconnectIntervalSeconds = ReconnectIntervalSeconds,
-        ProcessSortColumn = ProcessSortColumn, ProcessSortDescending = ProcessSortDescending, MonitorPaneWidth = MonitorPaneWidth, TerminalPaneStar = TerminalPaneStar, LocalPaneStar = LocalPaneStar, RemoteTreeWidth = RemoteTreeWidth, McpAddress = McpAddress, McpToken = McpToken
+        ProcessSortColumn = ProcessSortColumn, ProcessSortDescending = ProcessSortDescending, MonitorPaneWidth = MonitorPaneWidth, TerminalPaneStar = TerminalPaneStar, LocalPaneStar = LocalPaneStar, RemoteTreeWidth = RemoteTreeWidth, McpEnabled = McpEnabled, McpAddress = McpAddress, McpToken = McpToken
     };
     public static StoredSettings From(AppSettings model) => new()
     {
@@ -45,7 +46,7 @@ internal sealed class StoredSettings
         TerminalFontFamily = model.TerminalFontFamily, EditorFontFamily = model.EditorFontFamily, EditorFontSize = model.EditorFontSize,
         LockPasswordHash = model.LockPasswordHash, AutoLockEnabled = model.AutoLockEnabled, AutoLockMinutes = model.AutoLockMinutes,
         HighlightTerminalText = model.HighlightTerminalText, AutoReconnectEnabled = model.AutoReconnectEnabled, ReconnectIntervalSeconds = model.ReconnectIntervalSeconds,
-        ProcessSortColumn = model.ProcessSortColumn, ProcessSortDescending = model.ProcessSortDescending, MonitorPaneWidth = model.MonitorPaneWidth, TerminalPaneStar = model.TerminalPaneStar, LocalPaneStar = model.LocalPaneStar, RemoteTreeWidth = model.RemoteTreeWidth, McpAddress = model.McpAddress, McpToken = model.McpToken
+        ProcessSortColumn = model.ProcessSortColumn, ProcessSortDescending = model.ProcessSortDescending, MonitorPaneWidth = model.MonitorPaneWidth, TerminalPaneStar = model.TerminalPaneStar, LocalPaneStar = model.LocalPaneStar, RemoteTreeWidth = model.RemoteTreeWidth, McpEnabled = model.McpEnabled, McpAddress = model.McpAddress, McpToken = model.McpToken
     };
 }
 

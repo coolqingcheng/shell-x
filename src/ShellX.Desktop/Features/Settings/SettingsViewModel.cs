@@ -49,6 +49,7 @@ public partial class SettingsViewModel(AppSettings original, ILockPasswordHasher
     [ObservableProperty] private string _confirmPassword = "";
     [ObservableProperty] private string _error = "";
     [ObservableProperty] private bool _isSaving;
+    [ObservableProperty] private bool _mcpEnabled = original.McpEnabled;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(McpJson))] private string _mcpAddress = original.McpAddress;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(McpJson))] private string _mcpToken = string.IsNullOrWhiteSpace(original.McpToken) ? Convert.ToHexString(RandomNumberGenerator.GetBytes(32)) : original.McpToken;
     partial void OnChangePasswordChanged(bool value) { OnPropertyChanged(nameof(ShowPasswordFields)); OnPropertyChanged(nameof(ShowNewPassword)); }
@@ -91,7 +92,7 @@ public partial class SettingsViewModel(AppSettings original, ILockPasswordHasher
                 EditorFontFamily = EditorFontFamily, EditorFontSize = (double)EditorFontSize,
                 ShowHiddenFiles = ShowHidden, HighlightTerminalText = HighlightText,
                 AutoReconnectEnabled = AutoReconnect, ReconnectIntervalSeconds = (int)ReconnectIntervalSeconds,
-                LockPasswordHash = hash, AutoLockEnabled = AutoLock && !string.IsNullOrEmpty(hash), AutoLockMinutes = (int)minutes, McpAddress = McpAddress.TrimEnd('/' ), McpToken = McpToken.Trim() };
+                LockPasswordHash = hash, AutoLockEnabled = AutoLock && !string.IsNullOrEmpty(hash), AutoLockMinutes = (int)minutes, McpEnabled = McpEnabled, McpAddress = McpAddress.TrimEnd('/' ), McpToken = McpToken.Trim() };
             ClearPasswords(); Saved?.Invoke(result);
         }
         catch (Exception ex) { Error = ex.Message; CurrentPassword = ""; }

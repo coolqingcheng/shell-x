@@ -174,6 +174,7 @@ public sealed class McpHttpServer(ISettingsStore settingsStore, IConnectionRepos
     private readonly CancellationTokenSource _lifetime = new();
     private Task? _loop;
     private bool _disposed;
+    private volatile bool _enabled;
     private string _prefix = "http://127.0.0.1:8765/";
     private string _endpoint = "http://127.0.0.1:8765/mcp";
     private string _token = "";
@@ -196,12 +197,13 @@ public sealed class McpHttpServer(ISettingsStore settingsStore, IConnectionRepos
     {
         (_prefix, _endpoint) = NormalizeAddress(settings.McpAddress);
         _token = settings.McpToken?.Trim() ?? "";
+        _enabled = settings.McpEnabled;
     }
 
     public void Start()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (_listener.IsListening) return;
+        if (!_enabled || _listener.IsListening) return;
         if (_token.Length < 16) throw new InvalidOperationException("MCP Token 至少需要 16 个字符。");
         _listener.Prefixes.Clear();
         _listener.Prefixes.Add(_prefix);
@@ -212,9 +214,8 @@ public sealed class McpHttpServer(ISettingsStore settingsStore, IConnectionRepos
 
     public void Restart()
     {
-        var restart = _listener.IsListening;
         Stop();
-        if (restart) Start();
+        Start();
     }
 
     private void Stop()
@@ -263,6 +264,7 @@ public sealed class McpHttpServer(ISettingsStore settingsStore, IConnectionRepos
         var request = context.Request; var response = context.Response;
         try
         {
+            if (!_enabled) { response.StatusCode = 503; response.Close(); return; }
             if (request.Url?.AbsolutePath == "/healthz")
             {
                 await WriteJsonAsync(response, 200, "{\"status\":\"ok\"}", token).ConfigureAwait(false);
