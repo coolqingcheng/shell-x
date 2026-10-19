@@ -14,6 +14,7 @@ public sealed record AppSettings
     public double EditorFontSize { get; init; } = 14;
     public string LockPasswordHash { get; init; } = "";
     public bool AutoLockEnabled { get; init; }
+    public bool AutoLockOnlyWhenSystemLocked { get; init; } = true;
     public int AutoLockMinutes { get; init; } = 15;
     public bool ShowHiddenFiles { get; init; }
     public bool HighlightTerminalText { get; init; } = true;

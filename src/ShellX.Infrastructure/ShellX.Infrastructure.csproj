@@ -4,6 +4,7 @@
     <ProjectReference Include="../ShellX.Core/ShellX.Core.csproj" />
     <PackageReference Include="SSH.NET" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" />
+    <PackageReference Include="Microsoft.Win32.SystemEvents" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
   </ItemGroup>
 </Project>

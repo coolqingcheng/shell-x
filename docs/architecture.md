@@ -271,7 +271,9 @@ Desktop 的 `CodeEditor` 适配 AvaloniaEdit 12.0.0，显式使用 TextEditor �
 
 设置页面的 SettingsViewModel 处理字体选择、时长单位转换和密码变更验证，持久化仍由主窗口通过 ISettingsStore 完成。AppSettings/StoredSettings 增加终端和编辑器字体、锁定校验值、自动锁定开关及分钟数，旧设置沿用默认值。Core 只定义 ILockPasswordHasher 接口；Infrastructure 使用随机盐、600000 次 PBKDF2-SHA256 和固定时间比较，Desktop 不自行实现密码算法，也不持久化原始密码。
 
-AppLockService 管理当前应用设置、锁定/校验状态和基于 TimeProvider 单调时间戳的闲置截止时间；只有界面输入调用 RecordActivity，SSH 输出和监控采样不参与。AppLockCoordinator 在每个应用窗口内容挂载、显示前添加 LockScreen，锁定时隐藏并禁用原内容、收起菜单和提示、暂存窗口快捷键，将焦点留在活动窗口的密码输入框。原控件保留在树中，不卸载终端，不释放 SSH 会话或编辑缓冲区；解锁后恢复内容、快捷键和焦点。新开的模态窗口同样受保护，Ctrl+L 和 Escape 在窗口隧道路由中处理，后台定时器每秒检查闲置状态。
+Core 的 `ISystemSessionMonitor` 定义系统锁屏状态、带时间戳的通知和监听生命周期；Infrastructure 根据操作系统注入实现。Windows 使用 `WindowsSystemSessionMonitor` 订阅 `SystemEvents.SessionSwitch`，并通过 WTS 查询初始化当前用户会话的锁屏状态，退出时取消订阅。其他系统目前使用明确返回不支持及未知状态的 `UnsupportedSystemSessionMonitor`，后续可独立接入平台实现。窗口切换不影响这个单例监听器。
+
+AppLockService 管理当前应用设置和锁定/校验状态。自动锁定默认只计算一次连续的系统锁屏时长，提前解锁清零；解锁通知会先补算时长，覆盖休眠期间没有定时检查的情况。取消“仅在系统锁屏后计时”后，沿用基于 TimeProvider 单调时间戳的界面闲置计时；SSH 输出和监控采样不参与。AppLockCoordinator 将系统通知转到 UI 线程，在每个应用窗口内容挂载、显示前添加 LockScreen，锁定时隐藏并禁用原内容、收起菜单和提示、暂存窗口快捷键，将焦点留在活动窗口的密码输入框。原控件保留在树中，不卸载终端，不释放 SSH 会话或编辑缓冲区；解锁后恢复内容、快捷键和焦点。新开的模态窗口同样受保护，Ctrl+L 和 Escape 在窗口隧道路由中处理，后台定时器每秒检查自动锁定条件。
 
 SecretTextBox 继承标准 TextBox 主题并保持密码掩码，自定义 AutomationPeer 的 Value 读取为空，辅助功能写入仍遵守可编辑状态。终端字体通过 TerminalHost 的字符串属性显式创建 FontFamily；编辑器订阅设置变更并在对话框关闭时取消订阅，避免依赖运行时反射转换或残留事件引用。
 

@@ -31,8 +31,9 @@ public sealed class LockPasswordTests
             var old = await store.LoadAsync();
             Assert.Equal(new AppSettings().TerminalFontFamily, old.TerminalFontFamily);
             Assert.Equal(14, old.EditorFontSize); Assert.Empty(old.LockPasswordHash); Assert.False(old.AutoLockEnabled);
+            Assert.True(old.AutoLockOnlyWhenSystemLocked);
             var hash = new LockPasswordHasher().Hash("test-store-password");
-            var settings = old with { TerminalFontFamily = "Consolas", EditorFontFamily = "Courier New", EditorFontSize = 18, LockPasswordHash = hash, AutoLockEnabled = true, AutoLockMinutes = 120 };
+            var settings = old with { TerminalFontFamily = "Consolas", EditorFontFamily = "Courier New", EditorFontSize = 18, LockPasswordHash = hash, AutoLockEnabled = true, AutoLockOnlyWhenSystemLocked = false, AutoLockMinutes = 120 };
             await store.SaveAsync(settings);
             Assert.Equal(settings, await new JsonSettingsStore(paths).LoadAsync());
             Assert.DoesNotContain("test-store-password", await File.ReadAllTextAsync(paths.File("settings.json")));

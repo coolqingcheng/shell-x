@@ -36,9 +36,11 @@
           <controls:SecretTextBox Name="ConfirmLockPassword" MaxLength="256" PlaceholderText="再次输入新锁定密码" Text="{Binding ConfirmPassword, Mode=TwoWay}" IsVisible="{Binding ShowNewPassword}" />
         </StackPanel>
         <Border Height="1" Background="{DynamicResource BorderColor}" Margin="0,6" />
-        <CheckBox Name="AutoLockToggle" Content="无操作后自动锁定" IsChecked="{Binding AutoLock, Mode=TwoWay}" />
+        <CheckBox Name="AutoLockToggle" Content="启用自动锁定" IsChecked="{Binding AutoLock, Mode=TwoWay}" />
+        <CheckBox Name="SystemLockCondition" Content="仅在系统锁屏后计时" IsChecked="{Binding AutoLockOnlyWhenSystemLocked, Mode=TwoWay}" IsEnabled="{Binding AutoLock}" />
+        <TextBlock Text="当前系统暂不支持锁屏检测，可取消上述条件，改用界面无操作时间。" IsVisible="{Binding !SystemSessionSupported}" Foreground="{DynamicResource SecondaryForeground}" FontSize="12" TextWrapping="Wrap" />
         <StackPanel Orientation="Horizontal" Spacing="10" IsEnabled="{Binding AutoLock}">
-          <TextBlock Text="闲置" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding AutoLockDelayLabel}" VerticalAlignment="Center" />
           <NumericUpDown Name="AutoLockDuration" Width="130" Minimum="1" Maximum="525600" Increment="1" Value="{Binding Duration, Mode=TwoWay}" />
           <ComboBox Name="AutoLockUnit" Width="95" ItemsSource="{Binding DurationUnits}" SelectedIndex="{Binding DurationUnit, Mode=TwoWay}" />
           <TextBlock Text="后锁定" VerticalAlignment="Center" />

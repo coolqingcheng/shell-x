@@ -18,6 +18,7 @@ internal sealed class StoredSettings
     public double EditorFontSize { get; set; } = Defaults.EditorFontSize;
     public string LockPasswordHash { get; set; } = Defaults.LockPasswordHash;
     public bool AutoLockEnabled { get; set; } = Defaults.AutoLockEnabled;
+    public bool AutoLockOnlyWhenSystemLocked { get; set; } = Defaults.AutoLockOnlyWhenSystemLocked;
     public int AutoLockMinutes { get; set; } = Defaults.AutoLockMinutes;
     public bool ShowHiddenFiles { get; set; } = Defaults.ShowHiddenFiles;
     public bool HighlightTerminalText { get; set; } = Defaults.HighlightTerminalText;
@@ -36,7 +37,7 @@ internal sealed class StoredSettings
     {
         Theme = Theme, Version = Version, TerminalFontSize = TerminalFontSize, ShowHiddenFiles = ShowHiddenFiles,
         TerminalFontFamily = TerminalFontFamily, EditorFontFamily = EditorFontFamily, EditorFontSize = EditorFontSize,
-        LockPasswordHash = LockPasswordHash, AutoLockEnabled = AutoLockEnabled, AutoLockMinutes = AutoLockMinutes,
+        LockPasswordHash = LockPasswordHash, AutoLockEnabled = AutoLockEnabled, AutoLockOnlyWhenSystemLocked = AutoLockOnlyWhenSystemLocked, AutoLockMinutes = AutoLockMinutes,
         HighlightTerminalText = HighlightTerminalText, AutoReconnectEnabled = AutoReconnectEnabled, ReconnectIntervalSeconds = ReconnectIntervalSeconds,
         ProcessSortColumn = ProcessSortColumn, ProcessSortDescending = ProcessSortDescending, MonitorPaneWidth = MonitorPaneWidth, TerminalPaneStar = TerminalPaneStar, LocalPaneStar = LocalPaneStar, RemoteTreeWidth = RemoteTreeWidth, McpEnabled = McpEnabled, McpAddress = McpAddress, McpToken = McpToken
     };
@@ -44,7 +45,7 @@ internal sealed class StoredSettings
     {
         Theme = model.Theme, Version = model.Version, TerminalFontSize = model.TerminalFontSize, ShowHiddenFiles = model.ShowHiddenFiles,
         TerminalFontFamily = model.TerminalFontFamily, EditorFontFamily = model.EditorFontFamily, EditorFontSize = model.EditorFontSize,
-        LockPasswordHash = model.LockPasswordHash, AutoLockEnabled = model.AutoLockEnabled, AutoLockMinutes = model.AutoLockMinutes,
+        LockPasswordHash = model.LockPasswordHash, AutoLockEnabled = model.AutoLockEnabled, AutoLockOnlyWhenSystemLocked = model.AutoLockOnlyWhenSystemLocked, AutoLockMinutes = model.AutoLockMinutes,
         HighlightTerminalText = model.HighlightTerminalText, AutoReconnectEnabled = model.AutoReconnectEnabled, ReconnectIntervalSeconds = model.ReconnectIntervalSeconds,
         ProcessSortColumn = model.ProcessSortColumn, ProcessSortDescending = model.ProcessSortDescending, MonitorPaneWidth = model.MonitorPaneWidth, TerminalPaneStar = model.TerminalPaneStar, LocalPaneStar = model.LocalPaneStar, RemoteTreeWidth = model.RemoteTreeWidth, McpEnabled = model.McpEnabled, McpAddress = model.McpAddress, McpToken = model.McpToken
     };

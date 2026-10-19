@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using ShellX.Core.Connections;
 using ShellX.Core.Files;
 using ShellX.Core.Security;
@@ -23,6 +24,9 @@ public static class DependencyInjection
         .AddSingleton<ILocalFileSystem, LocalFileSystem>()
         .AddSingleton<ITextCodec, TextCodec>()
         .AddSingleton<ILockPasswordHasher, LockPasswordHasher>()
+        .AddSingleton<ISystemSessionMonitor>(provider => OperatingSystem.IsWindows()
+            ? new WindowsSystemSessionMonitor(provider.GetRequiredService<ILogger<WindowsSystemSessionMonitor>>())
+            : new UnsupportedSystemSessionMonitor())
         .AddSingleton<SharedTunnelRegistry>()
         .AddSingleton<IConnectionTester, SshConnectionTester>()
         .AddSingleton<IRemoteSessionFactory, SshSessionFactory>();

@@ -6,6 +6,8 @@ using Avalonia.Input;
 using Avalonia.Media.Imaging;
 using Avalonia.VisualTree;
 using ShellX.Core.Settings;
+using ShellX.Core.Security;
+using Avalonia.Threading;
 using ShellX.Desktop.Features.FileEditor;
 using ShellX.Desktop.Features.Security;
 using ShellX.Desktop.Features.Settings;
@@ -34,7 +36,7 @@ public sealed class AppLockTests
     public async Task IdleUsesUserActivityAndStartupRequiresTheConfiguredPassword()
     {
         var clock = new ManualTime(); var passwords = new LockPasswordHasher();
-        var settings = new AppSettings { LockPasswordHash = passwords.Hash("test-idle-password"), AutoLockEnabled = true, AutoLockMinutes = 120 };
+        var settings = new AppSettings { LockPasswordHash = passwords.Hash("test-idle-password"), AutoLockEnabled = true, AutoLockOnlyWhenSystemLocked = false, AutoLockMinutes = 120 };
         var state = new AppLockService(passwords, clock);
         state.Configure(settings, startup: true); Assert.True(state.IsLocked);
         state.Password = "test-idle-password"; await state.UnlockCommand.ExecuteAsync(null); Assert.False(state.IsLocked);
@@ -46,6 +48,67 @@ public sealed class AppLockTests
         clock.Advance(TimeSpan.FromSeconds(2)); state.Password = "test-idle-password";
         await state.UnlockCommand.ExecuteAsync(null); Assert.False(state.IsLocked);
         state.Configure(new AppSettings()); clock.Advance(TimeSpan.FromDays(1)); state.CheckIdle(); Assert.False(state.IsLocked); Assert.False(state.Lock());
+    }
+
+    [Fact]
+    public void SystemLockDelayIgnoresBackgroundTimeAndCancelsShortLocks()
+    {
+        var clock = new ManualTime(); var passwords = new LockPasswordHasher();
+        var state = new AppLockService(passwords, clock);
+        state.Configure(new AppSettings { LockPasswordHash = passwords.Hash("test-session-password"), AutoLockEnabled = true, AutoLockMinutes = 2 });
+        clock.Advance(TimeSpan.FromDays(1)); state.CheckIdle(); Assert.False(state.IsLocked);
+        state.UpdateSystemSession(new(true, clock.GetUtcNow()));
+        clock.Advance(TimeSpan.FromMinutes(1)); state.UpdateSystemSession(new(false, clock.GetUtcNow()));
+        clock.Advance(TimeSpan.FromDays(1)); state.CheckIdle(); Assert.False(state.IsLocked);
+        state.UpdateSystemSession(new(true, clock.GetUtcNow()));
+        clock.Advance(TimeSpan.FromMinutes(1));
+        state.UpdateSystemSession(new(true, clock.GetUtcNow())); state.RecordActivity();
+        clock.Advance(TimeSpan.FromSeconds(59)); state.CheckIdle(); Assert.False(state.IsLocked);
+        clock.Advance(TimeSpan.FromSeconds(1)); state.CheckIdle(); Assert.True(state.IsLocked);
+    }
+
+    [Fact]
+    public void UnlockNotificationAppliesExpiredDelayAfterSleepWithoutTimerTicks()
+    {
+        var clock = new ManualTime(); var passwords = new LockPasswordHasher();
+        var state = new AppLockService(passwords, clock);
+        state.Configure(new AppSettings { LockPasswordHash = passwords.Hash("test-resume-password"), AutoLockEnabled = true, AutoLockMinutes = 2 });
+        state.UpdateSystemSession(new(true, clock.GetUtcNow()));
+        clock.Advance(TimeSpan.FromMinutes(10));
+        state.UpdateSystemSession(new(false, clock.GetUtcNow()));
+        Assert.True(state.IsLocked);
+    }
+
+    [AvaloniaFact]
+    public async Task CoordinatorUsesSessionInterfaceAndUnsubscribesWhenDisposed()
+    {
+        var clock = new ManualTime(); var passwords = new LockPasswordHasher();
+        var state = new AppLockService(passwords, clock);
+        state.Configure(new AppSettings { LockPasswordHash = passwords.Hash("test-monitor-password"), AutoLockEnabled = true, AutoLockMinutes = 1 });
+        using var monitor = new SessionMonitor();
+        using var coordinator = new AppLockCoordinator(state, monitor);
+        Assert.True(monitor.Started); Assert.True(coordinator.SupportsSystemSessionMonitoring);
+        await Task.Run(() => monitor.Publish(new(true, clock.GetUtcNow())));
+        await Dispatcher.UIThread.InvokeAsync(() => { });
+        clock.Advance(TimeSpan.FromMinutes(1)); state.CheckIdle(); Assert.True(state.IsLocked);
+        monitor.Publish(new(false, clock.GetUtcNow()));
+        state.Password = "test-monitor-password"; await state.UnlockCommand.ExecuteAsync(null);
+        coordinator.Dispose(); Assert.False(monitor.HasSubscribers);
+        monitor.Publish(new(true, clock.GetUtcNow()));
+        clock.Advance(TimeSpan.FromMinutes(1)); state.CheckIdle(); Assert.False(state.IsLocked);
+    }
+
+    [Fact]
+    public async Task UnsupportedPlatformsExplainSystemLockConditionAndAllowIdleMode()
+    {
+        var passwords = new LockPasswordHasher();
+        var vm = new SettingsViewModel(new AppSettings { LockPasswordHash = passwords.Hash("test-platform-password"), AutoLockEnabled = true }, passwords, ["Consolas"], systemSessionSupported: false);
+        AppSettings? saved = null; vm.Saved += settings => saved = settings;
+        await vm.SaveCommand.ExecuteAsync(null);
+        Assert.Null(saved); Assert.Contains("暂不支持锁屏检测", vm.Error);
+        vm.AutoLockOnlyWhenSystemLocked = false;
+        await vm.SaveCommand.ExecuteAsync(null);
+        Assert.NotNull(saved); Assert.False(saved.AutoLockOnlyWhenSystemLocked);
     }
 
     [AvaloniaFact]
@@ -86,7 +149,7 @@ public sealed class AppLockTests
             var code = editor.GetVisualDescendants().OfType<CodeEditor>().Single();
             Assert.Equal(18, code.FontSize); Assert.Equal("Consolas", code.FontFamily.Name);
             code.Text = "{\"unsaved\":true}"; code.Focus();
-            state.Configure(state.Settings with { AutoLockEnabled = true, AutoLockMinutes = 1 });
+            state.Configure(state.Settings with { AutoLockEnabled = true, AutoLockOnlyWhenSystemLocked = false, AutoLockMinutes = 1 });
             clock.Advance(TimeSpan.FromSeconds(50));
             editor.MouseMove(code.TranslatePoint(new Point(100, 100), editor)!.Value);
             clock.Advance(TimeSpan.FromSeconds(59)); state.CheckIdle(); Assert.False(state.IsLocked);
@@ -139,7 +202,8 @@ public sealed class AppLockTests
         {
             Assert.NotNull(window.GetVisualDescendants().OfType<ComboBox>().Single(c => c.Name == "TerminalFontSelector"));
             var vm = (SettingsViewModel)window.DataContext!;
-            vm.TerminalFontFamily = "Consolas"; vm.EditorFontFamily = "Courier New";
+            var terminalFont = vm.Fonts.First(); var editorFont = vm.Fonts.Last();
+            vm.TerminalFontFamily = terminalFont; vm.EditorFontFamily = editorFont;
             vm.ChangePassword = true; vm.NewPassword = vm.ConfirmPassword = "test-dialog-password";
             vm.AutoLock = true; vm.Duration = 1; vm.DurationUnit = 1;
             if (Environment.GetEnvironmentVariable("SHELLX_PREVIEW_PATH") is { Length: > 0 } preview)
@@ -153,8 +217,9 @@ public sealed class AppLockTests
                 security.Render(window); security.Save(Path.Combine(Path.GetDirectoryName(preview)!, "settings-security.png"), PngBitmapEncoderOptions.Default);
             }
             await vm.SaveCommand.ExecuteAsync(null);
+            Assert.Equal("", vm.Error);
             var saved = await result; Assert.NotNull(saved); Assert.Equal(60, saved.AutoLockMinutes);
-            Assert.Equal("Consolas", saved.TerminalFontFamily); Assert.Equal("Courier New", saved.EditorFontFamily);
+            Assert.Equal(terminalFont, saved.TerminalFontFamily); Assert.Equal(editorFont, saved.EditorFontFamily);
         }
         finally { if (window.IsVisible) window.Close(); owner.Close(); }
     }
@@ -171,5 +236,17 @@ public sealed class AppLockTests
         public override long GetTimestamp() => _elapsed.Ticks;
         public override DateTimeOffset GetUtcNow() => DateTimeOffset.UnixEpoch + _elapsed;
         public void Advance(TimeSpan duration) => _elapsed += duration;
+    }
+
+    private sealed class SessionMonitor : ISystemSessionMonitor
+    {
+        public bool IsSupported => true;
+        public bool Started { get; private set; }
+        public bool HasSubscribers => StateChanged != null;
+        public SystemSessionLockState? CurrentState { get; private set; }
+        public event Action<SystemSessionLockState>? StateChanged;
+        public void Start() => Started = true;
+        public void Publish(SystemSessionLockState state) { CurrentState = state; StateChanged?.Invoke(state); }
+        public void Dispose() => StateChanged = null;
     }
 }

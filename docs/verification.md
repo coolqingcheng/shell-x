@@ -254,3 +254,11 @@ WorkspaceView 在终端容器的隧道路由阶段处理 Ctrl＋垂直滚轮，�
 普通和 AOT 单文件实际通过 Windows UI Automation 右键标签重命名、另一标签名不变、配置名不变、关闭后临时名消失、设置 1 秒并保存、实际传输断开后自动恢复、重启后间隔保留，及既有连接目录、主题、监控共享、颜色和图标检查。报告为 artifacts/tab-reconnect-managed-native-final/result.json 和 artifacts/tab-reconnect-aot-native/result.json；标准错误均为空。本次没有操作用户实际连接。
 
 普通 Release、RID Release 和两个交付包均已更新。普通 artifacts/release/win-x64/ShellX.exe 为 54,220,021 字节（11:59:55 +08:00），包内四个组件与当前 RID 构建一致，报告为 artifacts/package-verification/bundle-check.json。AOT artifacts/release/win-x64-aot/ShellX.exe 为 58,725,376 字节（12:00:47），SHA256 为 c7c1e9b194201f6b9d856343350e8d35591499363fa039d14bca227904e47292，交付目录仅一个 EXE、与原生发布输出一致、PE 无 CLR 头，实际进程加载四个原生依赖且不加载 coreclr.dll。最终核对为 artifacts/package-verification/tab-reconnect-aot-check.json。普通构建 0 警告/错误，AOT 保留原有 15 条第三方分析警告，日志为 artifacts/tab-reconnect-aot-publish.log。
+
+## 2026-10-19 按系统锁屏状态自动锁定
+
+锁屏检测由 Core 的 ISystemSessionMonitor 抽象，Infrastructure 按操作系统选择实现。Windows 订阅系统会话锁定/解锁通知并查询初始状态，其他系统明确返回不支持。设置新增默认勾选的“仅在系统锁屏后计时”；系统提前解锁取消本次计时，超过时长后 ShellX 保持锁定，休眠恢复的解锁通知也会补算时长。取消该条件后仍可按界面闲置时间锁定。
+
+本轮相关测试共 22 项通过、0 失败、0 跳过：Infrastructure 的 SystemSessionMonitorTests、LockPasswordTests、PersistenceTests 共 11 项，Desktop 的 AppLockTests、SettingsMcpTests 共 11 项。覆盖真实 Windows 事件注册及初始状态查询、重复开始与释放、后台通知转 UI 线程、取消订阅、连续锁屏时长、短锁屏重置、模拟休眠后补算，以及旧配置默认值、设置保存和原有手动锁定/解锁交互。
+
+执行根目录 build.bat，普通 Release 构建 0 警告/错误，Native AOT 单文件发布成功，保留已有第三方裁剪分析警告。artifacts/release/win-x64-aot/ShellX.exe 为 59,745,280 字节。使用独立 SHELLX_DATA_DIR 且关闭 MCP 启动成品，进程保持运行并响应，标准错误为空，未记录 Windows 锁屏通知注册或状态读取失败；随后仅关闭该测试进程。报告位于 artifacts/system-session-aot-smoke-*/result.json。本轮没有实际锁定用户桌面或让设备休眠，相关时序由可控时钟与接口测试验证。

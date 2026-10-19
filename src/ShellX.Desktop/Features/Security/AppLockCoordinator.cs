@@ -5,18 +5,35 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using ShellX.Core.Security;
 
 namespace ShellX.Desktop.Features.Security;
 
 public sealed class AppLockCoordinator : IDisposable
 {
     private readonly AppLockService _state;
+    private readonly ISystemSessionMonitor? _systemSession;
+    private bool _disposed;
     private readonly Dictionary<Window, Protection> _windows = [];
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(1) };
-    public AppLockCoordinator(AppLockService state)
+    public bool SupportsSystemSessionMonitoring => _systemSession?.IsSupported ?? false;
+    public AppLockCoordinator(AppLockService state, ISystemSessionMonitor? systemSession = null)
     {
         _state = state; _state.PropertyChanged += StateChanged;
+        _systemSession = systemSession;
+        if (_systemSession != null)
+        {
+            _systemSession.StateChanged += SystemSessionChanged;
+            _systemSession.Start();
+            if (_systemSession.CurrentState is { } current) SystemSessionChanged(current);
+        }
         _timer.Tick += (_, _) => state.CheckIdle(); _timer.Start();
+    }
+    private void SystemSessionChanged(SystemSessionLockState state)
+    {
+        void Apply() { if (!_disposed) _state.UpdateSystemSession(state); }
+        if (Dispatcher.UIThread.CheckAccess()) Apply();
+        else Dispatcher.UIThread.Post(Apply);
     }
     public void Protect(Window window)
     {
@@ -104,7 +121,14 @@ public sealed class AppLockCoordinator : IDisposable
         if (!locked && _state.IsLocked) input.Handled = true;
         else _state.RecordActivity();
     }
-    public void Dispose() { _timer.Stop(); _state.PropertyChanged -= StateChanged; _windows.Clear(); }
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _timer.Stop(); _state.PropertyChanged -= StateChanged;
+        if (_systemSession != null) _systemSession.StateChanged -= SystemSessionChanged;
+        _windows.Clear();
+    }
     private sealed class Protection(Window window, Control content, LockScreen screen)
     {
         public Window Window { get; } = window;

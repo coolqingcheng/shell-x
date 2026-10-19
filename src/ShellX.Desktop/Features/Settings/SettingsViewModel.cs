@@ -16,7 +16,7 @@ public sealed record McpServerConfiguration([property: JsonPropertyName("type")]
 [JsonSerializable(typeof(McpClientConfiguration))]
 internal sealed partial class SettingsJsonContext : JsonSerializerContext;
 
-public partial class SettingsViewModel(AppSettings original, ILockPasswordHasher passwords, IReadOnlyList<string> fonts) : ObservableObject
+public partial class SettingsViewModel(AppSettings original, ILockPasswordHasher passwords, IReadOnlyList<string> fonts, bool systemSessionSupported = true) : ObservableObject
 {
     public IReadOnlyList<string> Fonts { get; } = fonts;
     public bool HasPassword => !string.IsNullOrEmpty(original.LockPasswordHash);
@@ -26,6 +26,8 @@ public partial class SettingsViewModel(AppSettings original, ILockPasswordHasher
     public string[] Themes { get; } = ["暗色", "亮色"];
     [ObservableProperty] private int _themeIndex = original.Theme == AppTheme.Light ? 1 : 0;
     public string[] DurationUnits { get; } = ["分钟", "小时"];
+    public bool SystemSessionSupported => systemSessionSupported;
+    public string AutoLockDelayLabel => AutoLockOnlyWhenSystemLocked ? "系统锁屏持续" : "闲置";
     public event Action<AppSettings>? Saved;
     public FontFamily TerminalPreviewFont => new(TerminalFontFamily);
     public FontFamily EditorPreviewFont => new(EditorFontFamily);
@@ -40,6 +42,7 @@ public partial class SettingsViewModel(AppSettings original, ILockPasswordHasher
     [ObservableProperty] private bool _autoReconnect = original.AutoReconnectEnabled;
     [ObservableProperty] private decimal _reconnectIntervalSeconds = Math.Clamp(original.ReconnectIntervalSeconds, 1, 86400);
     [ObservableProperty] private bool _autoLock = original.AutoLockEnabled;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(AutoLockDelayLabel))] private bool _autoLockOnlyWhenSystemLocked = original.AutoLockOnlyWhenSystemLocked;
     [ObservableProperty] private decimal _duration = original.AutoLockMinutes >= 60 && original.AutoLockMinutes % 60 == 0 ? original.AutoLockMinutes / 60 : original.AutoLockMinutes;
     [ObservableProperty] private int _durationUnit = original.AutoLockMinutes >= 60 && original.AutoLockMinutes % 60 == 0 ? 1 : 0;
     [ObservableProperty] private bool _changePassword;
@@ -88,11 +91,13 @@ public partial class SettingsViewModel(AppSettings original, ILockPasswordHasher
                 }
             }
             if (AutoLock && string.IsNullOrEmpty(hash) && !RemovePassword) throw new ArgumentException("请先设置锁定密码，再启用自动锁定。");
+            if (AutoLock && !RemovePassword && AutoLockOnlyWhenSystemLocked && !SystemSessionSupported)
+                throw new ArgumentException("当前系统暂不支持锁屏检测，请取消“仅在系统锁屏后计时”或关闭自动锁定。");
             var result = original with { Theme = ThemeIndex == 1 ? AppTheme.Light : AppTheme.Dark, TerminalFontFamily = TerminalFontFamily, TerminalFontSize = (double)TerminalFontSize,
                 EditorFontFamily = EditorFontFamily, EditorFontSize = (double)EditorFontSize,
                 ShowHiddenFiles = ShowHidden, HighlightTerminalText = HighlightText,
                 AutoReconnectEnabled = AutoReconnect, ReconnectIntervalSeconds = (int)ReconnectIntervalSeconds,
-                LockPasswordHash = hash, AutoLockEnabled = AutoLock && !string.IsNullOrEmpty(hash), AutoLockMinutes = (int)minutes, McpEnabled = McpEnabled, McpAddress = McpAddress.TrimEnd('/' ), McpToken = McpToken.Trim() };
+                LockPasswordHash = hash, AutoLockEnabled = AutoLock && !string.IsNullOrEmpty(hash), AutoLockOnlyWhenSystemLocked = AutoLockOnlyWhenSystemLocked, AutoLockMinutes = (int)minutes, McpEnabled = McpEnabled, McpAddress = McpAddress.TrimEnd('/' ), McpToken = McpToken.Trim() };
             ClearPasswords(); Saved?.Invoke(result);
         }
         catch (Exception ex) { Error = ex.Message; CurrentPassword = ""; }

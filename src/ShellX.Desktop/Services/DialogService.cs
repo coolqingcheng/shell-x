@@ -366,7 +366,7 @@ public sealed class DialogService(ITextCodec codec, AppLockService? appLock = nu
     {
         var fonts = FontManager.Current.SystemFonts.Select(font => font.Name).Append(settings.TerminalFontFamily).Append(settings.EditorFontFamily)
             .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(name => name, StringComparer.CurrentCultureIgnoreCase).ToArray();
-        var vm = new SettingsViewModel(settings, appLock?.Passwords ?? new LockPasswordHasher(), fonts);
+        var vm = new SettingsViewModel(settings, appLock?.Passwords ?? new LockPasswordHasher(), fonts, lockCoordinator?.SupportsSystemSessionMonitoring ?? OperatingSystem.IsWindows());
         var window = Window("设置", 700, 620); window.MinWidth = 620; window.MinHeight = 500; window.DataContext = vm;
         var root = new Grid { RowDefinitions = new("*,Auto,Auto") };
         root.Children.Add(new SettingsView { DataContext = vm });
