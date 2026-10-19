@@ -14,6 +14,8 @@ client_key.write_private_key_file(str(base / 'client-key'))
 client_key.write_private_key_file(str(base / 'client-key-encrypted'), password='fixture-passphrase')
 modes = {}
 links = {}
+shell_transports = set()
+shell_transports_lock = threading.Lock()
 paramiko.util.log_to_file(str(base/'server-debug.log'))
 
 def bridge(a, b):
@@ -140,10 +142,14 @@ Filesystem 1024-blocks Used Available Capacity Mounted on
             channel.sendall(payload.encode()); channel.send_exit_status(0); channel.close()
         threading.Thread(target=result,daemon=True).start(); return True
     def check_channel_shell_request(self,channel):
+        with shell_transports_lock: shell_transports.add(self.transport)
         def shell():
             channel.sendall('\x1b[32mShellX 本地测试服务器\x1b[0m\r\nshellx@test:~$ '.encode())
             try:
                 while data:=channel.recv(4096):
+                    if b'__SX_DISCONNECT_OTHER_TRANSPORTS__' in data:
+                        with shell_transports_lock: others=list(shell_transports-{self.transport})
+                        for other in others: other.close()
                     if b'__SX_DISCONNECT_TRANSPORT__' in data:
                         self.transport.close(); break
                     channel.sendall(b'received: '+data+b'\r\nshellx@test:~$ ')
@@ -152,7 +158,10 @@ Filesystem 1024-blocks Used Available Capacity Mounted on
     def check_channel_direct_tcpip_request(self,channel_id,origin,destination):
         if destination[0] not in ('127.0.0.1','localhost'): return paramiko.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
         # SSH open 确认必须发生在目标 TCP 建立之后，才能验证目标不可达的检测行为。
-        try: self.destinations[channel_id]=socket.create_connection(destination,timeout=2)
+        try:
+            target=socket.create_connection(destination,timeout=2)
+            target.settimeout(None) # 仅建立连接限时，已转发的长连接不能两秒无数据就断开。
+            self.destinations[channel_id]=target
         except OSError: return paramiko.OPEN_FAILED_CONNECT_FAILED
         return paramiko.OPEN_SUCCEEDED
     def check_port_forward_request(self,address,port):
@@ -188,6 +197,7 @@ def connection(sock):
     except (OSError,EOFError,paramiko.SSHException): pass
     finally:
         transport.close()
+        with shell_transports_lock: shell_transports.discard(transport)
         for listener in server.listeners.values(): listener.close()
         for pending_socket in server.destinations.values(): pending_socket.close()
 

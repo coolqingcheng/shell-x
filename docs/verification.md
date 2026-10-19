@@ -262,3 +262,15 @@ WorkspaceView 在终端容器的隧道路由阶段处理 Ctrl＋垂直滚轮，�
 本轮相关测试共 22 项通过、0 失败、0 跳过：Infrastructure 的 SystemSessionMonitorTests、LockPasswordTests、PersistenceTests 共 11 项，Desktop 的 AppLockTests、SettingsMcpTests 共 11 项。覆盖真实 Windows 事件注册及初始状态查询、重复开始与释放、后台通知转 UI 线程、取消订阅、连续锁屏时长、短锁屏重置、模拟休眠后补算，以及旧配置默认值、设置保存和原有手动锁定/解锁交互。
 
 执行根目录 build.bat，普通 Release 构建 0 警告/错误，Native AOT 单文件发布成功，保留已有第三方裁剪分析警告。artifacts/release/win-x64-aot/ShellX.exe 为 59,745,280 字节。使用独立 SHELLX_DATA_DIR 且关闭 MCP 启动成品，进程保持运行并响应，标准错误为空，未记录 Windows 锁屏通知注册或状态读取失败；随后仅关闭该测试进程。报告位于 artifacts/system-session-aot-smoke-*/result.json。本轮没有实际锁定用户桌面或让设备休眠，相关时序由可控时钟与接口测试验证。
+
+## 2026-10-19 隧道稳定性与多个监听指向同一目标
+
+不同监听端口指向同一目标端口保持独立转发。移除每 10 秒及请求到达时的主动 TCP 探测，后台仅检查 SSH 和监听器；启动、重连恢复和手动“检测”仍验证目标，避免为同一服务持续制造空连接。绿色状态与最近检测时间共同表示最近一次验证结果，目标恢复后可手动复检。隧道故障在状态或原因变化时写入应用日志。
+
+SharedTunnelRegistry 统一管理候选 SSH 客户端及私钥。共享传输断开时可借用其他仍连通标签的 SSH，原传输所属标签已关闭也能恢复；没有候选时等待后续重连。恢复覆盖共享组内全部仍需运行的规则，手动停止记录保持，最后一个租约退出释放所有连接。已断开的业务 TCP 连接不能续接，需要业务客户端重连。
+
+本机 SSH 集成测试 18 项全部通过，记录为 artifacts/test-results/tunnel-stability-infrastructure.trx。新增测试覆盖本地与远程方向的两个监听指向同一目标、14 条连接并发传输且内容不混淆、空闲超过后台检查周期后继续收发、不产生后台目标连接、手动检测及停止单条规则不影响另一条，以及原标签关闭后的传输故障恢复、恢复所有运行规则和保留手动停止规则。最后把恢复任务显式调度到后台后，3 项关键集成测试再次通过（tunnel-stability-recovery-final.trx）；补充关闭被提升标签后仍保留传输的断言，该用例单独通过。
+
+Desktop 的隧道、重连和工作区共 16 项检查中，15 项通过，文件右键选择用例首轮点击未选中目标行；未修改文件管理器代码，单独重跑该用例通过。首轮记录为 artifacts/test-results/tunnel-stability-desktop.trx。隧道编辑、共享状态、自动重连和取消均通过。测试服务同时修正了仅用于建立 TCP 的两秒超时遗留到已转发连接的问题，以正确验证闲置长连接。本轮仅使用独立回环 SSH 服务，没有连接用户实际服务器。
+
+执行根目录 build.bat 成功，普通 Release 0 警告/错误，AOT 保留第三方裁剪分析警告。交付目录仅 ShellX.exe，大小 59,774,464 字节，SHA256 为 821FEB81C435FAAC42A6FF7074BA9B444AAACF2502C2B40342CE8CA26BB1F54E。独立数据目录、关闭 MCP 启动 AOT 成品，出现“连接管理器”窗口且进程响应，标准错误为空，随后关闭测试进程。报告位于 artifacts/tunnel-aot-smoke-*/result.json。本机 SSH 测试服务已停止。

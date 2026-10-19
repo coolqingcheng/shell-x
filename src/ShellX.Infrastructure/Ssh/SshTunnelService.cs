@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using Microsoft.Extensions.Logging;
 using Renci.SshNet;
 using Renci.SshNet.Common;
 using ShellX.Core.Tunnels;
@@ -14,9 +15,9 @@ internal sealed class SshTunnelService : ITunnelService, IDisposable
         public ForwardedPort Port { get; } = port;
         public long ErrorVersion;
         public string LastError = "";
-        public long LastRequestCheck;
     }
     private readonly SshClient _ssh;
+    private readonly ILogger<SshTunnelService> _log;
     private readonly Dictionary<Guid, Runtime> _ports = [];
     private readonly Dictionary<Guid, TunnelStatus> _statuses = [];
     private readonly object _sync = new();
@@ -28,8 +29,8 @@ internal sealed class SshTunnelService : ITunnelService, IDisposable
     private string? _disconnectedReason;
     public event EventHandler<TunnelStatus>? StatusChanged;
 
-    public SshTunnelService(SshClient ssh)
-    { _ssh = ssh; _lifetimeToken = _lifetime.Token; _monitor = MonitorAsync(); }
+    public SshTunnelService(SshClient ssh, ILogger<SshTunnelService> log)
+    { _ssh = ssh; _log = log; _lifetimeToken = _lifetime.Token; _monitor = MonitorAsync(); }
 
     public bool IsRunning(Guid id)
     { lock (_sync) return _disconnectedReason == null && _ports.TryGetValue(id, out var runtime) && runtime.Port.IsStarted; }
@@ -37,6 +38,7 @@ internal sealed class SshTunnelService : ITunnelService, IDisposable
     { lock (_sync) return _statuses.GetValueOrDefault(id) ?? new(id, TunnelState.Stopped, false); }
     private void Publish(TunnelStatus status, Runtime? runtime = null, long? expectedErrorVersion = null)
     {
+        bool changed;
         lock (_sync)
         {
             if (_disposed) return;
@@ -45,8 +47,12 @@ internal sealed class SshTunnelService : ITunnelService, IDisposable
                 status = status with { State = TunnelState.Failed, IsRunning = runtime.Port.IsStarted, Reason = runtime.LastError, CheckedAt = DateTimeOffset.Now };
             if (_disconnectedReason != null && status.State != TunnelState.Stopped)
                 status = status with { State = TunnelState.Failed, IsRunning = false, Reason = _disconnectedReason };
+            changed = !_statuses.TryGetValue(status.TunnelId, out var previous) || previous.State != status.State ||
+                previous.IsRunning != status.IsRunning || previous.Reason != status.Reason;
             _statuses[status.TunnelId] = status;
         }
+        if (changed && status.State == TunnelState.Failed)
+            _log.LogWarning("隧道 {TunnelId} 异常（监听运行：{IsRunning}）：{Reason}", status.TunnelId, status.IsRunning, status.Reason);
         StatusChanged?.Invoke(this, status);
     }
 
@@ -73,7 +79,6 @@ internal sealed class SshTunnelService : ITunnelService, IDisposable
                     : new ForwardedPortRemote(definition.BindHost, (uint)definition.BindPort, definition.TargetHost, (uint)definition.TargetPort);
                 var runtime = new Runtime(definition, port);
                 port.Exception += (_, e) => OnPortError(runtime, e.Exception);
-                port.RequestReceived += (_, _) => RequestCheck(runtime);
                 try
                 {
                     _ssh.AddForwardedPort(port); port.Start(); linked.Token.ThrowIfCancellationRequested();
@@ -112,25 +117,6 @@ internal sealed class SshTunnelService : ITunnelService, IDisposable
             runtime.LastError = Describe(error, runtime.Definition);
         }
         Publish(new(runtime.Definition.Id, TunnelState.Failed, runtime.Port.IsStarted, runtime.LastError, DateTimeOffset.Now), runtime);
-    }
-
-    private void RequestCheck(Runtime runtime)
-    {
-        lock (_sync)
-        {
-            if (_disposed || _lifetimeToken.IsCancellationRequested || !_ports.TryGetValue(runtime.Definition.Id, out var current) ||
-                !ReferenceEquals(current, runtime) || GetStatus(runtime.Definition.Id).State == TunnelState.Checking) return;
-            var now = Environment.TickCount64;
-            if (now - runtime.LastRequestCheck < 2000) return;
-            runtime.LastRequestCheck = now;
-        }
-        // SSH.NET 不会把所有 channel-open 拒绝转为 Exception 事件，实际连接到达时再检查目标。
-        _ = Task.Run(async () =>
-        {
-            try { await CheckCoreAsync(runtime.Definition.Id, _lifetimeToken, false).ConfigureAwait(false); }
-            catch (OperationCanceledException) { }
-            catch (Exception ex) { Publish(new(runtime.Definition.Id, TunnelState.Failed, IsRunning(runtime.Definition.Id), ex.Message)); }
-        });
     }
 
     public Task CheckAsync(Guid id, CancellationToken cancellationToken = default)
@@ -214,8 +200,13 @@ internal sealed class SshTunnelService : ITunnelService, IDisposable
             while (true)
             {
                 await Task.Delay(TimeSpan.FromSeconds(10), _lifetimeToken).ConfigureAwait(false);
-                Guid[] ids; lock (_sync) ids = _ports.Keys.ToArray();
-                foreach (var id in ids) await CheckCoreAsync(id, _lifetimeToken, false).ConfigureAwait(false);
+                // 后台只检查 SSH 和监听器，不向数据库等目标反复建立无协议握手的连接。
+                // 多个监听端口可指向同一目标，不能为每条规则额外制造连接负载。
+                if (!_ssh.IsConnected) { NotifyDisconnected("SSH 传输连接已关闭。"); return; }
+                Runtime[] ports; lock (_sync) ports = _ports.Values.ToArray();
+                foreach (var runtime in ports)
+                    if (!runtime.Port.IsStarted)
+                        Publish(new(runtime.Definition.Id, TunnelState.Failed, false, "监听已停止，请重新启动隧道。", DateTimeOffset.Now), runtime);
             }
         }
         catch (OperationCanceledException) { }

@@ -191,9 +191,7 @@ public class SshIntegrationTests
         await using var echo = new EchoServer();
         var rule = new TunnelDefinition { BindPort = FreePort(), TargetPort = echo.Port };
         await first.Tunnels.AutoStartAsync(rule);
-        await first.Terminal.Stream.WriteAsync(Encoding.ASCII.GetBytes("__SX_DISCONNECT_TRANSPORT__\r"));
-        await first.Terminal.Stream.FlushAsync();
-        await UntilAsync(() => second.Tunnels.GetStatus(rule.Id).State == TunnelState.Failed);
+        await DisconnectTransportAsync(first, rule.Id);
         await using var reconnected = await factory.ConnectAsync(profile, new("fixture-password"), _ => Task.FromResult(true), CancellationToken.None);
         await reconnected.Tunnels.AutoStartAsync(rule);
         Assert.Equal(TunnelState.Connected, second.Tunnels.GetStatus(rule.Id).State);
@@ -239,6 +237,120 @@ public class SshIntegrationTests
     }
 
     [FixtureFact]
+    public async Task MultipleListenersToOneTargetKeepTrafficSeparateWithoutBackgroundConnections()
+    {
+        foreach (var direction in new[] { TunnelDirection.Local, TunnelDirection.Remote })
+        {
+            await using var session = await Connect();
+            await using var echo = new EchoServer();
+            var first = new TunnelDefinition { Direction = direction, BindPort = FreePort(), TargetPort = echo.Port };
+            var second = first with { Id = Guid.NewGuid(), BindPort = FreePort() };
+            await session.Tunnels.StartAsync(first); await session.Tunnels.StartAsync(second);
+            // 启动检测完成后，转发和后台状态刷新不应再额外连接目标服务。
+            await UntilAsync(() => echo.ConnectionCount >= (direction == TunnelDirection.Local ? 2 : 4));
+            var before = echo.ConnectionCount;
+            using var one = new TcpClient(); using var two = new TcpClient();
+            await one.ConnectAsync(IPAddress.Loopback, first.BindPort);
+            await two.ConnectAsync(IPAddress.Loopback, second.BindPort);
+            await RoundTripAsync(one, "first mapping"); await RoundTripAsync(two, "second mapping");
+            var concurrent = Enumerable.Range(0, 12).Select(_ => new TcpClient()).ToArray();
+            try
+            {
+                await Task.WhenAll(concurrent.Select(async (client, index) =>
+                {
+                    await client.ConnectAsync(IPAddress.Loopback, index % 2 == 0 ? first.BindPort : second.BindPort);
+                    await RoundTripAsync(client, $"mapping {index}: " + new string((char)('a' + index), 16384));
+                }));
+                await Task.Delay(TimeSpan.FromSeconds(11));
+                await RoundTripAsync(one, "first after refresh"); await RoundTripAsync(two, "second after refresh");
+                await Task.WhenAll(concurrent.Select((client, index) => RoundTripAsync(client, $"still connected {index}")));
+                Assert.Equal(before + 2 + concurrent.Length, echo.ConnectionCount);
+                await session.Tunnels.CheckAsync(first.Id);
+                await RoundTripAsync(two, "manual check of first does not interrupt second");
+            }
+            finally { foreach (var client in concurrent) client.Dispose(); }
+            await session.Tunnels.StopAsync(first.Id);
+            await RoundTripAsync(two, "second stays alive after stopping first");
+            Assert.True(session.Tunnels.IsRunning(second.Id));
+        }
+    }
+
+    [FixtureFact]
+    public async Task TunnelTransportRecoversAfterItsOriginalTabWasClosed()
+    {
+        var factory = Factory;
+        await using var first = await factory.ConnectAsync(Profile, new("fixture-password"), _ => Task.FromResult(true), CancellationToken.None);
+        await using var second = await factory.ConnectAsync(Profile, new("fixture-password"), _ => Task.FromResult(true), CancellationToken.None);
+        await using var echo = new EchoServer();
+        var rule = new TunnelDefinition { BindPort = FreePort(), TargetPort = echo.Port };
+        await first.Tunnels.StartAsync(rule);
+        await first.DisposeAsync();
+        var terminal = second.Terminal;
+        var failed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        second.Tunnels.StatusChanged += (_, status) => { if (status.TunnelId == rule.Id && status.State == TunnelState.Failed) failed.TrySetResult(); };
+        await second.Terminal.Stream.WriteAsync(Encoding.ASCII.GetBytes("__SX_DISCONNECT_OTHER_TRANSPORTS__\r"));
+        await second.Terminal.Stream.FlushAsync();
+        await failed.Task.WaitAsync(TimeSpan.FromSeconds(8));
+        await UntilAsync(() => second.Tunnels.GetStatus(rule.Id).State == TunnelState.Connected);
+        using var client = new TcpClient(); await client.ConnectAsync(IPAddress.Loopback, rule.BindPort);
+        await RoundTripAsync(client, "recovered without reconnecting surviving tab");
+        Assert.Same(terminal, second.Terminal);
+        Assert.Contains("received:", await ReadUntilAsync(second.Terminal.Stream, "received:"));
+        await using var third = await factory.ConnectAsync(Profile, new("fixture-password"), _ => Task.FromResult(true), CancellationToken.None);
+        await second.DisposeAsync(); // 被提升为共享传输的标签关闭后，连接仍由剩余租约保留。
+        await RoundTripAsync(client, "promoted transport survives closing its tab");
+        Assert.True(third.Tunnels.IsRunning(rule.Id));
+    }
+
+    [FixtureFact]
+    public async Task ReconnectingRestoresAllRunningRulesAndPreservesManuallyStoppedRules()
+    {
+        var factory = Factory;
+        await using var first = await factory.ConnectAsync(Profile, new("fixture-password"), _ => Task.FromResult(true), CancellationToken.None);
+        await using var second = await factory.ConnectAsync(Profile, new("fixture-password"), _ => Task.FromResult(true), CancellationToken.None);
+        await using var echo = new EchoServer();
+        var rules = Enumerable.Range(0, 3).Select(_ => new TunnelDefinition { BindPort = FreePort(), TargetPort = echo.Port }).ToArray();
+        foreach (var rule in rules) await first.Tunnels.AutoStartAsync(rule);
+        await second.Tunnels.StopAsync(rules[2].Id);
+        await DisconnectTransportAsync(first, rules[0].Id);
+        await using var restored = await factory.ConnectAsync(Profile, new("fixture-password"), _ => Task.FromResult(true), CancellationToken.None);
+        await restored.Tunnels.AutoStartAsync(rules[0]); // 重连标签本身只包含第一条规则。
+        foreach (var rule in rules.Take(2))
+        {
+            Assert.True(second.Tunnels.IsRunning(rule.Id));
+            using var client = new TcpClient(); await client.ConnectAsync(IPAddress.Loopback, rule.BindPort);
+            await RoundTripAsync(client, "all active rules restored");
+        }
+        await restored.Tunnels.AutoStartAsync(rules[2]);
+        Assert.False(restored.Tunnels.IsRunning(rules[2].Id));
+    }
+
+    private static async Task RoundTripAsync(TcpClient client, string text)
+    {
+        var payload = Encoding.UTF8.GetBytes(text);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+        await client.GetStream().WriteAsync(payload, timeout.Token);
+        var received = new byte[payload.Length];
+        await client.GetStream().ReadExactlyAsync(received, timeout.Token);
+        Assert.Equal(payload, received);
+    }
+
+    private static async Task DisconnectTransportAsync(IRemoteSession session, Guid tunnelId)
+    {
+        var failed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void Changed(object? sender, TunnelStatus status)
+        { if (status.TunnelId == tunnelId && status.State == TunnelState.Failed) failed.TrySetResult(); }
+        session.Tunnels.StatusChanged += Changed;
+        try
+        {
+            await session.Terminal.Stream.WriteAsync(Encoding.ASCII.GetBytes("__SX_DISCONNECT_TRANSPORT__\r"));
+            await session.Terminal.Stream.FlushAsync();
+            await failed.Task.WaitAsync(TimeSpan.FromSeconds(8));
+        }
+        finally { session.Tunnels.StatusChanged -= Changed; }
+    }
+
+    [FixtureFact]
     public async Task BothTunnelDirectionsForwardBytesAndReleaseListeners()
     {
         foreach (var direction in new[] { TunnelDirection.Local, TunnelDirection.Remote })
@@ -260,30 +372,29 @@ public class SshIntegrationTests
     }
 
     [FixtureFact]
-    public async Task TunnelHealthTracksTargetFailureRecoveryAndRealForwardErrors()
+    public async Task ManualChecksTrackTargetFailureAndRecoveryWithoutRestartingListeners()
     {
         foreach (var direction in new[] { TunnelDirection.Local, TunnelDirection.Remote })
         {
             await using var session = await Connect();
-            using var target = new TcpListener(IPAddress.Loopback, 0); target.Start();
-            var targetPort = ((IPEndPoint)target.LocalEndpoint).Port;
+            await using var target = new EchoServer();
+            var targetPort = target.Port;
             var rule = new TunnelDefinition { Name = "连通性测试", Direction = direction, BindPort = FreePort(), TargetPort = targetPort };
             var events = new System.Collections.Concurrent.ConcurrentQueue<TunnelStatus>();
             session.Tunnels.StatusChanged += (_, status) => events.Enqueue(status);
             await session.Tunnels.StartAsync(rule);
             Assert.Equal(TunnelState.Connected, session.Tunnels.GetStatus(rule.Id).State);
-            target.Stop(); await session.Tunnels.CheckAsync(rule.Id);
+            await target.DisposeAsync(); await session.Tunnels.CheckAsync(rule.Id);
             var failed = session.Tunnels.GetStatus(rule.Id);
             Assert.Equal(TunnelState.Failed, failed.State); Assert.True(failed.IsRunning);
             Assert.Contains(targetPort.ToString(), failed.Reason); Assert.NotNull(failed.CheckedAt);
-            using var recovered = new TcpListener(IPAddress.Loopback, targetPort); recovered.Start();
-            try { await UntilAsync(() => session.Tunnels.GetStatus(rule.Id).State == TunnelState.Connected, 20); }
-            catch (TimeoutException ex)
-            { throw new InvalidOperationException(direction + " 恢复失败：\n" + string.Join("\n", events.Select(e => $"{e.State}: {e.Reason}")), ex); }
+            await using var recovered = new EchoServer(targetPort);
+            await session.Tunnels.CheckAsync(rule.Id);
             var recoveredStatus = session.Tunnels.GetStatus(rule.Id);
             Assert.True(recoveredStatus.State == TunnelState.Connected, $"{direction}: {recoveredStatus.State} / {recoveredStatus.Reason}");
-            recovered.Stop();
+            await recovered.DisposeAsync();
             using var incoming = new TcpClient(); await incoming.ConnectAsync(IPAddress.Loopback, rule.BindPort);
+            await session.Tunnels.CheckAsync(rule.Id);
             await UntilAsync(() => session.Tunnels.GetStatus(rule.Id).State == TunnelState.Failed);
             Assert.NotEmpty(session.Tunnels.GetStatus(rule.Id).Reason);
             await session.Tunnels.StopAsync(rule.Id); await session.Tunnels.CheckAsync(rule.Id);
@@ -382,15 +493,18 @@ public class SshIntegrationTests
 
     private sealed class EchoServer : IAsyncDisposable
     {
-        private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
+        private readonly TcpListener _listener;
         private readonly CancellationTokenSource _cancel = new();
         private readonly List<Task> _clients = [];
         private readonly Task _accept;
+        private int _connectionCount;
+        private bool _disposed;
+        public int ConnectionCount => Volatile.Read(ref _connectionCount);
         public int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;
-        public EchoServer() { _listener.Start(); _accept = AcceptAsync(); }
+        public EchoServer(int port = 0) { _listener = new(IPAddress.Loopback, port); _listener.Start(); _accept = AcceptAsync(); }
         private async Task AcceptAsync()
         {
-            try { while (true) { var client = await _listener.AcceptTcpClientAsync(_cancel.Token); _clients.Add(EchoAsync(client)); } }
+            try { while (true) { var client = await _listener.AcceptTcpClientAsync(_cancel.Token); Interlocked.Increment(ref _connectionCount); _clients.Add(EchoAsync(client)); } }
             catch (OperationCanceledException) { }
         }
         private async Task EchoAsync(TcpClient client)
@@ -406,7 +520,7 @@ public class SshIntegrationTests
                 catch (IOException) { }
             }
         }
-        public async ValueTask DisposeAsync() { _cancel.Cancel(); await _accept; _listener.Stop(); await Task.WhenAll(_clients); _cancel.Dispose(); }
+        public async ValueTask DisposeAsync() { if (_disposed) return; _disposed = true; _cancel.Cancel(); await _accept; _listener.Stop(); await Task.WhenAll(_clients); _cancel.Dispose(); }
     }
     private static async Task UntilAsync(Func<bool> condition, int seconds = 8)
     {

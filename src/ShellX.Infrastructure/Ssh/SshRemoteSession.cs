@@ -11,7 +11,6 @@ internal sealed class SshRemoteSession : IRemoteSession, ITerminalChannel
     private readonly SshClient _ssh;
     private readonly ShellStream _shell;
     private readonly SftpClient? _sftp;
-    private readonly PrivateKeyFile? _key;
     private readonly ILogger _log;
     private readonly SharedTunnelRegistry.Lease _tunnelLease;
     private readonly EventHandler<Renci.SshNet.Common.ExceptionEventArgs> _sshError;
@@ -25,9 +24,9 @@ internal sealed class SshRemoteSession : IRemoteSession, ITerminalChannel
     public Core.Monitoring.IServerMonitor Monitor { get; }
     public event EventHandler<string>? Disconnected;
 
-    internal SshRemoteSession(SshClient ssh, ShellStream shell, SftpClient? sftp, PrivateKeyFile? key, SharedTunnelRegistry.Lease tunnels, string? fileError, ILogger log)
+    internal SshRemoteSession(SshClient ssh, ShellStream shell, SftpClient? sftp, SharedTunnelRegistry.Lease tunnels, string? fileError, ILogger log)
     {
-        _ssh = ssh; _shell = shell; _sftp = sftp; _key = key; _log = log;
+        _ssh = ssh; _shell = shell; _sftp = sftp; _log = log;
         FileError = fileError;
         Files = sftp == null ? null : new SftpFileSystem(sftp);
         _tunnelLease = tunnels; Tunnels = tunnels;
@@ -49,11 +48,7 @@ internal sealed class SshRemoteSession : IRemoteSession, ITerminalChannel
             finally
             {
                 try { _sftp?.Dispose(); }
-                finally
-                {
-                    try { if (!_tunnelLease.OwnsTransport) { try { _ssh.Dispose(); } finally { _key?.Dispose(); } } }
-                    finally { _tunnelLease.Dispose(); }
-                }
+                finally { _tunnelLease.Dispose(); }
             }
         }));
     }

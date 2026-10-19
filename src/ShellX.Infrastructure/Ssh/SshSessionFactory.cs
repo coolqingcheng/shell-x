@@ -54,7 +54,7 @@ public sealed class SshSessionFactory(ILoggerFactory logs, SharedTunnelRegistry 
             { fileError = ex.Message; sftp?.Dispose(); sftp = null; }
             ct.ThrowIfCancellationRequested();
             var lease = tunnels.Acquire(profile, ssh, key);
-            try { return new SshRemoteSession(ssh, shell, sftp, key, lease, fileError, logs.CreateLogger<SshRemoteSession>()); }
+            try { return new SshRemoteSession(ssh, shell, sftp, lease, fileError, logs.CreateLogger<SshRemoteSession>()); }
             catch { lease.Dispose(); throw; }
         }
         catch { sftp?.Dispose(); ssh?.Dispose(); key?.Dispose(); throw; }
