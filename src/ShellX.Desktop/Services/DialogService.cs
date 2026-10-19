@@ -122,7 +122,11 @@ public sealed class DialogService(ITextCodec codec, AppLockService? appLock = nu
         var browse = Button("选择…", () => { });
         browse.Click += async (_, _) =>
         {
-            var files = await window.StorageProvider.OpenFilePickerAsync(new() { Title = "选择 SSH 私钥", AllowMultiple = false });
+            var userDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var sshDirectory = Path.Combine(userDirectory, ".ssh");
+            using var startFolder = await window.StorageProvider.TryGetFolderFromPathAsync(Directory.Exists(sshDirectory) ? sshDirectory : userDirectory);
+            var files = await window.StorageProvider.OpenFilePickerAsync(new()
+            { Title = "选择 SSH 私钥", AllowMultiple = false, SuggestedStartLocation = startFolder });
             if (files.FirstOrDefault()?.TryGetLocalPath() is { } path) vm.PrivateKeyPath = path;
         };
         Grid.SetColumn(browse, 1); keyRow.Children.Add(browse);
