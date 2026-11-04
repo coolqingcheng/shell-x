@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using Renci.SshNet;
@@ -6,7 +7,7 @@ using ShellX.Core.Monitoring;
 
 namespace ShellX.Infrastructure.Monitoring;
 
-internal sealed class LinuxServerMonitor(SshClient ssh) : IServerMonitor
+internal sealed class LinuxServerMonitor(SshClient ssh, ILogger log) : IServerMonitor
 {
     // 使用独立 exec 通道读取指标，不向交互终端写入命令，不安装远端代理。
     internal const string SampleCommand = """
@@ -43,16 +44,35 @@ internal sealed class LinuxServerMonitor(SshClient ssh) : IServerMonitor
         printf '__SX_DISK__\n'; df -Pk -x tmpfs -x devtmpfs -x squashfs 2>/dev/null
         """;
 
+    private static string Snippet(string output)
+    {
+        var text = output.Replace("\r", "").Trim();
+        return text.Length <= 1200 ? text : text[..1200] + " …";
+    }
+
+    // C# 原始字符串会原样保留源文件的换行符，Windows 检出后是 CRLF，
+    // 远端 bash 遇到 \r 会直接报语法错误导致没有任何输出，这里统一成 LF。
+    internal static readonly string SampleScript = SampleCommand.Replace("\r\n", "\n").Replace("\r", "\n");
+
     public async Task<ServerSnapshot> ReadAsync(CancellationToken cancellationToken)
     {
-        using var command = ssh.CreateCommand(SampleCommand);
+        using var command = ssh.CreateCommand(SampleScript);
         command.CommandTimeout = TimeSpan.FromSeconds(8);
         var stopwatch = Stopwatch.StartNew();
         await command.ExecuteAsync(cancellationToken).ConfigureAwait(false);
         stopwatch.Stop();
         if (command.Result.Contains("__SX_UNSUPPORTED__", StringComparison.Ordinal))
             throw new NotSupportedException("资源监控目前支持可读取 /proc 的 Linux 服务器。");
-        return LinuxMonitorParser.Parse(command.Result, DateTimeOffset.UtcNow, stopwatch.Elapsed.TotalMilliseconds);
+        try
+        {
+            return LinuxMonitorParser.Parse(command.Result, DateTimeOffset.UtcNow, stopwatch.Elapsed.TotalMilliseconds);
+        }
+        catch (InvalidDataException ex)
+        {
+            // 记录原始输出，便于定位远端 /proc 或命令差异。
+            log.LogWarning("服务器监控解析失败：{Reason}\n退出码={Exit} 错误输出={Error}\n原始输出长度={Length}\n原始输出：{Raw}", ex.Message, command.ExitStatus, command.Error, command.Result.Length, Snippet(command.Result));
+            throw;
+        }
     }
 }
 

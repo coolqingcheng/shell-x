@@ -356,3 +356,24 @@ Release 地址：https://github.com/coolqingcheng/shell-x/releases/tag/v1.0.0 �
 **改动**：设置页“更新”页签只保留当前版本、状态、进度条、一个“检查更新”按钮和“启动时自动检查更新”开关；删除“下载最新版”“另存安装包”“打开发布页”“立即更新/关闭时更新”面板，以及“发现新版本时自动下载安装包”选项（`AppSettings.AutoDownloadUpdate`、`StoredSettings.AutoDownloadUpdate` 一并移除，旧配置文件里残留字段按未知成员忽略）。`SettingsViewModel` 的五个更新命令合并为一个 `CheckUpdateAsync`：检查 → 有新版本则下载安装包 → 弹“发现新版本”确认框 → 确认立即更新重启，取消则调用 `UpdateManager.ClearPending()` 清除待安装登记，退出时不再自动安装。启动自动检查走同一条路径。
 
 **实测**：`dotnet build src/ShellX.Desktop -c Release` 0 警告 0 错误；`dotnet test ShellX.slnx -c Release` 通过 Core 20、Infrastructure 46（18 跳过）、Desktop 58（12 跳过）。
+
+### 服务器监控空白根因修复与连接管理器名称列（2026-11-04）
+
+**现象**：连接成功后左侧“服务器状态”面板没有数据。日志中每次建立会话后立即出现 `System.IO.InvalidDataException: 服务器未返回有效的 CPU 采样。`。
+
+**排查过程**：先用 `ssh` 直接在目标机执行同一段采样脚本，输出完全正常（`__SX_CPU__` 段含 `cpu 4993553 677 ...`）；用裸 SSH.NET 客户端执行同一命令也正常；但用应用自身的 `SshSessionFactory` 建立会话后读取监控就失败。给 `LinuxServerMonitor` 加上原始输出日志后，真相大白：
+
+```
+bash: line 1: export: `LC_ALL
+': not a valid identifier
+bash: -c: line 21: syntax error near unexpected token `$'do\r''
+退出码=2  原始输出长度=0
+```
+
+**根因**：采样命令用 C# 原始字符串（`"""`）书写，原始字符串会原样保留源文件的换行符；仓库配置 `core.autocrlf=true`，Windows 检出后源文件是 CRLF，于是命令里每行都带 `\r`。远端 bash 解析到 `export LC_ALL\r` 和 `do\r` 直接报语法错误，整段脚本以退出码 2 结束，没有任何标准输出，解析器因此判定“未返回有效的 CPU 采样”。
+
+**修复**：`LinuxServerMonitor` 增加 `SampleScript = SampleCommand.Replace("\r\n", "\n").Replace("\r", "\n")`，发送前统一成 LF；新增 `.gitattributes` 令 `*.cs` 以 LF 检出，避免同类问题复发；监控解析失败时补充记录退出码、错误输出和原始输出长度，便于后续排查。
+
+**验证**：用应用自身的 `SshSessionFactory` 建立会话后连续三次 `Monitor.ReadAsync` 全部成功（`hostname=iZuf65sxe59a3c3qmb2qozZ`）；`dotnet build src/ShellX.Desktop -c Release` 0 警告 0 错误；`dotnet test ShellX.slnx -c Release` 通过 Core 20、Infrastructure 46（18 跳过）、Desktop 58（12 跳过）。
+
+**连接管理器名称列**：连接列表表头补上“名称”列（原先第一列表头是文件夹标题，名称只显示在行内），文件夹标题移到左下角状态栏，与连接数并列显示为“文件夹名 · N 个连接”。

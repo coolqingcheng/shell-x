@@ -30,7 +30,7 @@ internal sealed class SshRemoteSession : IRemoteSession, ITerminalChannel
         FileError = fileError;
         Files = sftp == null ? null : new SftpFileSystem(sftp);
         _tunnelLease = tunnels; Tunnels = tunnels;
-        Monitor = new Monitoring.LinuxServerMonitor(ssh);
+        Monitor = new Monitoring.LinuxServerMonitor(ssh, log);
         _sshError = (_, e) => Report(e.Exception.Message); _shellClosed = (_, _) => Report("远程终端已关闭。");
         ssh.ErrorOccurred += _sshError; shell.Closed += _shellClosed;
     }

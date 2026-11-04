@@ -22,7 +22,7 @@
       <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="{DynamicResource BorderColor}" />
       <Border Grid.Column="2" BorderBrush="{DynamicResource BorderColor}" BorderThickness="1">
         <Grid RowDefinitions="Auto,*">
-          <Border Background="{DynamicResource PanelBackground}" Padding="12,8"><Grid ColumnDefinitions="*,180,100"><TextBlock Text="{Binding FolderCaption}" /><TextBlock Grid.Column="1" Text="主机地址" FontSize="11" Foreground="{DynamicResource MutedForeground}" /><TextBlock Grid.Column="2" Text="账号" FontSize="11" Foreground="{DynamicResource MutedForeground}" /></Grid></Border>
+          <Border Background="{DynamicResource PanelBackground}" Padding="12,8"><Grid ColumnDefinitions="*,180,100"><TextBlock Text="名称" FontSize="11" Foreground="{DynamicResource MutedForeground}" /><TextBlock Grid.Column="1" Text="主机地址" FontSize="11" Foreground="{DynamicResource MutedForeground}" /><TextBlock Grid.Column="2" Text="账号" FontSize="11" Foreground="{DynamicResource MutedForeground}" /></Grid></Border>
           <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto">
             <ItemsControl ItemsSource="{Binding VisibleConnections}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="models:ConnectionProfile">
               <Button Classes="flat" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0" Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).PickConnectionCommand}" CommandParameter="{Binding}" ToolTip.Tip="{Binding Address}">
@@ -39,6 +39,6 @@
         </Grid>
       </Border>
     </Grid>
-    <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16"><TextBlock Text="{Binding ConnectionCount, StringFormat='{}{0} 个连接'}" Foreground="{DynamicResource MutedForeground}" FontSize="11" VerticalAlignment="Center" /><TextBlock Grid.Column="1" Text="点击连接即新开标签 · 右键编辑、移动或删除 · 选中左侧文件夹后创建子文件夹" Foreground="{DynamicResource MutedForeground}" FontSize="11" TextWrapping="Wrap" VerticalAlignment="Center" /><Button Grid.Column="2" Name="ExportConfiguration" Content="导出配置…" Command="{Binding ExportConfigurationCommand}" ToolTip.Tip="导出全部连接、文件夹、隧道和常规设置，不包含密码和私钥内容" /></Grid>
+    <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16"><StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"><TextBlock Text="{Binding FolderCaption}" Foreground="{DynamicResource MutedForeground}" FontSize="11" /><TextBlock Text="·" Foreground="{DynamicResource MutedForeground}" FontSize="11" /><TextBlock Text="{Binding ConnectionCount, StringFormat='{}{0} 个连接'}" Foreground="{DynamicResource MutedForeground}" FontSize="11" /></StackPanel><TextBlock Grid.Column="1" Text="点击连接即新开标签 · 右键编辑、移动或删除 · 选中左侧文件夹后创建子文件夹" Foreground="{DynamicResource MutedForeground}" FontSize="11" TextWrapping="Wrap" VerticalAlignment="Center" /><Button Grid.Column="2" Name="ExportConfiguration" Content="导出配置…" Command="{Binding ExportConfigurationCommand}" ToolTip.Tip="导出全部连接、文件夹、隧道和常规设置，不包含密码和私钥内容" /></Grid>
   </Grid>
 </UserControl>
