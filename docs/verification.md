@@ -335,3 +335,16 @@ Release 地址：https://github.com/coolqingcheng/shell-x/releases/tag/v1.0.0 �
 **CI 失败排查**：提交 `c2f261c` 的 CI 失败，但失败发生在测试环节而非编译环节（编译 0 错误）。日志显示 `ShellX.Desktop.Tests: Catastrophic failure: System.InvalidOperationException: Test process did not return valid JSON (non-object)`，即 xunit v3 的测试宿主进程在握手后异常退出，宿主随后提示 “No test is available”。同一份代码本地执行 `dotnet build ShellX.slnx -c Release` + `dotnet test ShellX.slnx -c Release --no-build` 全部通过；在 GitHub 上重跑该作业（run_attempt=2）也通过，测试数量完全一致（Core 20、Infrastructure 46/18 跳过、Desktop 58/12 跳过），判定为 runner 上的偶发崩溃，与本次改动无关。
 
 **加固**：`ci.yml` 的测试步骤改为最多重试 3 次（间隔 10 秒，全部失败才退出 1），并给作业设置 30 分钟超时。加固后 `b5b9cf2` 的 CI 实测 success。
+
+### 一键发布流程与 v1.0.2（2026-11-04）
+
+**要求**：每次改完代码都要出正式版本，因此把「版本号 +1 → AOT 构建 → 校验产物版本 → 提交推送 → 打标签推送 → GitHub 出安装包」固化为 `scripts/release.ps1`。脚本支持 `-Version`（指定目标版本）、`-Message`（提交信息）、`-NoPush`（只本地提交打标签）、`-NoTag`（不打标签）；版本号写入根目录 `VERSION` 文件。同时 `scripts/publish.ps1` 在构建前会强制关闭正在运行的 ShellX 进程，避免文件占用导致发布失败。
+
+**v1.0.2 实测**：脚本运行后版本 1.0.1 → 1.0.2，AOT 产物 `artifacts/release/win-x64-aot/ShellX.exe` 60,060,160 字节、FileVersion `1.0.2.0`（脚本会校验产物版本与目标版本一致，不一致直接失败），提交 `c144e77`，推送 `dev` 与标签 `v1.0.2`，GitHub Release 工作流 success。
+
+**v1.0.2 产物**：
+
+- `ShellX-Setup-1.0.2.exe`（18,431,363 字节）
+- `ShellX-1.0.2-win-x64.zip`（25,181,437 字节）
+
+该版本包含窗口标题版本号功能（`ShellX v1.0.2` / `连接管理器 v1.0.2` / `MCP 执行日志 v1.0.2`）。
