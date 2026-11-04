@@ -2,6 +2,21 @@
              xmlns:controls="using:ShellX.Desktop.Controls" xmlns:files="using:ShellX.Desktop.Features.FileBrowser"
              xmlns:commands="using:ShellX.Desktop.Features.Commands"
              xmlns:tunnels="using:ShellX.Desktop.Features.Tunnels" x:Class="ShellX.Desktop.Features.Workspace.WorkspaceView">
+  <UserControl.Styles>
+    <Style Selector="Border.flow">
+      <Setter Property="Opacity" Value="0.55" />
+    </Style>
+    <Style Selector="Border.flow.active">
+      <Style.Animations>
+        <Animation Duration="0:0:0.9" IterationCount="INFINITE">
+          <KeyFrame Cue="0%"><Setter Property="Opacity" Value="0.4" /></KeyFrame>
+          <KeyFrame Cue="50%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="Opacity" Value="0.4" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+  </UserControl.Styles>
+
   <Grid ColumnDefinitions="*,Auto">
     <Grid x:Name="WorkspaceLayout" RowDefinitions="1.3*,5,*">
       <controls:ConnectionAccentBorder Name="TerminalAccentFrame" Appearance="Frame" AccentColor="{Binding AccentColor}" BorderThickness="2">
@@ -66,6 +81,12 @@
             <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryForeground}" FontSize="11" />
             <TextBlock Text="{Binding Reason}" IsVisible="{Binding HasReason}" TextWrapping="Wrap" Foreground="{Binding StatusColor}" FontSize="11" />
             <TextBlock Text="{Binding CheckedText}" Foreground="{DynamicResource MutedForeground}" FontSize="10" />
+            <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding HasTraffic}" VerticalAlignment="Center">
+              <Border Classes="flow" Classes.active="{Binding HasTraffic}" Padding="6,2" CornerRadius="2" Background="{DynamicResource ChartBackground}" ToolTip.Tip="端口转发现有数据经过">
+                <controls:StrokeIcon Symbol="flow" Width="16" Height="16" StrokeThickness="1.4" Foreground="{DynamicResource SuccessForeground}" />
+              </Border>
+              <TextBlock Text="{Binding TrafficText}" FontSize="10" FontFamily="Consolas" Foreground="{DynamicResource SecondaryForeground}" VerticalAlignment="Center" />
+            </StackPanel>
             <StackPanel Orientation="Horizontal" Spacing="8"><Button Content="{Binding ActionText}" Command="{Binding ToggleCommand}" /><Button Content="检测" Classes="flat" Command="{Binding CheckCommand}" /><Button Name="EditTunnelRule" Content="编辑" Classes="flat" Command="{Binding EditCommand}" /><Button Content="删除规则" Classes="flat" Command="{Binding RemoveCommand}" /></StackPanel>
           </StackPanel></Border>
         </DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer>

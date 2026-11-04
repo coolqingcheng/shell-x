@@ -385,3 +385,23 @@ bash: -c: line 21: syntax error near unexpected token `$'do\r''
 - 配色：文件夹 `FolderForeground`、符号链接 `LinkForeground`、普通文件 `IconForeground`，由 `Theme.axaml` 的样式给出。
 - 关键坑：`FileIconView : PathIcon` 不写 `StyleKeyOverride` 时拿不到 `PathIcon` 的 ControlTheme（`Template == null`，控件完全不绘制）；写成 `typeof(PathIcon)` 后类型选择器也按 StyleKey 匹配，原来的 `controls|FileIconView` 样式会失效，因此控件构造时加了 `file-icon` 标记类，样式选择器改为 `PathIcon.file-icon[.folder|.link]`。
 - 验证：`dotnet build src/ShellX.Desktop -c Release` 0 警告 0 错误；`dotnet test ShellX.slnx -c Release` 全绿（Core 43 通过；Infra 46 通过（18 跳过，需本机 SSH 夹具）；Desktop 77 通过（12 跳过））。用 `SHELLX_PREVIEW_PATH` 触发现有预览渲染，导出 `artifacts/preview/file-icons-remote.png`、`file-icons-local.png` 逐行核对：图标居中、24px、文件夹取样 `215,186,125`（#D7BA7D）、文件取样 `150,150,150`（#969696）。
+## 线条图标与端口转发流量显示（2026-11-04）
+
+### 图标
+
+- 新增 `Controls/StrokeIcon`：几何按 24×24 视框绘制，按控件尺寸等比缩放、描边宽度保持 1.5（圆角端点与连接），文件列表图标从实心块改成线条样式（更细）。`FileIconView` 改为继承 `StrokeIcon`，仍然24×24 居中、配色规则不变。
+- 文件管理器两行工具栏里的纯图标按钮（后退/前进/上一级/登录目录/刷新/更多）从文字字形（← ↑ ⌂ ↻ ⋯）换成矢量线条图标，尺寸 20px，按钮内边距 `6,5`；图标形状在 `StrokeIcon.SymbolPath` 里统一维护。
+
+### 端口转发速度与动画
+
+- 现状问题：SSH.NET 的 `ForwardedPort` 没有任何字节计数接口，无法直接得到速度。
+- 做法：新增 `Infrastructure/Ssh/TunnelRelay`，把对外监听改为由中转持有——本地转发是“本机中转 → SSH 侧仅回环的临时转发 → 目标”，远程转发是“SSH 服务端 → 本机中转 → 目标”。中转逐字节统计上下行，且**只在收到客户端连接时才建立上游连接**，空闲时不产生任何目标连接负载。
+- `SshTunnelService` 每秒采样一次：只有上一秒有字节（或刚停止）才发布带 `SentRate/ReceivedRate/BytesSent/BytesReceived` 的 `TunnelStatus`，空闲时界面不刷新；`IsRunning`、后台10秒监听检查、检测流程都同时校验转发与中转监听。
+- UI：隧道行在有流量时显示呼吸动画的流量徽标（↑↓ 线条图标，0.9s 循环）和 `↑ 1.5 MB/s ↓ 340 KB/s`（`TunnelSpeed.Format`），无流量时整块隐藏。
+
+### 验证
+
+- 无夹具全量：`dotnet build src/ShellX.Desktop -c Release` 0 警告 0 错误；`dotnet test ShellX.slnx -c Release` Core 49 / Infra 47（18 跳过）/ Desktop 78（12 跳过）全绿。新增 `TunnelSpeedTests`、`TunnelRelayTests`（不经 SSH 验证转发、计数、无空闲连接、端口释放）、`TunnelViewModelTests.TrafficShowsSpeedAndAnimationOnlyWhileBytesFlow`。
+- SSH 夹具全量：`python tests/fixtures/ssh_server.py artifacts/ssh-fixture` 后带 `SHELLX_TEST_FIXTURE` 运行，**ShellX.Infrastructure.Tests 65 项全部通过**，覆盖双向转发字节回环、多监听端口对同一目标（要求精确连接数，验证中转不产生后台连接）、监听冲突、传输恢复、编辑/停止释放端口。
+- 夹具运行中 Desktop 有2项失败：`ConnectionTestTests.NewConnectionCanTestUnsavedForm…` 在**改动前的 HEAD（v1.0.5）同样失败**（同一行、同一断言），属既有问题与本次改动无关；`WorkspaceTests.RightClickEditsTheClickedLocalAndRemoteFile` 单独重跑通过（并发夹具负载下的偶发）。
+- 图标预览：`SHELLX_PREVIEW_PATH` 渲染 `artifacts/preview/file-icons-remote.png`、`file-icons-local.png`，工具栏与文件列表图标逐个核对；流量图标 `artifacts/preview/flow-icon.jpg`。隧道行的流量徽标未做真机截图（需要真实隧道跑流量），仅做了 XAML 编译与单元断言。

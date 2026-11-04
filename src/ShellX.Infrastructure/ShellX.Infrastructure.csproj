@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><IsAotCompatible>true</IsAotCompatible></PropertyGroup>
+  <ItemGroup><InternalsVisibleTo Include="ShellX.Infrastructure.Tests" /></ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../ShellX.Core/ShellX.Core.csproj" />
     <PackageReference Include="SSH.NET" />

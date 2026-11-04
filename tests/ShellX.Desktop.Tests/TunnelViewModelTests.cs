@@ -21,6 +21,21 @@ public sealed class TunnelViewModelTests
         Assert.Equal("#858585", vm.StatusColor); Assert.Equal("启动", vm.ActionText); Assert.False(vm.CheckCommand.CanExecute(null));
     }
     [Fact]
+    public void TrafficShowsSpeedAndAnimationOnlyWhileBytesFlow()
+    {
+        var definition = new TunnelDefinition();
+        var vm = new TunnelViewModel(definition, _ => Task.CompletedTask, _ => Task.CompletedTask, _ => Task.CompletedTask, _ => Task.CompletedTask);
+        vm.Apply(new(definition.Id, TunnelState.Connected, true, "TCP 可达", DateTimeOffset.Now, 4096, 2048, 1024, 2048));
+        Assert.True(vm.HasTraffic);
+        Assert.Equal("↑ 1 KB/s   ↓ 2 KB/s", vm.TrafficText);
+        // 没有新字节时立刻收起速度与动画。
+        vm.Apply(new(definition.Id, TunnelState.Connected, true, "TCP 可达", DateTimeOffset.Now, 4096, 2048, 0, 0));
+        Assert.False(vm.HasTraffic);
+        Assert.Equal("", vm.TrafficText);
+        vm.Apply(new(definition.Id, TunnelState.Stopped, false));
+        Assert.False(vm.HasTraffic);
+    }
+    [Fact]
     public void StartingAndCheckingBlockRepeatedActionsAndUnverifiedIsNotGreen()
     {
         var definition = new TunnelDefinition();

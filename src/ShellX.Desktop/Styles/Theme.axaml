@@ -1,4 +1,4 @@
-<Styles xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+<Styles xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:controls="using:ShellX.Desktop.Controls">
   <Styles.Resources>
     <ResourceDictionary>
       <ResourceDictionary.ThemeDictionaries>
@@ -103,14 +103,17 @@
     <Setter Property="Height" Value="48" />
     <Setter Property="Foreground" Value="{DynamicResource IconForeground}" />
   </Style>
-  <!-- 文件列表图标：StyleKey 指向 PathIcon，这里按标记类配色；文件夹和链接用主题色，普通文件用中性图标色。 -->
-  <Style Selector="PathIcon.file-icon">
+  <!-- 线条图标：控件自带 Foreground；文件夹和链接用主题色，普通文件与工具栏图标用中性图标色。 -->
+  <Style Selector="controls|StrokeIcon">
     <Setter Property="Foreground" Value="{DynamicResource IconForeground}" />
   </Style>
-  <Style Selector="PathIcon.file-icon.folder">
+  <Style Selector="controls|FileIconView">
+    <Setter Property="Foreground" Value="{DynamicResource IconForeground}" />
+  </Style>
+  <Style Selector="controls|FileIconView.folder">
     <Setter Property="Foreground" Value="{DynamicResource FolderForeground}" />
   </Style>
-  <Style Selector="PathIcon.file-icon.link">
+  <Style Selector="controls|FileIconView.link">
     <Setter Property="Foreground" Value="{DynamicResource LinkForeground}" />
   </Style>
   <Style Selector="TextBox">

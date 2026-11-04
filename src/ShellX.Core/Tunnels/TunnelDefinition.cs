@@ -3,7 +3,21 @@ namespace ShellX.Core.Tunnels;
 public enum TunnelDirection { Local, Remote }
 public enum TunnelState { Stopped, Starting, Checking, Connected, Failed, Unverified }
 
-public sealed record TunnelStatus(Guid TunnelId, TunnelState State, bool IsRunning, string Reason = "", DateTimeOffset? CheckedAt = null);
+// 流量字段由后台每秒采样一次：Bytes 是累计值，Rate 是上一秒的字节速率。
+public sealed record TunnelStatus(Guid TunnelId, TunnelState State, bool IsRunning, string Reason = "", DateTimeOffset? CheckedAt = null,
+    long BytesSent = 0, long BytesReceived = 0, double SentRate = 0, double ReceivedRate = 0);
+
+public static class TunnelSpeed
+{
+    public static string Format(double bytesPerSecond)
+    {
+        if (bytesPerSecond <= 0) return "0 B/s";
+        if (bytesPerSecond < 1024) return $"{bytesPerSecond:0} B/s";
+        if (bytesPerSecond < 1048576) return $"{bytesPerSecond / 1024d:0.#} KB/s";
+        if (bytesPerSecond < 1073741824d) return $"{bytesPerSecond / 1048576d:0.#} MB/s";
+        return $"{bytesPerSecond / 1073741824d:0.##} GB/s";
+    }
+}
 
 public sealed record TunnelDefinition
 {

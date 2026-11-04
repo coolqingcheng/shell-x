@@ -9,12 +9,17 @@ namespace ShellX.Infrastructure.Ssh;
 
 internal sealed class SshTunnelService : ITunnelService, IDisposable
 {
-    private sealed class Runtime(TunnelDefinition definition, ForwardedPort port)
+    private sealed class Runtime(TunnelDefinition definition, ForwardedPort port, TunnelRelay relay)
     {
         public TunnelDefinition Definition { get; } = definition;
         public ForwardedPort Port { get; } = port;
+        public TunnelRelay Relay { get; } = relay;
         public long ErrorVersion;
         public string LastError = "";
+        // 流量采样基线：上一秒的累计字节与是否有流量，避免空闲时每秒打扰界面。
+        public long LastSent;
+        public long LastReceived;
+        public bool TrafficActive;
     }
     private readonly SshClient _ssh;
     private readonly ILogger<SshTunnelService> _log;
@@ -25,15 +30,16 @@ internal sealed class SshTunnelService : ITunnelService, IDisposable
     private readonly CancellationTokenSource _lifetime = new();
     private readonly CancellationToken _lifetimeToken;
     private readonly Task _monitor;
+    private readonly Task _traffic;
     private bool _disposed;
     private string? _disconnectedReason;
     public event EventHandler<TunnelStatus>? StatusChanged;
 
     public SshTunnelService(SshClient ssh, ILogger<SshTunnelService> log)
-    { _ssh = ssh; _log = log; _lifetimeToken = _lifetime.Token; _monitor = MonitorAsync(); }
+    { _ssh = ssh; _log = log; _lifetimeToken = _lifetime.Token; _monitor = MonitorAsync(); _traffic = TrafficLoopAsync(); }
 
     public bool IsRunning(Guid id)
-    { lock (_sync) return _disconnectedReason == null && _ports.TryGetValue(id, out var runtime) && runtime.Port.IsStarted; }
+    { lock (_sync) return _disconnectedReason == null && _ports.TryGetValue(id, out var runtime) && runtime.Port.IsStarted && runtime.Relay.IsListening; }
     public TunnelStatus GetStatus(Guid id)
     { lock (_sync) return _statuses.GetValueOrDefault(id) ?? new(id, TunnelState.Stopped, false); }
     private void Publish(TunnelStatus status, Runtime? runtime = null, long? expectedErrorVersion = null)
@@ -71,21 +77,16 @@ internal sealed class SshTunnelService : ITunnelService, IDisposable
                 r.Definition.Direction == definition.Direction && r.Definition.BindPort == definition.BindPort && Overlaps(r.Definition.BindHost, definition.BindHost));
             if (conflict != null) throw new IOException($"监听冲突：{definition.BindHost}:{definition.BindPort} 已由隧道“{conflict.Definition.Name}”使用，请修改监听地址或端口。");
             Runtime? previous; lock (_sync) _ports.Remove(definition.Id, out previous);
-            if (previous != null) await Task.Run(() => Release(previous.Port)).ConfigureAwait(false);
-            await Task.Run(() =>
+            if (previous != null) await Task.Run(() => Release(previous)).ConfigureAwait(false);
+            var (port, relay) = await Task.Run(() => CreateTransport(definition), linked.Token).ConfigureAwait(false);
+            var runtime = new Runtime(definition, port, relay);
+            port.Exception += (_, e) => OnPortError(runtime, e.Exception);
+            if (linked.Token.IsCancellationRequested)
             {
-                ForwardedPort port = definition.Direction == TunnelDirection.Local
-                    ? new ForwardedPortLocal(definition.BindHost, (uint)definition.BindPort, definition.TargetHost, (uint)definition.TargetPort)
-                    : new ForwardedPortRemote(definition.BindHost, (uint)definition.BindPort, definition.TargetHost, (uint)definition.TargetPort);
-                var runtime = new Runtime(definition, port);
-                port.Exception += (_, e) => OnPortError(runtime, e.Exception);
-                try
-                {
-                    _ssh.AddForwardedPort(port); port.Start(); linked.Token.ThrowIfCancellationRequested();
-                    lock (_sync) _ports[definition.Id] = runtime;
-                }
-                catch { Release(port); throw; }
-            }, linked.Token).ConfigureAwait(false);
+                await Task.Run(() => Release(runtime)).ConfigureAwait(false);
+                linked.Token.ThrowIfCancellationRequested();
+            }
+            lock (_sync) _ports[definition.Id] = runtime;
             Publish(new(definition.Id, TunnelState.Checking, true, "监听已启动，正在检测目标 TCP 连接。"));
         }
         catch (OperationCanceledException)
@@ -131,7 +132,7 @@ internal sealed class SshTunnelService : ITunnelService, IDisposable
             Runtime? runtime; lock (_sync) _ports.TryGetValue(id, out runtime);
             if (runtime == null) return;
             var definition = runtime.Definition;
-            if (!_ssh.IsConnected || !runtime.Port.IsStarted)
+            if (!_ssh.IsConnected || !runtime.Port.IsStarted || !runtime.Relay.IsListening)
             { Publish(new(id, TunnelState.Failed, false, "SSH 已断开或监听已停止，请重新启动隧道。", DateTimeOffset.Now)); return; }
             var errorVersion = Interlocked.Read(ref runtime.ErrorVersion);
             if (publishProgress) Publish(new(id, TunnelState.Checking, true));
@@ -144,7 +145,8 @@ internal sealed class SshTunnelService : ITunnelService, IDisposable
                 else
                 {
                     var remote = (ForwardedPortRemote)runtime.Port;
-                    await TunnelTcpProbe.LocalAsync(remote.Host, definition.TargetPort, timeout.Token).ConfigureAwait(false);
+                    // 中转接管后 Port.Host 指向本机中转地址，本机目标可达性按规则里的目标直接检测。
+                    await TunnelTcpProbe.LocalAsync(definition.TargetHost, definition.TargetPort, timeout.Token).ConfigureAwait(false);
                     var received = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                     void Incoming(object? sender, PortForwardEventArgs args) => received.TrySetResult();
                     runtime.Port.RequestReceived += Incoming;
@@ -183,15 +185,68 @@ internal sealed class SshTunnelService : ITunnelService, IDisposable
         try
         {
             Runtime? runtime; lock (_sync) _ports.Remove(id, out runtime);
-            if (runtime != null) await Task.Run(() => Release(runtime.Port)).ConfigureAwait(false);
+            if (runtime != null) await Task.Run(() => Release(runtime)).ConfigureAwait(false);
             Publish(new(id, TunnelState.Stopped, false));
         }
         finally { _gate.Release(); }
     }
-    private void Release(ForwardedPort port)
+    private void Release(Runtime runtime)
+    {
+        try { runtime.Relay.Dispose(); }
+        finally
+        {
+            try { runtime.Port.Stop(); }
+            finally { try { _ssh.RemoveForwardedPort(runtime.Port); } finally { runtime.Port.Dispose(); } }
+        }
+    }
+
+    // 每条规则都由一个中转持有对外监听以便统计流量；SSH 侧只建立到下一跳的转发，目标连接只在真正有客户端接入时才建立。
+    private (ForwardedPort Port, TunnelRelay Relay) CreateTransport(TunnelDefinition definition)
+    {
+        if (definition.Direction == TunnelDirection.Local)
+        {
+            // SSH 侧只开一条仅本机可见的临时转发，对外端口由中转监听。
+            var inner = new ForwardedPortLocal("127.0.0.1", (uint)FreeLoopbackPort(), definition.TargetHost, (uint)definition.TargetPort);
+            try { _ssh.AddForwardedPort(inner); inner.Start(); }
+            catch { StopForward(inner); throw; }
+            var relay = new TunnelRelay(definition.BindHost, definition.BindPort, token => ConnectAsync("127.0.0.1", (int)inner.BoundPort, token));
+            try { relay.Start(); }
+            catch { StopForward(inner); throw; }
+            return (inner, relay);
+        }
+        else
+        {
+            // 远程转发由 SSH 服务端回连本机中转，中转再连规则里的目标。
+            var relay = new TunnelRelay("127.0.0.1", 0, token => ConnectAsync(definition.TargetHost, definition.TargetPort, token));
+            int relayPort;
+            try { relayPort = relay.Start(); }
+            catch { relay.Dispose(); throw; }
+            var remote = new ForwardedPortRemote(definition.BindHost, (uint)definition.BindPort, "127.0.0.1", (uint)relayPort);
+            try { _ssh.AddForwardedPort(remote); remote.Start(); }
+            catch { StopForward(remote); relay.Dispose(); throw; }
+            return (remote, relay);
+        }
+    }
+
+    private void StopForward(ForwardedPort port)
     {
         try { port.Stop(); }
         finally { try { _ssh.RemoveForwardedPort(port); } finally { port.Dispose(); } }
+    }
+
+    private static int FreeLoopbackPort()
+    {
+        var probe = new TcpListener(IPAddress.Loopback, 0);
+        probe.Start();
+        try { return ((IPEndPoint)probe.LocalEndpoint).Port; }
+        finally { probe.Stop(); }
+    }
+
+    private static async Task<Socket> ConnectAsync(string host, int port, CancellationToken token)
+    {
+        var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+        try { await socket.ConnectAsync(host, port, token).ConfigureAwait(false); return socket; }
+        catch { socket.Dispose(); throw; }
     }
     private async Task MonitorAsync()
     {
@@ -205,13 +260,48 @@ internal sealed class SshTunnelService : ITunnelService, IDisposable
                 if (!_ssh.IsConnected) { NotifyDisconnected("SSH 传输连接已关闭。"); return; }
                 Runtime[] ports; lock (_sync) ports = _ports.Values.ToArray();
                 foreach (var runtime in ports)
-                    if (!runtime.Port.IsStarted)
+                    if (!runtime.Port.IsStarted || !runtime.Relay.IsListening)
                         Publish(new(runtime.Definition.Id, TunnelState.Failed, false, "监听已停止，请重新启动隧道。", DateTimeOffset.Now), runtime);
             }
         }
         catch (OperationCanceledException) { }
     }
 
+
+    // 每秒采样一次上下行字节；只有出现流量或刚停止流量时才发布状态，空闲时不打扰界面。
+    private async Task TrafficLoopAsync()
+    {
+        try
+        {
+            while (true)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(1), _lifetimeToken).ConfigureAwait(false);
+                Runtime[] ports; lock (_sync) ports = _ports.Values.ToArray();
+                foreach (var runtime in ports)
+                {
+                    var sent = runtime.Relay.BytesSent;
+                    var received = runtime.Relay.BytesReceived;
+                    TunnelStatus? current;
+                    long lastSent, lastReceived;
+                    bool wasActive;
+                    lock (_sync)
+                    {
+                        lastSent = runtime.LastSent; lastReceived = runtime.LastReceived; wasActive = runtime.TrafficActive;
+                        runtime.LastSent = sent; runtime.LastReceived = received;
+                        current = _statuses.GetValueOrDefault(runtime.Definition.Id);
+                    }
+                    var sentRate = Math.Max(0, sent - lastSent);
+                    var receivedRate = Math.Max(0, received - lastReceived);
+                    var active = sentRate > 0 || receivedRate > 0;
+                    if (!active && !wasActive) continue;
+                    lock (_sync) runtime.TrafficActive = active;
+                    if (current == null || !current.IsRunning) continue;
+                    Publish(current with { BytesSent = sent, BytesReceived = received, SentRate = sentRate, ReceivedRate = receivedRate }, runtime);
+                }
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
     internal void NotifyDisconnected(string reason)
     {
         Guid[] ids; lock (_sync) { if (_disposed) return; _disconnectedReason = "SSH 会话已断开：" + reason; ids = _ports.Keys.ToArray(); }
@@ -249,12 +339,12 @@ internal sealed class SshTunnelService : ITunnelService, IDisposable
     public void Dispose()
     {
         if (_disposed) return;
-        _lifetime.Cancel(); _monitor.GetAwaiter().GetResult(); _gate.Wait();
+        _lifetime.Cancel(); _monitor.GetAwaiter().GetResult(); _traffic.GetAwaiter().GetResult(); _gate.Wait();
         try
         {
             _disposed = true;
             Runtime[] ports; lock (_sync) { ports = _ports.Values.ToArray(); _ports.Clear(); }
-            foreach (var runtime in ports) { try { Release(runtime.Port); } catch (Exception) { } }
+            foreach (var runtime in ports) { try { Release(runtime); } catch (Exception) { } }
         }
         finally { _gate.Release(); _lifetime.Dispose(); }
     }

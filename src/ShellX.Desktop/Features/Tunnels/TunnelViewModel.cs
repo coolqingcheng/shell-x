@@ -14,6 +14,8 @@ public partial class TunnelViewModel(TunnelDefinition definition, Func<TunnelVie
     [ObservableProperty] private TunnelState _state;
     [ObservableProperty] private string _reason = "";
     [ObservableProperty] private DateTimeOffset? _checkedAt;
+    [ObservableProperty] private bool _hasTraffic;
+    [ObservableProperty] private string _trafficText = "";
     public string Status => State switch
     {
         TunnelState.Starting => "正在启动", TunnelState.Checking => "正在检测",
@@ -40,7 +42,14 @@ public partial class TunnelViewModel(TunnelDefinition definition, Func<TunnelVie
     partial void OnReasonChanged(string value) => OnPropertyChanged(nameof(HasReason));
     partial void OnCheckedAtChanged(DateTimeOffset? value) => OnPropertyChanged(nameof(CheckedText));
     public void Apply(TunnelStatus value)
-    { if (value.TunnelId != definition.Id) return; Running = value.IsRunning; State = value.State; Reason = value.Reason; CheckedAt = value.CheckedAt; }
+    {
+        if (value.TunnelId != definition.Id) return;
+        Running = value.IsRunning; State = value.State; Reason = value.Reason; CheckedAt = value.CheckedAt;
+        // 只有上一秒真的有字节经过才显示速度和动画，空闲时保持安静。
+        var active = value.SentRate > 0 || value.ReceivedRate > 0;
+        HasTraffic = active;
+        TrafficText = active ? $"↑ {TunnelSpeed.Format(value.SentRate)}   ↓ {TunnelSpeed.Format(value.ReceivedRate)}" : "";
+    }
     [RelayCommand(CanExecute = nameof(CanChange))] private Task ToggleAsync() => toggle(this);
     [RelayCommand(CanExecute = nameof(CanChange))] private Task RemoveAsync() => remove(this);
     [RelayCommand(CanExecute = nameof(CanCheck))] private Task CheckAsync() => check(this);
