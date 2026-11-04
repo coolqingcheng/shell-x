@@ -9,6 +9,7 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -17,4 +18,13 @@ jobs:
       - name: 编译
         run: dotnet build ShellX.slnx -c Release
       - name: 运行测试
-        run: dotnet test ShellX.slnx -c Release --no-build
+        shell: pwsh
+        run: |
+          # xunit v3 的测试宿主进程偶发崩溃（Test process did not return valid JSON），失败时自动重试
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            dotnet test ShellX.slnx -c Release --no-build
+            if ($LASTEXITCODE -eq 0) { exit 0 }
+            Write-Host "测试失败（第 $attempt 次），10 秒后重试。"
+            Start-Sleep -Seconds 10
+          }
+          exit 1
