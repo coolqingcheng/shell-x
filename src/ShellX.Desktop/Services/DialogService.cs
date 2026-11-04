@@ -13,6 +13,7 @@ using ShellX.Core.Tunnels;
 using ShellX.Core.Sessions;
 using ShellX.Core.Security;
 using Avalonia.Threading;
+using CommunityToolkit.Mvvm.Input;
 using ShellX.Desktop.Features.Connections;
 using ShellX.Desktop.Features.FileBrowser;
 using ShellX.Desktop.Features.FileEditor;
@@ -242,11 +243,121 @@ public sealed class DialogService(ITextCodec codec, AppLockService? appLock = nu
             FileTypeChoices = [new FilePickerFileType("ShellX 配置（JSON）") { Patterns = ["*.json"] }]
         }))?.TryGetLocalPath();
 
+    private Window? _editorWindow;
+    private TabControl? _editorTabControl;
+    private readonly Dictionary<TabItem, EditorTabState> _editorStates = [];
+
+    private sealed class EditorTabState(TextDocument document, FileEditorViewModel vm, Action detach)
+    {
+        public TextDocument Document { get; } = document;
+        public FileEditorViewModel Vm { get; } = vm;
+        public Action Detach { get; } = detach;
+        public string Name => System.IO.Path.GetFileName(Document.Path);
+    }
+
+    /// <summary>
+    /// 文本编辑器改为非模态标签页：全局只保留一个编辑器窗口，再次点击“编辑文本”直接新增标签。
+    /// 任务在窗口/标签打开后即完成，不再阻塞文件列表继续打开其他文件。
+    /// </summary>
     public async Task EditFileAsync(TextDocument document, Func<TextDocument, string, Task<TextDocument>> save)
     {
         TextEditorLimits.ValidateContent(document.Content);
+        if (_editorWindow is { } existing && existing.IsVisible && _editorTabControl is { } existingTabs)
+        {
+            var opened = _editorStates.FirstOrDefault(pair => Equals(pair.Value.Document.Path, document.Path));
+            if (opened.Value != null) existingTabs.SelectedItem = opened.Key;
+            else AddEditorTab(existing, existingTabs, document, save);
+            await Task.CompletedTask;
+            return;
+        }
+
+        var window = Window("编辑 · " + document.Path, 1050, 720);
+        window.MinWidth = 780;
+        var tabs = new TabControl();
+        window.Content = tabs;
+        _editorWindow = window;
+        _editorTabControl = tabs;
+        AddEditorTab(window, tabs, document, save);
+        tabs.SelectionChanged += (_, _) => ActivateEditorTab(window, tabs);
+
+        var approved = false;
+        window.Closing += async (_, e) =>
+        {
+            if (approved) { DetachEditorTabs(); return; }
+            var dirty = _editorStates.Values.Count(state => state.Vm.IsDirty);
+            if (dirty == 0) { DetachEditorTabs(); return; }
+            e.Cancel = true;
+            var message = dirty == 1
+                ? "关闭将放弃当前文件的未保存修改，是否继续？"
+                : $"有 {dirty} 个文件尚未保存，关闭将放弃这些修改，是否继续？";
+            if (await ConfirmOwnedAsync(window, "未保存的修改", message)) { approved = true; window.Close(); }
+        };
+        window.Closed += (_, _) => { DetachEditorTabs(); _editorWindow = null; _editorTabControl = null; };
+        window.KeyBindings.Add(new KeyBinding
+        {
+            Gesture = new KeyGesture(Key.S, KeyModifiers.Control),
+            Command = new RelayCommand(() => { if (ActiveEditorTab(tabs) is { } state) _ = state.Vm.SaveCommand.ExecuteAsync(null); })
+        });
+        window.Show(DialogOwner); // 非模态：不阻塞调用方，窗口与标签自行管理生命周期
+        await Task.CompletedTask;
+    }
+
+    private EditorTabState? ActiveEditorTab(TabControl tabs)
+        => tabs.SelectedItem is TabItem selected && _editorStates.TryGetValue(selected, out var state)
+            ? state
+            : _editorStates.Values.LastOrDefault();
+
+    private void ActivateEditorTab(Window window, TabControl tabs)
+    {
+        if (ActiveEditorTab(tabs) is not { } state) return;
+        window.Title = "编辑 · " + state.Document.Path;
+        window.DataContext = state.Vm;
+    }
+
+    private void DetachEditorTabs()
+    {
+        foreach (var state in _editorStates.Values.ToArray())
+        {
+            try { state.Detach(); }
+            catch (Exception) { }
+        }
+        _editorStates.Clear();
+    }
+
+    private Control BuildEditorTabHeader(Window window, TabControl tabs, TabItem tab, FileEditorViewModel vm, TextDocument document)
+    {
+        var label = new TextBlock
+        {
+            Text = System.IO.Path.GetFileName(document.Path),
+            VerticalAlignment = VerticalAlignment.Center,
+            MaxWidth = 210,
+            TextTrimming = TextTrimming.CharacterEllipsis
+        };
+        ToolTip.SetTip(label, document.Path);
+        var close = new Button { Padding = new Thickness(4, 2) };
+        close.Classes.Add("flat");
+        close.Content = new StrokeIcon { Symbol = "close", Width = 11, Height = 11 };
+        ToolTip.SetTip(close, "关闭标签");
+        close.Click += async (_, _) =>
+        {
+            if (!_editorStates.TryGetValue(tab, out var state)) return;
+            if (state.Vm.IsDirty && !await ConfirmOwnedAsync(window, "未保存的修改", $"关闭将放弃 {state.Name} 的未保存修改，是否继续？")) return;
+            _editorStates.Remove(tab);
+            try { state.Detach(); }
+            catch (Exception) { }
+            tabs.Items.Remove(tab);
+            if (tabs.Items.Count == 0) window.Close();
+            else ActivateEditorTab(window, tabs);
+        };
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        panel.Children.Add(label);
+        panel.Children.Add(close);
+        return panel;
+    }
+
+    private void AddEditorTab(Window window, TabControl tabs, TextDocument document, Func<TextDocument, string, Task<TextDocument>> save)
+    {
         var vm = new FileEditorViewModel(document, save, codec);
-        var window = Window("编辑 · " + document.Path, 1050, 720); window.MinWidth = 780; window.DataContext = vm;
         var root = new DockPanel();
         var header = new StackPanel { Spacing = 9, Margin = new Thickness(16, 10) };
         var saveRow = new DockPanel { LastChildFill = true };
@@ -312,17 +423,14 @@ public sealed class DialogService(ITextCodec codec, AppLockService? appLock = nu
             if (change.PropertyName == nameof(vm.Content) && input.Text != vm.Content) input.Text = vm.Content;
             if (change.PropertyName == nameof(vm.SelectedSyntax)) input.SyntaxHighlighting = vm.SelectedSyntax.Highlighting;
         };
-        root.Children.Add(input); window.Content = root;
-        window.KeyBindings.Add(new KeyBinding { Gesture = new KeyGesture(Key.S, KeyModifiers.Control), Command = vm.SaveCommand });
-        var approved = false;
-        window.Closing += async (_, e) =>
-        {
-            if (approved || !vm.IsDirty) return;
-            e.Cancel = true;
-            if (await ConfirmOwnedAsync(window, "未保存的修改", "关闭将放弃当前文件的未保存修改，是否继续？")) { approved = true; window.Close(); }
-        };
-        try { await window.ShowDialog(DialogOwner); }
-        finally { if (appLock != null) appLock.SettingsChanged -= ApplyEditorFont; }
+        root.Children.Add(input);
+        var tab = new TabItem { Content = root };
+        tab.Header = BuildEditorTabHeader(window, tabs, tab, vm, document);
+        void Detach() { if (appLock != null) appLock.SettingsChanged -= ApplyEditorFont; }
+        _editorStates[tab] = new EditorTabState(document, vm, Detach);
+        tabs.Items.Add(tab);
+        tabs.SelectedItem = tab;
+        ActivateEditorTab(window, tabs);
     }
     private async Task<bool> ConfirmOwnedAsync(Window owner, string title, string message)
     {

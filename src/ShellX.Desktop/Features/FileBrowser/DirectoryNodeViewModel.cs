@@ -14,9 +14,14 @@ public partial class DirectoryNodeViewModel(string name, string path,
     public ObservableCollection<DirectoryNodeViewModel> Children { get; } = [];
     [ObservableProperty] private bool _isExpanded;
     [ObservableProperty] private bool _isLoading;
-    public string ExpanderText => IsLoading ? "…" : IsExpanded ? "⌄" : "›";
-    partial void OnIsExpandedChanged(bool value) => OnPropertyChanged(nameof(ExpanderText));
-    partial void OnIsLoadingChanged(bool value) => OnPropertyChanged(nameof(ExpanderText));
+    // 展开箭头改用线条图标；加载中仍显示省略号。
+    public bool ShowCollapsedIcon => !IsLoading && !IsExpanded;
+    public bool ShowExpandedIcon => !IsLoading && IsExpanded;
+    public bool ShowLoadingText => IsLoading;
+    partial void OnIsExpandedChanged(bool value)
+    { OnPropertyChanged(nameof(ShowCollapsedIcon)); OnPropertyChanged(nameof(ShowExpandedIcon)); }
+    partial void OnIsLoadingChanged(bool value)
+    { OnPropertyChanged(nameof(ShowLoadingText)); OnPropertyChanged(nameof(ShowCollapsedIcon)); OnPropertyChanged(nameof(ShowExpandedIcon)); }
 
     [RelayCommand]
     private async Task ToggleAsync()

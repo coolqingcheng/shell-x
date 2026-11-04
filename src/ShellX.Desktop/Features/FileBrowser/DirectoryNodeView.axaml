@@ -1,10 +1,10 @@
-<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:ShellX.Desktop.Features.FileBrowser" x:DataType="vm:DirectoryNodeViewModel" xmlns:local="using:ShellX.Desktop.Features.FileBrowser"
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:ShellX.Desktop.Features.FileBrowser" x:DataType="vm:DirectoryNodeViewModel" xmlns:local="using:ShellX.Desktop.Features.FileBrowser" xmlns:controls="using:ShellX.Desktop.Controls"
              x:Class="ShellX.Desktop.Features.FileBrowser.DirectoryNodeView">
   <StackPanel>
     <Grid ColumnDefinitions="22,*">
-      <Button Content="{Binding ExpanderText}" Command="{Binding ToggleCommand}" Classes="flat" MinWidth="0" Padding="3,5" />
+      <Button Command="{Binding ToggleCommand}" Classes="flat" MinWidth="0" Padding="3,5"><Panel Width="16" Height="16"><controls:StrokeIcon Symbol="forward" Width="14" Height="14" IsVisible="{Binding ShowCollapsedIcon}" /><controls:StrokeIcon Symbol="chevron-down" Width="14" Height="14" IsVisible="{Binding ShowExpandedIcon}" /><TextBlock Text="…" FontSize="11" IsVisible="{Binding ShowLoadingText}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Panel></Button>
       <Button Grid.Column="1" Command="{Binding OpenCommand}" Classes="flat" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="2,5" ToolTip.Tip="{Binding Path}">
-        <StackPanel Orientation="Horizontal" Spacing="7"><TextBlock Text="▰" Width="26" Height="26" FontSize="20" TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource FolderForeground}" /><TextBlock Text="{Binding Name}" FontSize="11" VerticalAlignment="Center" /></StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="7"><controls:StrokeIcon Symbol="folder" Width="24" Height="24" Foreground="{DynamicResource FolderForeground}" /><TextBlock Text="{Binding Name}" FontSize="11" VerticalAlignment="Center" /></StackPanel>
       </Button>
     </Grid>
     <ItemsControl ItemsSource="{Binding Children}" IsVisible="{Binding IsExpanded}" Margin="12,0,0,0"><ItemsControl.ItemTemplate><DataTemplate x:DataType="vm:DirectoryNodeViewModel"><local:DirectoryNodeView /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>

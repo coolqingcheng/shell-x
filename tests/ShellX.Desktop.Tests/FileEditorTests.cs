@@ -93,6 +93,51 @@ public sealed class FileEditorTests
         finally { window.Close(); await editing; owner.Close(); Directory.Delete(root, true); }
     }
 
+    [AvaloniaFact]
+    public async Task OpeningAnotherFileAddsATabToTheSameNonModalEditorWindow()
+    {
+        var codec = new TextCodec();
+        var owner = new Window(); owner.Show();
+        var dialog = new DialogService(codec) { Owner = owner };
+        var first = dialog.EditFileAsync(new("/etc/app.conf", "one", 3, DateTime.UtcNow), (document, _) => Task.FromResult(document));
+        var second = dialog.EditFileAsync(new("/etc/nginx.conf", "two", 3, DateTime.UtcNow), (document, _) => Task.FromResult(document));
+        Window? window = null;
+        try
+        {
+            // 非模态：两次打开都在窗口出现后立即完成，不等用户关闭。
+            await first.WaitAsync(TimeSpan.FromSeconds(5));
+            await second.WaitAsync(TimeSpan.FromSeconds(5));
+            window = Assert.Single(owner.OwnedWindows);
+            await Task.Delay(40);
+            var tabs = window.GetVisualDescendants().OfType<TabItem>().ToArray();
+            Assert.Equal(2, tabs.Length);
+            Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "nginx.conf");
+            Assert.IsType<FileEditorViewModel>(window.DataContext);
+            Assert.EndsWith("nginx.conf", window.Title);
+
+            // 同一个文件再次点击只聚焦已有标签。
+            var third = dialog.EditFileAsync(new("/etc/nginx.conf", "two", 3, DateTime.UtcNow), (document, _) => Task.FromResult(document));
+            await third.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(2, window.GetVisualDescendants().OfType<TabItem>().Count());
+
+            if (Environment.GetEnvironmentVariable("SHELLX_PREVIEW_PATH") is { Length: > 0 } preview)
+            {
+                await Task.Delay(50);
+                using var bitmap = new RenderTargetBitmap(new PixelSize((int)window.Bounds.Width, (int)window.Bounds.Height), new Vector(96, 96));
+                bitmap.Render(window);
+                bitmap.Save(Path.Combine(Path.GetDirectoryName(preview)!, "editor-tabs.png"), PngBitmapEncoderOptions.Default);
+            }
+            // 关闭窗口即结束，不再残留编辑器窗口。
+            window.Close();
+            await Task.Delay(40);
+            Assert.Empty(owner.OwnedWindows);
+        }
+        finally
+        {
+            foreach (var owned in owner.OwnedWindows.ToArray()) owned.Close();
+            owner.Close();
+        }
+    }
     [AvaloniaTheory]
     [InlineData("/app/config.json", "{\"name\":\"value\",\"count\":12,\"ok\":true}", "JSON", "Property", "String", "Keyword", "Number")]
     [InlineData("/app/config.xml", "<root name=\"value\"><child>text</child></root>", "XML", "Keyword", "Property", "String")]

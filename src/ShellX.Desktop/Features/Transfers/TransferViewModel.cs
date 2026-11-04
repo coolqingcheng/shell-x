@@ -10,6 +10,9 @@ public partial class TransferViewModel(string name, string direction, long total
     private long _total = total;
     public string Name => name;
     public string Direction => direction;
+    // 传输方向用线条图标显示，标签去掉箭头字符（原来的方向文字是字体图标）。
+    public string DirectionIcon => direction.StartsWith('↑') ? "upload" : "download";
+    public string DirectionLabel => direction.Length > 1 && direction[0] is '↑' or '↓' ? direction[2..] : direction;
     public CancellationToken Token => _cancel.Token;
     [ObservableProperty] private double _percent;
     [ObservableProperty] private string _status = "等待中";

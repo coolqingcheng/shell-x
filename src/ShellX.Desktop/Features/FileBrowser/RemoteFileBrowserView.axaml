@@ -10,9 +10,9 @@
         <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center"><TextBlock Text="远程" FontSize="11" /><TextBlock Text="SFTP" Foreground="{DynamicResource MutedForeground}" FontSize="10" /></StackPanel>
         <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" HorizontalAlignment="Right">
           <StackPanel Orientation="Horizontal" IsEnabled="{Binding IsAvailable}">
-            <Button Content="＋ 文件" Classes="flat" Command="{Binding NewFileCommand}" FontSize="11" />
-            <Button Content="＋ 文件夹" Classes="flat" Command="{Binding NewFolderCommand}" FontSize="11" />
-            <Button Content="← 下载" Classes="flat" Command="{Binding DownloadCommand}" FontSize="11" />
+            <Button Classes="flat" Command="{Binding NewFileCommand}" FontSize="11" Padding="8,5"><StackPanel Orientation="Horizontal" Spacing="5"><controls:StrokeIcon Symbol="plus" Width="15" Height="15" Foreground="{DynamicResource ForegroundBrush}" /><TextBlock Text="文件" FontSize="11" VerticalAlignment="Center" /></StackPanel></Button>
+            <Button Classes="flat" Command="{Binding NewFolderCommand}" FontSize="11" Padding="8,5"><StackPanel Orientation="Horizontal" Spacing="5"><controls:StrokeIcon Symbol="plus" Width="15" Height="15" Foreground="{DynamicResource ForegroundBrush}" /><TextBlock Text="文件夹" FontSize="11" VerticalAlignment="Center" /></StackPanel></Button>
+            <Button Classes="flat" Command="{Binding DownloadCommand}" FontSize="11" Padding="8,5"><StackPanel Orientation="Horizontal" Spacing="5"><controls:StrokeIcon Symbol="download" Width="15" Height="15" Foreground="{DynamicResource ForegroundBrush}" /><TextBlock Text="下载" FontSize="11" VerticalAlignment="Center" /></StackPanel></Button>
             <Button Content="编辑" Classes="flat" Command="{Binding EditTextCommand}" FontSize="11" />
             <Button Content="权限" Classes="flat" Command="{Binding PermissionsCommand}" FontSize="11" />
           </StackPanel>

@@ -1,5 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:ShellX.Desktop.Features.FileBrowser" x:DataType="vm:FileBrowserViewModel" xmlns:local="using:ShellX.Desktop.Features.FileBrowser"
-             xmlns:transfers="using:ShellX.Desktop.Features.Transfers" x:Class="ShellX.Desktop.Features.FileBrowser.FileBrowserView">
+             xmlns:transfers="using:ShellX.Desktop.Features.Transfers" xmlns:controls="using:ShellX.Desktop.Controls" x:Class="ShellX.Desktop.Features.FileBrowser.FileBrowserView">
   <Grid RowDefinitions="*,Auto">
     <Grid x:Name="FileLayout" ColumnDefinitions="*,5,*">
       <local:LocalFileBrowserView x:Name="LocalPane" DataContext="{Binding Local}" />
@@ -8,10 +8,10 @@
     </Grid>
     <Border Grid.Row="1" IsVisible="{Binding ShowTransfers}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,1,0,0" MaxHeight="165" Background="{DynamicResource PanelBackground}">
       <DockPanel>
-        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" Margin="12,3"><TextBlock Text="传输任务" FontSize="11" VerticalAlignment="Center" /><Button Grid.Column="1" Content="清除已完成" Classes="flat" FontSize="11" Command="{Binding ClearTransfersCommand}" /><Button Grid.Column="2" Content="×" Classes="flat" Command="{Binding ToggleTransfersCommand}" /></Grid>
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" Margin="12,3"><TextBlock Text="传输任务" FontSize="11" VerticalAlignment="Center" /><Button Grid.Column="1" Content="清除已完成" Classes="flat" FontSize="11" Command="{Binding ClearTransfersCommand}" /><Button Grid.Column="2" Classes="flat" Command="{Binding ToggleTransfersCommand}" ToolTip.Tip="收起传输任务"><controls:StrokeIcon Symbol="close" Width="14" Height="14" /></Button></Grid>
         <ScrollViewer><ItemsControl ItemsSource="{Binding Transfers}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="transfers:TransferViewModel">
           <Grid ColumnDefinitions="60,*,Auto,48" RowDefinitions="Auto,Auto,Auto" Margin="12,6" ColumnSpacing="10" RowSpacing="4" ClipToBounds="True">
-            <TextBlock Text="{Binding Direction}" FontSize="11" VerticalAlignment="Center" />
+            <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center"><controls:StrokeIcon Symbol="{Binding DirectionIcon}" Width="14" Height="14" Foreground="{DynamicResource ForegroundBrush}" /><TextBlock Text="{Binding DirectionLabel}" FontSize="11" VerticalAlignment="Center" /></StackPanel>
             <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding Name}" />
             <TextBlock Grid.Column="2" Text="{Binding Status}" FontSize="11" Foreground="{DynamicResource SecondaryForeground}" VerticalAlignment="Center" />
             <Button Grid.Column="3" Content="取消" Classes="flat" Command="{Binding CancelCommand}" IsVisible="{Binding IsActive}" FontSize="11" MinHeight="0" Padding="5,2" />

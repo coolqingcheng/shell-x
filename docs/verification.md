@@ -405,3 +405,25 @@ bash: -c: line 21: syntax error near unexpected token `$'do\r''
 - SSH 夹具全量：`python tests/fixtures/ssh_server.py artifacts/ssh-fixture` 后带 `SHELLX_TEST_FIXTURE` 运行，**ShellX.Infrastructure.Tests 65 项全部通过**，覆盖双向转发字节回环、多监听端口对同一目标（要求精确连接数，验证中转不产生后台连接）、监听冲突、传输恢复、编辑/停止释放端口。
 - 夹具运行中 Desktop 有2项失败：`ConnectionTestTests.NewConnectionCanTestUnsavedForm…` 在**改动前的 HEAD（v1.0.5）同样失败**（同一行、同一断言），属既有问题与本次改动无关；`WorkspaceTests.RightClickEditsTheClickedLocalAndRemoteFile` 单独重跑通过（并发夹具负载下的偶发）。
 - 图标预览：`SHELLX_PREVIEW_PATH` 渲染 `artifacts/preview/file-icons-remote.png`、`file-icons-local.png`，工具栏与文件列表图标逐个核对；流量图标 `artifacts/preview/flow-icon.jpg`。隧道行的流量徽标未做真机截图（需要真实隧道跑流量），仅做了 XAML 编译与单元断言。
+## 字体图标全面替换与非模态标签编辑器（2026-11-04）
+
+### 图标
+
+- `StrokeIcon` 符号表补齐：`folder`、`tunnel`、`power`、`maximize`、`duplicate`、`close`、`settings`、`plus`、`download`、`upload`、`disk`、`layout`、`connections`、`down`、`chevron-down`（沿用既有的 `back/forward/up/home/refresh/more/flow`）。
+- 替换位置：终端工具栏 `⇄ ↻ ⏻ ▣ ⋯`、连接标签状态点 `●`→`Ellipse`、标签关闭 `×`、主窗口 `＋ / ▦ / ⚙` 与连接管理按钮、连接管理器齿轮与文件夹、文件面板 `磁盘 / ＋文件夹 / ＋文件 / ←下载 / 上传→`、传输方向 `↑ ↓`、目录树文件夹 `▰` 与展开箭头 `› ⌄`、监控刷新 `↻` 与网络 `↑ ↓`、面板关闭 `×`、快捷命令 `＋ 添加`、新建隧道 `＋`。
+- 保留**文本内容**中的箭头与分隔符（快捷键提示 `Alt+↑/↓`、排序表头 `CPU ↓`、菜单文案“下载到左侧目录 ←”、传输源数据里的方向字符、密码掩码 `●`），它们属于文字而非图标。
+- 齿轮初版是“圆 + 辐条”，在 18px 下更像太阳，改为齿 + 双圈后按连接管理器截图放大核对为标准齿形。
+
+### 文本编辑器：非模态标签页
+
+- `IDialogService.EditFileAsync` 签名不变；实现改为**单窗口多标签**：`window.Show(DialogOwner)` 非模态，任务在标签打开后立即完成，因此文件列表不会被编辑器占用，可继续打开其他文件。
+- 再次点击“编辑文本”：同路径文件聚焦已有标签；新文件新增标签（标签头为文件名 + 线条 `×`）。
+- 标签 `×` 关闭前对未保存内容确认；关闭窗口时若多个文件未保存，统一提示“有 N 个文件尚未保存”；`Ctrl+S` 保存当前标签；`window.Title` 与 `DataContext` 跟随当前标签（保持既有测试契约）。
+- 每个标签独立的 `FileEditorViewModel`、编码/语法选择、保存状态与字体订阅（关闭标签时取消 `AppLockService.SettingsChanged` 订阅，避免泄漏）。
+
+### 验证
+
+- 无夹具全量：`dotnet build` 0 警告 0 错误；`dotnet test ShellX.slnx -c Release` → Core 49 / Infra 47（18 跳过）/ Desktop 79（12 跳过）全绿。
+- 新增测试 `FileEditorTests.OpeningAnotherFileAddsATabToTheSameNonModalEditorWindow`：两次打开只产生 1 个窗口、2 个标签、打开即完成、重复打开同文件不新增标签、关闭窗口后无残留。
+- 带 SSH 夹具全量：Desktop 89 通过 / 2 失败——`ConnectionTestTests.NewConnectionCanTest…` 在改动前的 HEAD（v1.0.5）同样失败，属既有问题；`McpLogLayoutTests.LongMcpLog…` 为偶发，单独重跑通过。
+- 图标与标签页截图（`SHELLX_PREVIEW_PATH` 渲染）：`workspace-dark.png`、`file-icons-remote.png`、`file-icons-local.png`、`connection-manager.png`、`shared-monitor-tabs.png`、`editor-tabs.png`，并对工具栏、文件面板按钮、齿轮做了局部放大核对。
