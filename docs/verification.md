@@ -287,3 +287,15 @@ AOT 构建：`build.bat` 成功，交付目录仅 `ShellX.exe`，60,060,160 字�
 敏感信息审计（提交前）：对 180 个源码/脚本/文档文件扫描私钥头、GitHub/AWS 令牌、`.env`、密钥文件扩展名、口令赋值、邮箱、手机号和内网地址。命中的口令全部是测试占位值（`test-*`、`fixture-password`、`new-password` 等），邮箱仅出现在上游翻译文件的作者署名中，内网地址仅为终端高亮测试样例 `192.168.1.2`；没有真实凭据、令牌或用户服务器信息入库。
 
 GitHub 公开仓库尚未创建：仓库内没有 remote，需要仓库账号与仓库名后执行 `git remote add origin <地址>` 与 `git push -u origin mimo`，再推送 `v*` 标签触发 Release 工作流。
+### 公开仓库与首个 Release（2026-11-04）
+
+使用本机 Git 凭据管理器中已保存的 `coolqingcheng` 账号凭据，通过 GitHub API 创建公开仓库 `coolqingcheng/shell-x`（MIT 许可，默认分支 `mimo`），随后推送 `mimo` 分支与 `v1.0.0` 标签。全过程未打印、未入库任何令牌，临时脚本与凭据文件在完成后已删除。
+
+仓库地址：https://github.com/coolqingcheng/shell-x
+
+GitHub Actions 实测：`CI`（提交 `mimo`）构建与测试全部通过；`Release`（标签 `v1.0.0`）在 windows-latest 上完成 .NET 10 安装、AOT 编译、Inno Setup 安装、编译安装包、打包免安装版本并上传，结论为 success。产出的 Release 资产：
+
+- `ShellX-Setup-1.0.0.exe`（18,432,516 字节）：应用内更新优先选择该资产
+- `ShellX-1.0.0-win-x64.zip`（25,181,764 字节）：免安装版本
+
+Release 地址：https://github.com/coolqingcheng/shell-x/releases/tag/v1.0.0 。应用内“设置 → 更新”的默认仓库已设为 `coolqingcheng/shell-x`，与实际发布地址一致。
