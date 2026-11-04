@@ -11,8 +11,8 @@ public sealed class FileIconView : PathIcon
     public string Symbol { get => GetValue(SymbolProperty); set => SetValue(SymbolProperty, value); }
     public FileIconView()
     {
-        Width = 16;
-        Height = 16;
+        Width = 20;
+        Height = 20;
         HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center;
         VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center;
         ApplySymbol();
