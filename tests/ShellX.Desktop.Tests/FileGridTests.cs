@@ -9,6 +9,7 @@ using Avalonia.VisualTree;
 using Microsoft.Extensions.Logging.Abstractions;
 using ShellX.Core.Files;
 using ShellX.Core.Settings;
+using ShellX.Desktop.Controls;
 using ShellX.Desktop.Features.FileBrowser;
 using ShellX.Desktop.Services;
 using ShellX.Infrastructure.Files;
@@ -35,7 +36,10 @@ public sealed class FileGridTests
         {
             await browser.Local.InitializeAsync();
             await Task.Delay(60);
-            var path = view.FindControl<TextBox>("PathInput")!;
+            var bar = view.FindControl<PathBar>("PathBar")!;
+            bar.BeginEdit();
+            await Task.Delay(60);
+            var path = bar.EditInput;
             path.Text = remote ? "/etc/nginx/conf.d" : root;
             foreach (var theme in new[] { AppTheme.Dark, AppTheme.Light })
             {

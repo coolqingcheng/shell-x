@@ -15,7 +15,7 @@
     </Border>
     <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6" Margin="8,5">
       <StackPanel Orientation="Horizontal" Spacing="2"><Button Content="←" Classes="flat" Command="{Binding BackCommand}" ToolTip.Tip="后退" /><Button Content="→" Classes="flat" Command="{Binding ForwardCommand}" ToolTip.Tip="前进" /><Button Content="↑" Classes="flat" Command="{Binding UpCommand}" ToolTip.Tip="上一级" /><Button Content="⌂" Classes="flat" Command="{Binding HomeCommand}" ToolTip.Tip="用户目录" /><Button Content="↻" Classes="flat" Command="{Binding RefreshCommand}" ToolTip.Tip="刷新 F5" /></StackPanel>
-      <TextBox Grid.Column="1" Name="PathInput" Classes="file-path" Text="{Binding Address, Mode=TwoWay}" PlaceholderText="本地路径" KeyDown="AddressKeyDown" />
+      <controls:PathBar Grid.Column="1" Name="PathBar" Text="{Binding Path}" WindowsStyle="True" PlaceholderText="本地路径" VerticalAlignment="Center" NavigateRequested="PathNavigate" />
       <Button Grid.Column="2" x:Name="PathHistoryButton" Content="历史" Classes="flat" FontSize="11"><Button.Flyout><Flyout><ScrollViewer Width="350" MaxHeight="260"><ItemsControl ItemsSource="{Binding RecentPaths}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="x:String"><Button Content="{Binding}" Tag="{Binding}" Click="UsePathHistory" Classes="flat" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer></Flyout></Button.Flyout></Button>
     </Grid>
     <Border Grid.Row="2" IsVisible="{Binding HasError}" Background="{DynamicResource WarningBackground}" Padding="12,7"><TextBlock Text="{Binding Error}" Foreground="{DynamicResource WarningForeground}" FontSize="12" TextWrapping="Wrap" /></Border>
@@ -38,3 +38,4 @@
     </Border>
   </Grid>
 </UserControl>
+

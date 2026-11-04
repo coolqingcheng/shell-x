@@ -36,7 +36,6 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
     [ObservableProperty, NotifyCanExecuteChangedFor(nameof(EditTextCommand))] private RemoteEntry? _selectedEntry;
     [ObservableProperty, NotifyCanExecuteChangedFor(nameof(EditTextCommand))] private bool _isEditingText;
     [ObservableProperty] private string _path = ".";
-    [ObservableProperty] private string _address = ".";
     [ObservableProperty] private string _search = "";
     [ObservableProperty] private string _error = "";
     [ObservableProperty] private string _summary = "连接后浏览远程文件";
@@ -65,7 +64,6 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
         }
     }
     partial void OnSearchChanged(string value) => Filter();
-    partial void OnPathChanged(string value) => Address = value;
     partial void OnShowHiddenChanged(bool value) => Filter();
     private void Filter()
     {
@@ -90,10 +88,9 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
             { if (_historyIndex + 1 < _history.Count) _history.RemoveRange(_historyIndex + 1, _history.Count - _historyIndex - 1); _history.Add(Path); _historyIndex = _history.Count - 1; }
         }
         catch (OperationCanceledException) { }
-        catch (Exception ex) { if (generation == _navigationGeneration) { Address = Path; Error = "目录读取失败：" + ex.Message; } }
+        catch (Exception ex) { if (generation == _navigationGeneration) { Error = "目录读取失败：" + ex.Message; } }
         finally { if (generation == _navigationGeneration) IsBusy = false; }
     }
-    [RelayCommand] private Task GoAsync() => NavigateAsync(Address);
     [RelayCommand] private Task RefreshAsync() => NavigateAsync(Path, false);
     [RelayCommand] private Task UpAsync() => NavigateAsync(RemotePath.Parent(Path));
     [RelayCommand] private Task HomeAsync() => NavigateAsync("~");

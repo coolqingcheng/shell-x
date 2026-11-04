@@ -14,8 +14,8 @@ public partial class LocalFileBrowserView : UserControl
     { if (DataContext is LocalFileBrowserViewModel vm) await vm.InitializeAsync(); }
     private async void FileDoubleTapped(object? sender, TappedEventArgs e)
     { if (FileGridInteraction.IsFileRow(e.Source) && DataContext is LocalFileBrowserViewModel vm) await vm.OpenEntryAsync(vm.SelectedEntry); }
-    private async void AddressKeyDown(object? sender, KeyEventArgs e)
-    { if (e.Key == Key.Enter && DataContext is LocalFileBrowserViewModel vm) { e.Handled = true; await vm.GoCommand.ExecuteAsync(null); } }
+    private async void PathNavigate(object? sender, string path)
+    { if (DataContext is LocalFileBrowserViewModel vm) await vm.NavigateAsync(path); }
     private async void UsePathHistory(object? sender, RoutedEventArgs e)
     { if (sender is Button { Tag: string path } && DataContext is LocalFileBrowserViewModel vm) { PathHistoryButton.Flyout?.Hide(); await vm.NavigateAsync(path); } }
     private async void OpenRoot(object? sender, RoutedEventArgs e)

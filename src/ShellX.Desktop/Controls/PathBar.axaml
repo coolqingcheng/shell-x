@@ -1,0 +1,26 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:ShellX.Desktop.Controls"
+             x:Class="ShellX.Desktop.Controls.PathBar">
+  <Grid x:Name="Host" Height="30" ClipToBounds="True">
+    <Border x:Name="EmptyArea" Background="Transparent" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" PointerPressed="EmptyAreaPressed" />
+    <ItemsControl x:Name="SegmentsHost" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="2,0,0,0">
+      <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate>
+          <StackPanel Orientation="Horizontal" />
+        </ItemsPanelTemplate>
+      </ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="controls:PathSegment">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <TextBlock Text="&#x203A;" FontSize="12" Margin="1,0" VerticalAlignment="Center" Foreground="{DynamicResource MutedForeground}" IsVisible="{Binding ShowSeparator}" />
+            <Button Tag="{Binding}" Click="SegmentClicked" Classes="flat" FontSize="12" Padding="4,2" MinHeight="0" Height="24" VerticalAlignment="Center" ToolTip.Tip="{Binding Path}">
+              <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" MaxWidth="150" VerticalAlignment="Center" />
+            </Button>
+          </StackPanel>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+    <TextBox x:Name="EditBox" Classes="file-path" IsVisible="False" VerticalAlignment="Center" KeyDown="EditKeyDown" LostFocus="EditLostFocus" />
+  </Grid>
+</UserControl>

@@ -43,8 +43,8 @@ public partial class RemoteFileBrowserView : UserControl
     }
     private async void FileDoubleTapped(object? sender, TappedEventArgs e)
     { if (FileGridInteraction.IsFileRow(e.Source) && DataContext is FileBrowserViewModel vm) await vm.OpenEntryAsync(vm.SelectedEntry); }
-    private async void AddressKeyDown(object? sender, KeyEventArgs e)
-    { if (e.Key == Key.Enter && DataContext is FileBrowserViewModel vm) { e.Handled = true; await vm.GoCommand.ExecuteAsync(null); } }
+    private async void PathNavigate(object? sender, string path)
+    { if (DataContext is FileBrowserViewModel vm) await vm.NavigateAsync(path); }
     private async void UsePathHistory(object? sender, RoutedEventArgs e)
     { if (sender is Button { Tag: string path } && DataContext is FileBrowserViewModel vm) { PathHistoryButton.Flyout?.Hide(); await vm.NavigateAsync(path); } }
     private void SelectionChanged(object? sender, SelectionChangedEventArgs e)

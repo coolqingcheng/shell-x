@@ -21,7 +21,6 @@ public partial class LocalFileBrowserViewModel(ILocalFileSystem files, IDialogSe
     [ObservableProperty, NotifyCanExecuteChangedFor(nameof(EditTextCommand))] private LocalEntry? _selectedEntry;
     [ObservableProperty, NotifyCanExecuteChangedFor(nameof(EditTextCommand))] private bool _isEditingText;
     [ObservableProperty] private string _path = "";
-    [ObservableProperty] private string _address = "";
     [ObservableProperty] private string _search = "";
     [ObservableProperty] private string _error = "";
     [ObservableProperty] private string _summary = "本地文件";
@@ -32,7 +31,6 @@ public partial class LocalFileBrowserViewModel(ILocalFileSystem files, IDialogSe
     public bool CanEditText => !IsEditingText && SelectedEntries.Count <= 1 && SelectedEntry is { IsDirectory: false, IsSymbolicLink: false };
     public void NotifySelectionChanged() => EditTextCommand.NotifyCanExecuteChanged();
     partial void OnErrorChanged(string value) => OnPropertyChanged(nameof(HasError));
-    partial void OnPathChanged(string value) => Address = value;
     partial void OnSearchChanged(string value) => Filter();
     partial void OnShowHiddenChanged(bool value) => Filter();
 
@@ -56,7 +54,7 @@ public partial class LocalFileBrowserViewModel(ILocalFileSystem files, IDialogSe
             }
         }
         catch (OperationCanceledException) { }
-        catch (Exception ex) { if (generation == _navigationGeneration) { Address = Path; Error = "本地目录读取失败：" + ex.Message; } }
+        catch (Exception ex) { if (generation == _navigationGeneration) { Error = "本地目录读取失败：" + ex.Message; } }
         finally { if (generation == _navigationGeneration) IsBusy = false; }
     }
 
@@ -67,7 +65,6 @@ public partial class LocalFileBrowserViewModel(ILocalFileSystem files, IDialogSe
                      .OrderByDescending(e => e.IsDirectory).ThenBy(e => e.Name, StringComparer.OrdinalIgnoreCase)) Entries.Add(entry);
         Summary = $"{Entries.Count} 个项目";
     }
-    [RelayCommand] private Task GoAsync() => NavigateAsync(Address);
     [RelayCommand] private Task RefreshAsync() => Path.Length == 0 ? InitializeAsync() : NavigateAsync(Path, false);
     [RelayCommand] private Task HomeAsync() => NavigateAsync(files.HomeDirectory);
     [RelayCommand] private Task UpAsync() => Path.Length == 0 ? InitializeAsync() : NavigateAsync(Directory.GetParent(Path)?.FullName ?? Path);
