@@ -5,6 +5,11 @@ $taskVariant = $Runtime
 if ($Aot) { $taskVariant += '-aot' }
 $taskOutput = Join-Path $taskRoot "artifacts\publish\$taskVariant"
 $taskProject = Join-Path $taskRoot 'src\ShellX.Desktop\ShellX.Desktop.csproj'
+# 构建前先关闭正在运行的 ShellX，避免文件被占用导致发布失败。
+Get-Process -Name 'ShellX', 'ShellX.Desktop' -ErrorAction SilentlyContinue | ForEach-Object {
+    Write-Host "Closing running process: $($_.ProcessName) ($($_.Id))"
+    Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+}
 $taskBuildArguments = @()
 if ($BuildArtifactsPath) { $taskBuildArguments = @('--artifacts-path', $BuildArtifactsPath) }
 if ($Version) { $taskBuildArguments += "-p:ShellXVersion=$Version" }
