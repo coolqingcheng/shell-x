@@ -32,8 +32,8 @@ public sealed class FileIconView : StrokeIcon
 
     public FileIconView()
     {
-        Width = 24;
-        Height = 24;
+        Width = 20;
+        Height = 20;
         HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center;
         VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center;
     }

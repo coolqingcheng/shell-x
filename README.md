@@ -114,8 +114,8 @@ GET  http://127.0.0.1:8765/healthz
 | --- | --- | --- |
 | Windows x64 | `ShellX-Setup-<版本>.exe` | Inno Setup 安装包，安装到 `%LOCALAPPDATA%\Programs\ShellX`（免管理员），含开始菜单与卸载入口 |
 | Windows x64 | `ShellX-<版本>-win-x64.zip` | 免安装便携包，解压即可运行 |
-| Linux x64 | `ShellX`（AOT 单文件） | 在 [CI 构建产物](https://github.com/coolqingcheng/shell-x/actions/workflows/ci.yml) 中下载 |
-| macOS（Apple Silicon） | `ShellX`（AOT 单文件） | 同上 |
+| Linux x64 | `ShellX-<版本>-linux-x64.tar.gz` | Releases 附件，`tar -xzf` 解压后运行 `./ShellX` |
+| macOS（Apple Silicon） | `ShellX-<版本>-osx-arm64.tar.gz` | Releases 附件，解压后运行 `./ShellX` |
 
 - 系统要求：Windows 版**无需安装 .NET 运行时**；Linux / macOS 版同样为 Native AOT 单文件。
 - **Linux / macOS 构建为实验性**：CI 仅验证编译与发布，尚未在真实系统完成运行验收；非 Windows 平台暂不支持保存密码（提示后仅本次连接生效），锁屏自动锁定在非 Windows 上不可用，服务器监控依赖 Linux `/proc`。
@@ -224,7 +224,8 @@ dotnet test tests/ShellX.Desktop.Tests -c Release
 
 渲染结果输出到 `artifacts\preview\`。若开发版正占用默认输出目录，可用 `--artifacts-path artifacts\isolated-build` 使用独立构建目录。
 
-持续集成见 [ci.yml](.github/workflows/ci.yml)：Windows runner 负责编译与全量测试，Ubuntu / macOS runner 负责 Native AOT 发布并上传构建产物。
+持续集成见 [ci.yml](.github/workflows/ci.yml)：Windows runner 负责编译与全量测试，Ubuntu / macOS runner 负责 Native AOT 发布并上传构建产物（便于在合并前拿到预览版）。
+发布见 [release.yml](.github/workflows/release.yml)：打 `v*` 标签时并行产出 Windows 安装包 / 便携 zip、Linux 与 macOS 的 `tar.gz`，最后统一挂到同一个 Release。
 
 ### 项目结构
 

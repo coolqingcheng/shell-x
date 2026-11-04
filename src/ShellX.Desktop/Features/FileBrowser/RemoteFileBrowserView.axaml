@@ -4,7 +4,7 @@
     <KeyBinding Gesture="F5" Command="{Binding RefreshCommand}" />
     <KeyBinding Gesture="Alt+Up" Command="{Binding UpCommand}" />
   </UserControl.KeyBindings>
-  <Grid RowDefinitions="35,40,Auto,*,32">
+  <Grid RowDefinitions="35,44,Auto,*,32">
     <Border BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1" Background="{DynamicResource PanelBackground}">
       <Grid ColumnDefinitions="Auto,*,Auto" Margin="8,0,4,0">
         <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center"><TextBlock Text="远程" FontSize="11" /><TextBlock Text="SFTP" Foreground="{DynamicResource MutedForeground}" FontSize="10" /></StackPanel>
@@ -30,7 +30,7 @@
     </Border>
     <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6" Margin="8,5" IsEnabled="{Binding IsAvailable}">
       <StackPanel Orientation="Horizontal" Spacing="2">
-        <Button Classes="flat" Padding="6,5" Command="{Binding BackCommand}" ToolTip.Tip="后退"><controls:StrokeIcon Symbol="back" Width="20" Height="20" /></Button><Button Classes="flat" Padding="6,5" Command="{Binding ForwardCommand}" ToolTip.Tip="前进"><controls:StrokeIcon Symbol="forward" Width="20" Height="20" /></Button><Button Classes="flat" Padding="6,5" Command="{Binding UpCommand}" ToolTip.Tip="上一级"><controls:StrokeIcon Symbol="up" Width="20" Height="20" /></Button><Button Classes="flat" Padding="6,5" Command="{Binding HomeCommand}" ToolTip.Tip="登录目录"><controls:StrokeIcon Symbol="home" Width="20" Height="20" /></Button><Button Classes="flat" Padding="6,5" Command="{Binding RefreshCommand}" ToolTip.Tip="刷新 F5"><controls:StrokeIcon Symbol="refresh" Width="20" Height="20" /></Button>
+        <Button Classes="flat" Padding="6,5" Command="{Binding BackCommand}" ToolTip.Tip="后退"><controls:StrokeIcon Symbol="back" Width="24" Height="24" /></Button><Button Classes="flat" Padding="6,5" Command="{Binding ForwardCommand}" ToolTip.Tip="前进"><controls:StrokeIcon Symbol="forward" Width="24" Height="24" /></Button><Button Classes="flat" Padding="6,5" Command="{Binding UpCommand}" ToolTip.Tip="上一级"><controls:StrokeIcon Symbol="up" Width="24" Height="24" /></Button><Button Classes="flat" Padding="6,5" Command="{Binding HomeCommand}" ToolTip.Tip="登录目录"><controls:StrokeIcon Symbol="home" Width="24" Height="24" /></Button><Button Classes="flat" Padding="6,5" Command="{Binding RefreshCommand}" ToolTip.Tip="刷新 F5"><controls:StrokeIcon Symbol="refresh" Width="24" Height="24" /></Button>
       </StackPanel>
       <controls:PathBar Grid.Column="1" Name="PathBar" Text="{Binding Path}" PlaceholderText="远程路径" VerticalAlignment="Center" NavigateRequested="PathNavigate" />
       <Button Grid.Column="2" x:Name="PathHistoryButton" Content="历史" Classes="flat" FontSize="11"><Button.Flyout><Flyout><ScrollViewer Width="350" MaxHeight="260"><ItemsControl ItemsSource="{Binding RecentPaths}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="x:String"><Button Content="{Binding}" Tag="{Binding}" Click="UsePathHistory" Classes="flat" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer></Flyout></Button.Flyout></Button>

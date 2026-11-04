@@ -14,8 +14,10 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  windows:
+    name: Windows 安装包
     runs-on: windows-latest
+    timeout-minutes: 40
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -26,7 +28,6 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: 确定版本号
-        id: version
         shell: pwsh
         run: |
           if ($env:GITHUB_REF -like 'refs/tags/v*') { $version = $env:GITHUB_REF -replace 'refs/tags/v', '' }
@@ -52,11 +53,86 @@ jobs:
           $zip = "artifacts\installer\ShellX-$env:SHELLX_VERSION-win-x64.zip"
           Compress-Archive -Path 'artifacts\release\win-x64-aot\ShellX.exe' -DestinationPath $zip -Force
 
-      - name: 上传安装包
-        uses: softprops/action-gh-release@v2
+      - name: 上传 Windows 产物
+        uses: actions/upload-artifact@v4
         with:
-          files: |
+          name: release-windows
+          path: |
             artifacts/installer/ShellX-Setup-*.exe
             artifacts/installer/ShellX-*-win-x64.zip
+          if-no-files-found: error
+
+  unix:
+    name: 构建 ${{ matrix.rid }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+          - os: macos-latest
+            rid: osx-arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: 确定版本号
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then version="${GITHUB_REF#refs/tags/v}"; else version="${{ github.event.inputs.version }}"; fi
+          if [ -z "$version" ]; then echo '未指定版本号。' >&2; exit 1; fi
+          echo "SHELLX_VERSION=$version" >> "$GITHUB_ENV"
+          echo "版本号：$version"
+
+      - name: Native AOT 发布
+        run: >
+          dotnet publish src/ShellX.Desktop/ShellX.Desktop.csproj
+          -c Release -r ${{ matrix.rid }} --self-contained true
+          -p:PublishAot=true -p:PublishSingleFile=false
+          -p:StripSymbols=true -p:DebugType=None -p:DebugSymbols=false
+          -p:ShellXVersion=$SHELLX_VERSION
+          -o artifacts/publish/${{ matrix.rid }}
+
+      - name: 打包免安装版本
+        shell: bash
+        run: |
+          mv "artifacts/publish/${{ matrix.rid }}/ShellX.Desktop" "artifacts/publish/${{ matrix.rid }}/ShellX"
+          mkdir -p release-files
+          tar -czf "release-files/ShellX-$SHELLX_VERSION-${{ matrix.rid }}.tar.gz" -C "artifacts/publish/${{ matrix.rid }}" .
+          ls -lh release-files
+
+      - name: 上传 ${{ matrix.rid }} 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.rid }}
+          path: release-files/*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    name: 发布 Release
+    needs: [windows, unix]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: 下载全部产物
+        uses: actions/download-artifact@v4
+        with:
+          path: release-files
+          merge-multiple: true
+
+      - name: 列出待发布文件
+        run: ls -lh release-files
+
+      - name: 发布到 GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-files/*
           generate_release_notes: true
           draft: false
