@@ -29,6 +29,10 @@ public sealed record AppSettings
     public bool McpEnabled { get; init; } = true;
     public string McpAddress { get; init; } = "http://127.0.0.1:8765";
     public string McpToken { get; init; } = "";
+    public string UpdateRepositoryOwner { get; init; } = "coolqingcheng";
+    public string UpdateRepositoryName { get; init; } = "shell-x";
+    public bool CheckUpdateOnStartup { get; init; } = true;
+    public bool AutoDownloadUpdate { get; init; }
 }
 
 public interface ISettingsStore

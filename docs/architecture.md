@@ -315,3 +315,10 @@ Desktop 的 ConnectionAccentChoice 提供柔和预设和自定义输入；Connec
 自动重连配置 AutoReconnectEnabled / ReconnectIntervalSeconds 由 Core 定义、StoredSettings 源生成 DTO 持久化，旧配置默认开启、间隔 5 秒。Desktop 的标签拥有唯一的可取消重试循环，只有成功连接后的意外断线启动；复用当前会话的凭据，每次失败后按配置等待，手动断开、关闭和关闭开关取消等待及正在建立的连接。主机指纹仍走原验证，身份拒绝后停止自动重试。首次连接失败仍由用户决定是否重试。
 
 SessionTerminalChannel 是 Desktop 的终端适配层，把 SSH 输出和本地带时间的连接日志合并到有容量限制的队列；终端控件始终连接此稳定通道，SSH 源可替换，因此重连不会替换终端缓冲区。源读取结束也报告断线；关闭源先取消读取，再释放 SSH，最后等待读取结束，避免旧源与新源混写。终端输入仅转发给当前源，日志仅进入本地显示通道，不作为命令发送。断线后取消文件传输，成功重连重新接入 SFTP、共享监控和隧道生命周期；已经终止的远程 Shell 进程不会恢复。
+## 11. 安装包与自动更新
+
+安装包由 Inno Setup 6 描述（`scripts/installer/ShellX.iss`），只打包 AOT 单文件产物，安装到当前用户的 `%LOCALAPPDATA%/Programs/ShellX`，免管理员，含开始菜单、可选桌面快捷方式和卸载项。版本号统一取 `Directory.Build.props` 的 `Version`，`scripts/build-installer.ps1` 负责定位 ISCC 并通过 `/DAppVersion` 传入，保证 EXE 与安装包版本一致。
+
+更新走 GitHub 公开仓库的 Releases。Core 定义 `IUpdateService`、`UpdateRelease`、`UpdateAsset` 和版本比较 `UpdateVersion`（兼容 `v1.2.3`、`1.2.3`、`1.2.3-beta`）；Infrastructure 的 `GitHubUpdateService` 用源生成 JSON 解析 `releases/latest`，优先选择名称含 `Setup` 的 `.exe` 资产，并提供带进度的流式下载。Desktop 的 `UpdateManager` 负责检查、下载、待安装记录（`%LOCALAPPDATA%/ShellX/updates/pending.json`）以及拉起更新引导进程；`UpdateBootstrapper` 在 `Program.Main` 最前面拦截 `--apply-update` 参数，等待主进程退出后静默运行安装包并按需重启，主程序退出时同样检查待安装更新，实现“关闭即更新”。设置页新增“更新”页签，保存仓库账号、仓库名、启动自动检查和自动下载选项。
+
+发布流程：`.github/workflows/release.yml` 在推送 `v*` 标签时编译 AOT 产物、安装包和免安装压缩包并发布 Release，`ci.yml` 负责提交与 PR 的构建测试。敏感信息不入库：连接配置、凭据、设置与日志都存放在 `%LOCALAPPDATA%/ShellX`，仓库内只有源码、脚本和文档。

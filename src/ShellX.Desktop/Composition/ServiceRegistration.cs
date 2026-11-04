@@ -21,7 +21,7 @@ internal static class ServiceRegistration
             .AddLogging(builder => builder.ClearProviders().AddSerilog())
             .AddSingleton<AppLockService>().AddSingleton<AppLockCoordinator>()
             .AddSingleton<DialogService>().AddSingleton<IDialogService>(s => s.GetRequiredService<DialogService>())
-            .AddSingleton<McpAuditLog>().AddSingleton<LocalCommandExecutor>().AddSingleton<McpHttpServer>()
+            .AddSingleton<UpdateManager>().AddSingleton<McpAuditLog>().AddSingleton<LocalCommandExecutor>().AddSingleton<McpHttpServer>()
             .AddSingleton<MainWindowViewModel>().BuildServiceProvider();
     }
 }

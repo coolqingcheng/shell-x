@@ -5,5 +5,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <AnalysisLevel>latest</AnalysisLevel>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>$(Version)</AssemblyVersion>
+    <FileVersion>$(Version).0</FileVersion>
+    <Product>ShellX</Product>
+    <AssemblyTitle>ShellX</AssemblyTitle>
   </PropertyGroup>
 </Project>

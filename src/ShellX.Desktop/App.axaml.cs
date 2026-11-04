@@ -25,6 +25,7 @@ public sealed partial class App : Application
             var dialogs = _services.GetRequiredService<DialogService>();
             var lockCoordinator = _services.GetRequiredService<AppLockCoordinator>();
             var mcpServer = _services.GetRequiredService<McpHttpServer>();
+            var updates = _services.GetRequiredService<UpdateManager>();
             var lockState = _services.GetRequiredService<ShellX.Desktop.Features.Security.AppLockService>();
             var manager = new ConnectionManagerWindow(vm, profile =>
             {
@@ -48,9 +49,28 @@ public sealed partial class App : Application
                 try { await mcpServer.StartAsync(); }
                 catch (Exception ex) { Serilog.Log.Error(ex, "MCP HTTP 启动失败"); }
                 await vm.InitializeAsync();
+                await CheckUpdateOnStartupAsync(updates, vm.LayoutSettings, dialogs);
             };
-            desktop.Exit += (_, _) => { mcpServer.Dispose(); _services.Dispose(); Log.CloseAndFlush(); };
+            desktop.Exit += (_, _) => { updates.ApplyOnExit(); mcpServer.Dispose(); _services.Dispose(); Log.CloseAndFlush(); };
         }
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private static async Task CheckUpdateOnStartupAsync(UpdateManager updates, Core.Settings.AppSettings settings, IDialogService dialogs)
+    {
+        if (!settings.CheckUpdateOnStartup) return;
+        try
+        {
+            var release = await updates.CheckAsync(settings.UpdateRepositoryOwner, settings.UpdateRepositoryName);
+            if (release is null || !updates.UpdateAvailable) return;
+            if (settings.AutoDownloadUpdate)
+            {
+                await updates.DownloadAsync(release);
+                return;
+            }
+            await dialogs.ShowInformationAsync("发现新版本",
+                $"发现新版本 {release.Version}。可在“设置 → 更新”中下载并安装。");
+        }
+        catch (Exception ex) { Serilog.Log.Warning(ex, "启动时检查更新失败"); }
     }
 }

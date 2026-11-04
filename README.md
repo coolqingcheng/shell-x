@@ -34,6 +34,24 @@ powershell -ExecutionPolicy Bypass -File scripts/start.ps1 -Aot
 
 AOT 需要 Visual Studio 的 MSVC x64/x86 工具及 Windows SDK，本机已安装并完成原生发布。输出为 `artifacts/release/win-x64-aot/ShellX.exe`，仅分发这一个 EXE，无需安装 .NET。程序将内嵌的图形库和终端辅助组件释放到 `%LOCALAPPDATA%/ShellX/native/win-x64/<内容版本>/`，后续启动校验并复用；这是单文件分发，运行时仍使用缓存中的原生依赖。XAML/代码绑定已使用编译绑定，JSON 使用源生成，终端控件反射调用的编译主题入口显式保留。AOT 与普通单文件版分开发布；原生包启动及本机 SSH/SFTP、监控和编辑保存验证见 `docs/verification.md`。
 
+## 安装包与自动更新
+
+安装包基于 Inno Setup 6，产物为 `artifacts/installer/ShellX-Setup-<版本>.exe`，安装到 `%LOCALAPPDATA%/Programs/ShellX`（免管理员），带开始菜单快捷方式和卸载入口。
+
+```powershell
+winget install JRSoftware.InnoSetup
+powershell -ExecutionPolicy Bypass -File scripts/build-installer.ps1 -Version 1.0.1
+```
+
+版本号统一来自 `Directory.Build.props` 的 `Version`，可用 `build.bat -Version 1.0.1` 编译指定版本的 AOT 产物，保证 EXE 与安装包版本一致。
+
+应用内更新直接使用 GitHub 公开仓库的 Releases：
+
+- “设置 → 更新”填写仓库账号与仓库名后，可检查更新、下载安装包、下载完成后重启并更新。
+- 勾选“启动时自动检查更新”后启动即检查；配合“发现新版本时自动下载安装包”，关闭 ShellX 时会自动静默安装：主程序复制自身为更新引导进程（`ShellX.exe --apply-update`），等待主进程退出后运行安装包并按需重新启动。
+- 更新优先选择名称含 `Setup` 的 `ShellX-Setup-<版本>.exe` 资产；已下载的安装包保存在 `%LOCALAPPDATA%/ShellX/updates/`。
+
+推送到 GitHub 后，`.github/workflows/release.yml` 会在推送 `v*` 标签时自动编译 AOT 产物、安装包和免安装压缩包并发布 Release；`.github/workflows/ci.yml` 负责提交与 PR 的构建测试。
 ## 使用
 
 - 启动 ShellX 后只显示连接管理器，可直接选择连接、新建连接或整理连接文件夹；选择连接后才创建并显示主工作区窗口。
@@ -130,6 +148,7 @@ MCP 地址和 Bearer Token 位于“设置 → MCP”，首次启动会自动生
 - `known-hosts.json`：确认过的服务器 SHA-256 指纹。服务器合法更换密钥后，应先通过可信渠道核对新指纹，再关闭对应会话、备份并移除该主机的旧记录，重新连接确认。
 - `credentials/`：只有主动勾选“记住凭据”才保存密码/口令，由当前 Windows 用户范围的 DPAPI 保护。
 - `logs/`：Serilog 滚动日志；默认不记录终端输入输出、凭据或文件正文。
+- `updates/`：自动更新下载的安装包和待安装记录（`pending.json`），更新完成后可删除。
 
 配置损坏会明确报错并保留原文件。连接配置使用临时文件写入后替换。DPAPI 凭据不能直接复制到其他 Windows 用户或电脑使用。
 

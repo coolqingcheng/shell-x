@@ -1,0 +1,20 @@
+name: CI
+
+on:
+  push:
+    branches: [ mimo, main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: 编译
+        run: dotnet build ShellX.slnx -c Release
+      - name: 运行测试
+        run: dotnet test ShellX.slnx -c Release --no-build

@@ -5,10 +5,12 @@ using ShellX.Core.Files;
 using ShellX.Core.Security;
 using ShellX.Core.Sessions;
 using ShellX.Core.Settings;
+using ShellX.Core.Updates;
 using ShellX.Infrastructure.Persistence;
 using ShellX.Infrastructure.Files;
 using ShellX.Infrastructure.Security;
 using ShellX.Infrastructure.Ssh;
+using ShellX.Infrastructure.Updates;
 
 namespace ShellX.Infrastructure;
 
@@ -29,5 +31,6 @@ public static class DependencyInjection
             : new UnsupportedSystemSessionMonitor())
         .AddSingleton<SharedTunnelRegistry>()
         .AddSingleton<IConnectionTester, SshConnectionTester>()
-        .AddSingleton<IRemoteSessionFactory, SshSessionFactory>();
+        .AddSingleton<IRemoteSessionFactory, SshSessionFactory>()
+        .AddSingleton<IUpdateService, GitHubUpdateService>();
 }

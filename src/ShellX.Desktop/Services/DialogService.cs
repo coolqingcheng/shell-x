@@ -26,7 +26,7 @@ using ShellX.Desktop.Controls;
 namespace ShellX.Desktop.Services;
 
 public sealed class DialogService(ITextCodec codec, AppLockService? appLock = null, AppLockCoordinator? lockCoordinator = null,
-    IConnectionTester? connectionTester = null, IHostKeyStore? knownHosts = null) : IDialogService
+    IConnectionTester? connectionTester = null, IHostKeyStore? knownHosts = null, UpdateManager? updates = null) : IDialogService
 {
     public Window Owner { get; set; } = null!;
     private Window DialogOwner
@@ -370,7 +370,7 @@ public sealed class DialogService(ITextCodec codec, AppLockService? appLock = nu
     {
         var fonts = FontManager.Current.SystemFonts.Select(font => font.Name).Append(settings.TerminalFontFamily).Append(settings.EditorFontFamily)
             .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(name => name, StringComparer.CurrentCultureIgnoreCase).ToArray();
-        var vm = new SettingsViewModel(settings, appLock?.Passwords ?? new LockPasswordHasher(), fonts, lockCoordinator?.SupportsSystemSessionMonitoring ?? OperatingSystem.IsWindows());
+        var vm = new SettingsViewModel(settings, appLock?.Passwords ?? new LockPasswordHasher(), fonts, lockCoordinator?.SupportsSystemSessionMonitoring ?? OperatingSystem.IsWindows(), updates, this);
         var window = Window("设置", 700, 620); window.MinWidth = 620; window.MinHeight = 500; window.DataContext = vm;
         var root = new Grid { RowDefinitions = new("*,Auto,Auto") };
         root.Children.Add(new SettingsView { DataContext = vm });

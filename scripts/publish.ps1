@@ -1,4 +1,4 @@
-param([string]$Runtime = 'win-x64', [string]$BuildArtifactsPath = '', [switch]$Aot)
+param([string]$Runtime = 'win-x64', [string]$BuildArtifactsPath = '', [switch]$Aot, [string]$Version = '')
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path -Parent $PSScriptRoot
 $taskVariant = $Runtime
@@ -7,6 +7,7 @@ $taskOutput = Join-Path $taskRoot "artifacts\publish\$taskVariant"
 $taskProject = Join-Path $taskRoot 'src\ShellX.Desktop\ShellX.Desktop.csproj'
 $taskBuildArguments = @()
 if ($BuildArtifactsPath) { $taskBuildArguments = @('--artifacts-path', $BuildArtifactsPath) }
+if ($Version) { $taskBuildArguments += "-p:Version=$Version" }
 # Build the normal Release folder first; RID publish only updates its runtime subdirectory.
 dotnet build $taskProject -c Release @taskBuildArguments
 if ($LASTEXITCODE -ne 0) { throw 'ShellX Release build failed.' }

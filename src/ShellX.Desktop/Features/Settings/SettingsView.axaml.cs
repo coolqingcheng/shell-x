@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalonia.Controls;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
@@ -22,6 +23,16 @@ public partial class SettingsView : UserControl
         _mcpLogWindow = new McpLogWindow();
         _mcpLogWindow.Closed += (_, _) => _mcpLogWindow = null;
         _mcpLogWindow.Show(owner);
+    }
+
+
+    private void OpenReleasePageClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not SettingsViewModel vm) return;
+        var url = vm.ReleaseUrl;
+        if (string.IsNullOrWhiteSpace(url)) { vm.Error = "尚未获取到发布页地址，请先检查更新。"; return; }
+        try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true })?.Dispose(); }
+        catch (Exception ex) { vm.Error = "无法打开发布页：" + ex.Message; }
     }
 
     private void GenerateMcpToken(object? sender, RoutedEventArgs e)

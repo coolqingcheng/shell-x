@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号，例如 1.0.1'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: 确定版本号
+        id: version
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF -like 'refs/tags/v*') { $version = $env:GITHUB_REF -replace 'refs/tags/v', '' }
+          else { $version = '${{ github.event.inputs.version }}' }
+          if (-not $version) { throw '未指定版本号。' }
+          "SHELLX_VERSION=$version" >> $env:GITHUB_ENV
+          Write-Host "版本号：$version"
+
+      - name: 编译 AOT 单文件
+        shell: pwsh
+        run: ./scripts/publish.ps1 -Aot -Version $env:SHELLX_VERSION
+
+      - name: 安装 Inno Setup
+        run: choco install innosetup --yes --no-progress
+
+      - name: 编译安装包
+        shell: pwsh
+        run: ./scripts/build-installer.ps1 -Version $env:SHELLX_VERSION
+
+      - name: 打包免安装版本
+        shell: pwsh
+        run: |
+          $zip = "artifacts\installer\ShellX-$env:SHELLX_VERSION-win-x64.zip"
+          Compress-Archive -Path 'artifacts\release\win-x64-aot\ShellX.exe' -DestinationPath $zip -Force
+
+      - name: 上传安装包
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/installer/ShellX-Setup-*.exe
+            artifacts/installer/ShellX-*-win-x64.zip
+          generate_release_notes: true
+          draft: false

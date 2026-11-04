@@ -274,3 +274,16 @@ SharedTunnelRegistry 统一管理候选 SSH 客户端及私钥。共享传输断
 Desktop 的隧道、重连和工作区共 16 项检查中，15 项通过，文件右键选择用例首轮点击未选中目标行；未修改文件管理器代码，单独重跑该用例通过。首轮记录为 artifacts/test-results/tunnel-stability-desktop.trx。隧道编辑、共享状态、自动重连和取消均通过。测试服务同时修正了仅用于建立 TCP 的两秒超时遗留到已转发连接的问题，以正确验证闲置长连接。本轮仅使用独立回环 SSH 服务，没有连接用户实际服务器。
 
 执行根目录 build.bat 成功，普通 Release 0 警告/错误，AOT 保留第三方裁剪分析警告。交付目录仅 ShellX.exe，大小 59,774,464 字节，SHA256 为 821FEB81C435FAAC42A6FF7074BA9B444AAACF2502C2B40342CE8CA26BB1F54E。独立数据目录、关闭 MCP 启动 AOT 成品，出现“连接管理器”窗口且进程响应，标准错误为空，随后关闭测试进程。报告位于 artifacts/tunnel-aot-smoke-*/result.json。本机 SSH 测试服务已停止。
+## 2026-11-04 安装包与自动更新
+
+新增安装包与自动更新能力：Core 增加 `AppVersion`（读取 `Directory.Build.props` 的 `Version`）、`UpdateVersion` 版本比较与 `IUpdateService` 抽象；Infrastructure 增加 `GitHubUpdateService`，使用源生成 JSON 解析 `https://api.github.com/repos/{owner}/{repo}/releases/latest`，优先挑选名称含 `Setup` 的 `.exe` 资产并流式下载并上报进度；Desktop 增加 `UpdateManager`（检查、下载、待安装记录、重启安装）与 `UpdateBootstrapper`（`ShellX.exe --apply-update <安装包> --parent-pid <pid> --app-path <路径> [--restart]`，等待主进程退出后以 `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /CLOSEAPPLICATIONS` 运行安装包并按需重启）。设置页新增“更新”页签：当前版本、仓库账号与仓库名、启动自动检查、自动下载、检查更新、下载更新、重启并更新、下载安装包、打开发布页。主程序退出时若存在已下载的更新包会自动安装。
+
+自动化测试：`dotnet test ShellX.slnx` 全部通过——Core 20 项（新增 5 项版本比较、安装包选择与版本格式断言）、Infrastructure 46 项（18 项网络集成测试按惯例跳过）、Desktop 58 项（新增 2 项：下载后登记待安装更新、更新设置持久化）。
+
+AOT 构建：`build.bat` 成功，交付目录仅 `ShellX.exe`，60,060,160 字节，SHA256 为 5D56217F5FC19881C64187DE7756B3C4D5BAE6F6DA33F1D871E8C490792506F7，FileVersion 1.0.0.0。更新引导模式用不存在的安装包实测：0.29 秒退出且不弹界面，说明 `--apply-update` 分支在 Avalonia 启动前生效。程序正常启动后出现“连接管理器”窗口且日志无异常。
+
+安装包：本机安装 Inno Setup 6.7.3 后，`scripts/build-installer.ps1 -Version 1.0.0` 成功产出 `artifacts/installer/ShellX-Setup-1.0.0.exe`（18,430,628 字节，SHA256 165A572271E7431F09112F8A66E0DB51113BCAB81B34BBE97DF5B49D3944C87D）。静默安装、覆盖安装（模拟升级）和静默卸载均返回 0，安装目录含 `ShellX.exe` 与卸载器。中文安装界面使用上游社区翻译 `scripts/installer/ChineseSimplified.isl`（作者 Kira，来源 https://github.com/kira-96/Inno-Setup-Chinese-Simplified-Translation）。CI 用 `.github/workflows/release.yml` 打 `v*` 标签时自动编译并发布，安装包仍以 choco 安装的 Inno Setup 编译。
+
+敏感信息审计（提交前）：对 180 个源码/脚本/文档文件扫描私钥头、GitHub/AWS 令牌、`.env`、密钥文件扩展名、口令赋值、邮箱、手机号和内网地址。命中的口令全部是测试占位值（`test-*`、`fixture-password`、`new-password` 等），邮箱仅出现在上游翻译文件的作者署名中，内网地址仅为终端高亮测试样例 `192.168.1.2`；没有真实凭据、令牌或用户服务器信息入库。
+
+GitHub 公开仓库尚未创建：仓库内没有 remote，需要仓库账号与仓库名后执行 `git remote add origin <地址>` 与 `git push -u origin mimo`，再推送 `v*` 标签触发 Release 工作流。

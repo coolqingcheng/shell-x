@@ -33,13 +33,17 @@ internal sealed class StoredSettings
     public bool McpEnabled { get; set; } = Defaults.McpEnabled;
     public string McpAddress { get; set; } = Defaults.McpAddress;
     public string McpToken { get; set; } = Defaults.McpToken;
+    public string UpdateRepositoryOwner { get; set; } = Defaults.UpdateRepositoryOwner;
+    public string UpdateRepositoryName { get; set; } = Defaults.UpdateRepositoryName;
+    public bool CheckUpdateOnStartup { get; set; } = Defaults.CheckUpdateOnStartup;
+    public bool AutoDownloadUpdate { get; set; } = Defaults.AutoDownloadUpdate;
     public AppSettings ToModel() => new()
     {
         Theme = Theme, Version = Version, TerminalFontSize = TerminalFontSize, ShowHiddenFiles = ShowHiddenFiles,
         TerminalFontFamily = TerminalFontFamily, EditorFontFamily = EditorFontFamily, EditorFontSize = EditorFontSize,
         LockPasswordHash = LockPasswordHash, AutoLockEnabled = AutoLockEnabled, AutoLockOnlyWhenSystemLocked = AutoLockOnlyWhenSystemLocked, AutoLockMinutes = AutoLockMinutes,
         HighlightTerminalText = HighlightTerminalText, AutoReconnectEnabled = AutoReconnectEnabled, ReconnectIntervalSeconds = ReconnectIntervalSeconds,
-        ProcessSortColumn = ProcessSortColumn, ProcessSortDescending = ProcessSortDescending, MonitorPaneWidth = MonitorPaneWidth, TerminalPaneStar = TerminalPaneStar, LocalPaneStar = LocalPaneStar, RemoteTreeWidth = RemoteTreeWidth, McpEnabled = McpEnabled, McpAddress = McpAddress, McpToken = McpToken
+        ProcessSortColumn = ProcessSortColumn, ProcessSortDescending = ProcessSortDescending, MonitorPaneWidth = MonitorPaneWidth, TerminalPaneStar = TerminalPaneStar, LocalPaneStar = LocalPaneStar, RemoteTreeWidth = RemoteTreeWidth, McpEnabled = McpEnabled, McpAddress = McpAddress, McpToken = McpToken, UpdateRepositoryOwner = UpdateRepositoryOwner, UpdateRepositoryName = UpdateRepositoryName, CheckUpdateOnStartup = CheckUpdateOnStartup, AutoDownloadUpdate = AutoDownloadUpdate
     };
     public static StoredSettings From(AppSettings model) => new()
     {
@@ -47,7 +51,7 @@ internal sealed class StoredSettings
         TerminalFontFamily = model.TerminalFontFamily, EditorFontFamily = model.EditorFontFamily, EditorFontSize = model.EditorFontSize,
         LockPasswordHash = model.LockPasswordHash, AutoLockEnabled = model.AutoLockEnabled, AutoLockOnlyWhenSystemLocked = model.AutoLockOnlyWhenSystemLocked, AutoLockMinutes = model.AutoLockMinutes,
         HighlightTerminalText = model.HighlightTerminalText, AutoReconnectEnabled = model.AutoReconnectEnabled, ReconnectIntervalSeconds = model.ReconnectIntervalSeconds,
-        ProcessSortColumn = model.ProcessSortColumn, ProcessSortDescending = model.ProcessSortDescending, MonitorPaneWidth = model.MonitorPaneWidth, TerminalPaneStar = model.TerminalPaneStar, LocalPaneStar = model.LocalPaneStar, RemoteTreeWidth = model.RemoteTreeWidth, McpEnabled = model.McpEnabled, McpAddress = model.McpAddress, McpToken = model.McpToken
+        ProcessSortColumn = model.ProcessSortColumn, ProcessSortDescending = model.ProcessSortDescending, MonitorPaneWidth = model.MonitorPaneWidth, TerminalPaneStar = model.TerminalPaneStar, LocalPaneStar = model.LocalPaneStar, RemoteTreeWidth = model.RemoteTreeWidth, McpEnabled = model.McpEnabled, McpAddress = model.McpAddress, McpToken = model.McpToken, UpdateRepositoryOwner = model.UpdateRepositoryOwner, UpdateRepositoryName = model.UpdateRepositoryName, CheckUpdateOnStartup = model.CheckUpdateOnStartup, AutoDownloadUpdate = model.AutoDownloadUpdate
     };
 }
 
