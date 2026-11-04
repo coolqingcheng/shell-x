@@ -32,7 +32,6 @@ public sealed record AppSettings
     public string UpdateRepositoryOwner { get; init; } = "coolqingcheng";
     public string UpdateRepositoryName { get; init; } = "shell-x";
     public bool CheckUpdateOnStartup { get; init; } = true;
-    public bool AutoDownloadUpdate { get; init; }
 }
 
 public interface ISettingsStore

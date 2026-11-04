@@ -63,16 +63,9 @@ public sealed partial class App : Application
         {
             var release = await updates.CheckAsync(settings.UpdateRepositoryOwner, settings.UpdateRepositoryName);
             if (release is null || !updates.UpdateAvailable) return;
-            if (settings.AutoDownloadUpdate)
-            {
-                if (await updates.DownloadAsync(release) is null) return;
-                var apply = await dialogs.ConfirmAsync("发现新版本",
-                    $"已下载新版本 {release.Version}。\n点“确认”立即更新并重启；点“取消”则在关闭 ShellX 时自动安装。");
-                if (apply) updates.ApplyAndRestart();
-                return;
-            }
-            await dialogs.ShowInformationAsync("发现新版本",
-                $"发现新版本 {release.Version}。可在“设置 → 更新”中一键下载最新版本。");
+            if (await updates.DownloadAsync(release) is null) return;
+            var apply = await dialogs.ConfirmAsync("发现新版本", $"已下载新版本 {release.Version}，是否立即更新并重启？");
+            if (apply) updates.ApplyAndRestart(); else updates.ClearPending();
         }
         catch (Exception ex) { Serilog.Log.Warning(ex, "启动时检查更新失败"); }
     }

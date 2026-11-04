@@ -119,6 +119,12 @@ public sealed partial class UpdateManager : ObservableObject
         }
     }
 
+    /// <summary>放弃已下载的更新：删除待安装登记，退出时不再自动安装。</summary>
+    public void ClearPending()
+    {
+        try { if (File.Exists(PendingFile)) File.Delete(PendingFile); }
+        catch (Exception ex) { _logs.LogWarning(ex, "清除待安装更新失败"); }
+    }
     private async Task SavePendingAsync(PendingUpdate pending)
     {
         try

@@ -52,13 +52,11 @@ public sealed class UpdateManagerTests
     {
         var vm = new SettingsViewModel(new AppSettings(), new LockPasswordHasher(), ["Consolas"]);
         vm.CheckUpdateOnStartup = false;
-        vm.AutoDownloadUpdate = true;
         AppSettings? saved = null;
         vm.Saved += value => saved = value;
         await vm.SaveCommand.ExecuteAsync(null);
         Assert.Equal("", vm.Error);
         Assert.NotNull(saved);
         Assert.False(saved.CheckUpdateOnStartup);
-        Assert.True(saved.AutoDownloadUpdate);
     }
 }

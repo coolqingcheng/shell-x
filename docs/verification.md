@@ -348,3 +348,11 @@ Release 地址：https://github.com/coolqingcheng/shell-x/releases/tag/v1.0.0 �
 - `ShellX-1.0.2-win-x64.zip`（25,181,437 字节）
 
 该版本包含窗口标题版本号功能（`ShellX v1.0.2` / `连接管理器 v1.0.2` / `MCP 执行日志 v1.0.2`）。
+
+### 简化更新流程（2026-11-04）
+
+**反馈**：更新页签按钮过多、流程分叉，改为单一动作。
+
+**改动**：设置页“更新”页签只保留当前版本、状态、进度条、一个“检查更新”按钮和“启动时自动检查更新”开关；删除“下载最新版”“另存安装包”“打开发布页”“立即更新/关闭时更新”面板，以及“发现新版本时自动下载安装包”选项（`AppSettings.AutoDownloadUpdate`、`StoredSettings.AutoDownloadUpdate` 一并移除，旧配置文件里残留字段按未知成员忽略）。`SettingsViewModel` 的五个更新命令合并为一个 `CheckUpdateAsync`：检查 → 有新版本则下载安装包 → 弹“发现新版本”确认框 → 确认立即更新重启，取消则调用 `UpdateManager.ClearPending()` 清除待安装登记，退出时不再自动安装。启动自动检查走同一条路径。
+
+**实测**：`dotnet build src/ShellX.Desktop -c Release` 0 警告 0 错误；`dotnet test ShellX.slnx -c Release` 通过 Core 20、Infrastructure 46（18 跳过）、Desktop 58（12 跳过）。
