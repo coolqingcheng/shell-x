@@ -327,3 +327,11 @@ Release 地址：https://github.com/coolqingcheng/shell-x/releases/tag/v1.0.0 �
 `GET /repos/coolqingcheng/shell-x/releases/latest` 返回 `v1.0.1`（非草稿、非预发布），应用内“下载最新版”可直接命中该版本。发布地址：https://github.com/coolqingcheng/shell-x/releases/tag/v1.0.1
 
 **版本一致性**：工作流从标签取版本号并以 `-Version` 传给 `publish.ps1`（转成 `-p:ShellXVersion=`）与 `build-installer.ps1`，因此产物 FileVersion 与标签一致；根目录 `VERSION` 文件与其保持同步。
+
+### 窗口标题版本号与 CI 测试宿主偶发崩溃（2026-11-04）
+
+**窗口标题版本号**：新增 `ShellX.Desktop/Services/WindowTitles.cs`，在窗口构造完成后把 `v<版本>` 追加到标题，版本取 `ShellX.Core.AppVersion.Value`（即 VERSION 文件那一套）。覆盖主窗口 `ShellX v1.0.1`、连接管理器 `连接管理器 v1.0.1`、MCP 执行日志 `MCP 执行日志 v1.0.1`。实测启动 Release 版与 AOT 版，进程窗口标题均为 `连接管理器 v1.0.1`；AOT 产物 60,060,160 字节，FileVersion `1.0.1.0`。
+
+**CI 失败排查**：提交 `c2f261c` 的 CI 失败，但失败发生在测试环节而非编译环节（编译 0 错误）。日志显示 `ShellX.Desktop.Tests: Catastrophic failure: System.InvalidOperationException: Test process did not return valid JSON (non-object)`，即 xunit v3 的测试宿主进程在握手后异常退出，宿主随后提示 “No test is available”。同一份代码本地执行 `dotnet build ShellX.slnx -c Release` + `dotnet test ShellX.slnx -c Release --no-build` 全部通过；在 GitHub 上重跑该作业（run_attempt=2）也通过，测试数量完全一致（Core 20、Infrastructure 46/18 跳过、Desktop 58/12 跳过），判定为 runner 上的偶发崩溃，与本次改动无关。
+
+**加固**：`ci.yml` 的测试步骤改为最多重试 3 次（间隔 10 秒，全部失败才退出 1），并给作业设置 30 分钟超时。加固后 `b5b9cf2` 的 CI 实测 success。
