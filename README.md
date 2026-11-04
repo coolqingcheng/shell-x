@@ -21,6 +21,14 @@ build.bat
 powershell -ExecutionPolicy Bypass -File scripts/publish.ps1 -Aot
 ```
 
+改完代码要出正式版本时，用一键发布脚本（版本号 +1 → AOT 构建 → 校验产物版本 → 提交推送 → 打标签推送 → GitHub 自动出安装包）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/release.ps1
+```
+
+常用参数：`-Version 1.1.0` 指定目标版本，`-Message "说明"` 指定提交信息，`-NoPush` 只本地提交打标签不推送，`-NoTag` 不打标签。脚本会自动关闭正在运行的 ShellX 进程再构建，版本号写入根目录 `VERSION` 文件。
+
 输出：`artifacts/release/win-x64-aot/ShellX.exe`，无需在使用电脑上另行安装 .NET。首次启动会将内嵌的原生组件释放到 `%LOCALAPPDATA%/ShellX/native/win-x64/<内容版本>/`。
 
 根目录 `build.bat` 默认调用 `scripts/publish.ps1 -Aot`，生成 Native AOT 单文件包。需要普通自包含单文件时可直接调用 `scripts/publish.ps1`；使用 `-BuildArtifactsPath` 时产物保持在指定独立目录，常规 `bin/Release` 不会同步。
