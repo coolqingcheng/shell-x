@@ -103,6 +103,16 @@
     <Setter Property="Height" Value="48" />
     <Setter Property="Foreground" Value="{DynamicResource IconForeground}" />
   </Style>
+  <!-- 文件列表图标：StyleKey 指向 PathIcon，这里按标记类配色；文件夹和链接用主题色，普通文件用中性图标色。 -->
+  <Style Selector="PathIcon.file-icon">
+    <Setter Property="Foreground" Value="{DynamicResource IconForeground}" />
+  </Style>
+  <Style Selector="PathIcon.file-icon.folder">
+    <Setter Property="Foreground" Value="{DynamicResource FolderForeground}" />
+  </Style>
+  <Style Selector="PathIcon.file-icon.link">
+    <Setter Property="Foreground" Value="{DynamicResource LinkForeground}" />
+  </Style>
   <Style Selector="TextBox">
     <Setter Property="CornerRadius" Value="2" />
     <Setter Property="Background" Value="{DynamicResource InputBackground}" />

@@ -377,3 +377,11 @@ bash: -c: line 21: syntax error near unexpected token `$'do\r''
 **验证**：用应用自身的 `SshSessionFactory` 建立会话后连续三次 `Monitor.ReadAsync` 全部成功（`hostname=iZuf65sxe59a3c3qmb2qozZ`）；`dotnet build src/ShellX.Desktop -c Release` 0 警告 0 错误；`dotnet test ShellX.slnx -c Release` 通过 Core 20、Infrastructure 46（18 跳过）、Desktop 58（12 跳过）。
 
 **连接管理器名称列**：连接列表表头补上“名称”列（原先第一列表头是文件夹标题，名称只显示在行内），文件夹标题移到左下角状态栏，与连接数并列显示为“文件夹名 · N 个连接”。
+## 文件管理器按类型显示图标（2026-11-04）
+
+- 需求：文件列表里常见文件要有各自的图标，不能只有一个通用文件块。
+- 归类：新增 `ShellX.Core.Files.FileTypes`，本地/远程共用一张扩展名表，输出类别（`folder/link/code/config/image/audio/video/archive/text/sheet/program/db/pdf/doc/file`）与中文标签；`LocalEntry`、`RemoteEntry` 的 `Icon`、`Kind` 改为取自该表，“类型”列随之显示图片/视频/压缩包/代码等具体类型。
+- 图标：`FileIconView` 按类别给出 16×16 视框的矢量图形（文件夹、链接、`</>`、相框山景、播放框、音符、压缩箱、带行文档、表格、滑块配置、芯片、数据库圆柱，其余退回文档轮廓），仍然24×24 居中。
+- 配色：文件夹 `FolderForeground`、符号链接 `LinkForeground`、普通文件 `IconForeground`，由 `Theme.axaml` 的样式给出。
+- 关键坑：`FileIconView : PathIcon` 不写 `StyleKeyOverride` 时拿不到 `PathIcon` 的 ControlTheme（`Template == null`，控件完全不绘制）；写成 `typeof(PathIcon)` 后类型选择器也按 StyleKey 匹配，原来的 `controls|FileIconView` 样式会失效，因此控件构造时加了 `file-icon` 标记类，样式选择器改为 `PathIcon.file-icon[.folder|.link]`。
+- 验证：`dotnet build src/ShellX.Desktop -c Release` 0 警告 0 错误；`dotnet test ShellX.slnx -c Release` 全绿（Core 43 通过；Infra 46 通过（18 跳过，需本机 SSH 夹具）；Desktop 77 通过（12 跳过））。用 `SHELLX_PREVIEW_PATH` 触发现有预览渲染，导出 `artifacts/preview/file-icons-remote.png`、`file-icons-local.png` 逐行核对：图标居中、24px、文件夹取样 `215,186,125`（#D7BA7D）、文件取样 `150,150,150`（#969696）。

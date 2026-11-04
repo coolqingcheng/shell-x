@@ -3,8 +3,9 @@ namespace ShellX.Core.Files;
 public sealed record LocalEntry(string Name, string FullPath, bool IsDirectory, bool IsSymbolicLink,
     bool IsHidden, long Size, DateTime ModifiedUtc)
 {
-    public string Icon => IsSymbolicLink ? "↗" : IsDirectory ? "▸" : "≡";
-    public string Kind => IsSymbolicLink ? "链接" : IsDirectory ? "文件夹" : "文件";
+    public string Category => FileTypes.Category(Name, IsDirectory, IsSymbolicLink);
+    public string Icon => Category;
+    public string Kind => FileTypes.Label(Category);
     public string SizeText => IsDirectory ? "—" : Size < 1024 ? $"{Size} B" : Size < 1048576 ? $"{Size / 1024d:0.#} KB" : $"{Size / 1048576d:0.#} MB";
     public string ModifiedText => ModifiedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
 }
