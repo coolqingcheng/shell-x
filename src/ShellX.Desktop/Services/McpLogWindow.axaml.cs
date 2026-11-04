@@ -23,6 +23,8 @@ public partial class McpLogWindow : Window
     public McpLogWindow(AppPaths paths)
     {
         InitializeComponent();
+        
+ShellX.Desktop.Services.WindowTitles.ApplyVersion(this);
         _reader = new(Path.Combine(paths.Root, "logs"));
         LogRows.ItemsSource = _rows;
         LogRows.SelectionChanged += (_, _) => UpdateCopyButton();

@@ -14,6 +14,8 @@ public partial class ConnectionManagerWindow : Window
     public ConnectionManagerWindow(MainWindowViewModel? model, Action<ConnectionProfile>? picked)
     {
         InitializeComponent();
+        
+ShellX.Desktop.Services.WindowTitles.ApplyVersion(this);
         _model = model;
         _picked = picked;
         if (model != null) DataContext = model;

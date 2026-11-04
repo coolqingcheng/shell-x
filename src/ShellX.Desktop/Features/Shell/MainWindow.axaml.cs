@@ -16,6 +16,8 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        
+ShellX.Desktop.Services.WindowTitles.ApplyVersion(this);
         DataContextChanged += (_, _) => AttachLayout();
         Opened += (_, _) => AttachLayout();
         Closing += async (_, e) =>
