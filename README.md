@@ -1,26 +1,35 @@
-# ShellX
+<p align="center">
+  <img src="docs/images/logo.svg" width="120" height="120" alt="ShellX logo" />
+</p>
 
-> 面向 Windows 的 SSH 桌面工作台：终端、文件传输、端口转发、服务器监控与 MCP 集成在一个窗口里。
+<h1 align="center">ShellX</h1>
 
-[![CI](https://github.com/coolqingcheng/shell-x/actions/workflows/ci.yml/badge.svg)](https://github.com/coolqingcheng/shell-x/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/coolqingcheng/shell-x)](https://github.com/coolqingcheng/shell-x/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/coolqingcheng/shell-x/total)](https://github.com/coolqingcheng/shell-x/releases)
-[![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/download/dotnet/10.0)
-[![Platform](https://img.shields.io/badge/platform-Windows%20x64-0078D6)](https://github.com/coolqingcheng/shell-x/releases)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+<p align="center">
+  <b>SSH 桌面工作台 · 终端 / 文件传输 / 端口转发 / 服务器监控 / MCP</b><br />
+  <sub>A Windows-first SSH workbench built with Avalonia UI and .NET 10.</sub>
+</p>
+
+<p align="center">
+  <a href="https://github.com/coolqingcheng/shell-x/actions/workflows/ci.yml"><img src="https://github.com/coolqingcheng/shell-x/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/coolqingcheng/shell-x/releases/latest"><img src="https://img.shields.io/github/v/release/coolqingcheng/shell-x" alt="Release" /></a>
+  <a href="https://github.com/coolqingcheng/shell-x/releases"><img src="https://img.shields.io/github/downloads/coolqingcheng/shell-x/total" alt="Downloads" /></a>
+  <a href="https://dotnet.microsoft.com/download/dotnet/10.0"><img src="https://img.shields.io/badge/.NET-10.0-512BD4" alt=".NET 10" /></a>
+  <a href="https://github.com/coolqingcheng/shell-x/actions/workflows/ci.yml"><img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-0078D6" alt="Platforms" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT License" /></a>
+</p>
+
+<p align="center">
+  <a href="#特性">特性</a> ·
+  <a href="#下载与安装">下载</a> ·
+  <a href="#快速开始">快速开始</a> ·
+  <a href="#从源码构建">构建</a> ·
+  <a href="#参与贡献">参与贡献</a> ·
+  <a href="#许可证">许可证</a>
+</p>
 
 ![ShellX 主界面](docs/images/workspace-dark.png)
 
-ShellX 使用 **Avalonia UI + .NET 10** 构建，界面布局参考 FinalShell：左侧是服务器状态监控，上方是多标签终端，下方是本地 / 远程双栏文件面板与命令面板，各分区均可拖动调整。
-
-## 目录
-
-- [特性](#特性)
-- [下载与安装](#下载与安装)
-- [快速开始](#快速开始)
-- [开发](#开发)
-- [已知限制](#已知限制)
-- [文档](#文档)
+ShellX 使用 **Avalonia UI + .NET 10** 构建，界面布局参考 FinalShell：左侧是服务器状态监控，上方是多标签终端，下方是本地 / 远程双栏文件面板与命令面板，各分区均可拖动调整。发布形态为 **Native AOT 单文件**，目标机器无需安装 .NET。
 
 ## 特性
 
@@ -38,17 +47,17 @@ ShellX 使用 **Avalonia UI + .NET 10** 构建，界面布局参考 FinalShell�
 ### 连接与终端
 
 - 启动后先进入连接管理器，选中连接才会创建并显示主工作区窗口；`Ctrl+N` 新建连接，`Ctrl+W` 关闭标签。
-- 新建 / 编辑连接时可以填主机、端口、账号、密码或私钥（默认打开用户 `.ssh` 目录），并点击**测试连接**确认凭据与指纹后再保存。
+- 新建 / 编辑连接时可填写主机、端口、账号、密码或私钥（默认打开用户 `.ssh` 目录），并点击**测试连接**验证凭据与指纹后再保存。
 - 标签可单独重命名，不影响连接配置；同一连接可同时开多个标签。
 - 快捷命令支持历史记录（`Alt+↑/↓`）与发送状态提示；终端支持右键复制选中内容、粘贴剪贴板内容。
-- 断线后按设置的间隔自动重连；`设置 → 常规` 可关闭。
+- 断线后按设置的间隔自动重连，可在 `设置 → 常规` 关闭。
 
 ### 文件管理
 
 - 左侧本地目录、右侧远程 SFTP 目录，双栏都支持 `F5` 刷新、`F2` 重命名、`Delete` 删除、`Alt+↑` 上级目录。
-- 文件列表按扩展名显示线条图标与类型文字（图片 / 视频 / 音频 / 压缩包 / 代码 / 配置 / 表格 / 程序 / 数据库 …），工具栏提供更大尺寸的矢量导航图标。
-- 上传、下载支持多选文件与目录，也可以直接从 Windows 资源管理器拖入；目录传输保留子目录、空目录和隐藏文件，合并前会确认，不跟随符号链接。
-- 内置文本编辑器用于日常配置文件：读取上限 **2 MiB**、**256K** 字符、**10000** 行、单行 **8192** 字符；自动识别编码，`Ctrl+S` 保存保留原编码与 BOM，保存前比对修改时间与原始字节，避免覆盖外部改动。
+- 文件列表按扩展名显示线条图标与类型文字（图片 / 视频 / 音频 / 压缩包 / 代码 / 配置 / 表格 / 程序 / 数据库 …），工具栏为大尺寸矢量导航图标。
+- 上传、下载支持多选文件与目录，也可直接从 Windows 资源管理器拖入；目录传输保留子目录、空目录和隐藏文件，合并前确认，不跟随符号链接。
+- 内置文本编辑器面向日常配置文件：读取上限 **2 MiB**、**256K** 字符、**10000** 行、单行 **8192** 字符；自动识别编码，`Ctrl+S` 保存保留原编码与 BOM，保存前比对修改时间与原始字节，避免覆盖外部改动。
 - 权限对话框提供 rwx 与特殊权限位复选框及八进制数值；上传下载有任务列表、进度与取消。
 
 ### 端口转发
@@ -67,7 +76,7 @@ ShellX 使用 **Avalonia UI + .NET 10** 构建，界面布局参考 FinalShell�
 
 ### MCP 本地命令
 
-连接编辑器中的“允许 MCP 执行本机命令”默认关闭。开启后 MCP 可以在运行 ShellX 的 Windows 本机执行命令（不经过 SSH），并按连接记录审计日志。
+连接编辑器中的“允许 MCP 执行本机命令”默认关闭。开启后 MCP 可在运行 ShellX 的电脑本机执行命令（不经过 SSH），并按连接记录审计日志。
 
 ```text
 POST http://127.0.0.1:8765/mcp
@@ -99,14 +108,17 @@ GET  http://127.0.0.1:8765/healthz
 
 ## 下载与安装
 
-前往 [Releases](https://github.com/coolqingcheng/shell-x/releases/latest) 下载对应产物：
+前往 [Releases](https://github.com/coolqingcheng/shell-x/releases/latest) 获取最新版本：
 
-| 产物 | 说明 |
-| --- | --- |
-| `ShellX-Setup-<版本>.exe` | Inno Setup 安装包，安装到 `%LOCALAPPDATA%\Programs\ShellX`（免管理员），含开始菜单与卸载入口 |
-| `ShellX-<版本>-win-x64.zip` | 免安装便携包，解压即可运行 |
+| 平台 | 产物 | 说明 |
+| --- | --- | --- |
+| Windows x64 | `ShellX-Setup-<版本>.exe` | Inno Setup 安装包，安装到 `%LOCALAPPDATA%\Programs\ShellX`（免管理员），含开始菜单与卸载入口 |
+| Windows x64 | `ShellX-<版本>-win-x64.zip` | 免安装便携包，解压即可运行 |
+| Linux x64 | `ShellX`（AOT 单文件） | 在 [CI 构建产物](https://github.com/coolqingcheng/shell-x/actions/workflows/ci.yml) 中下载 |
+| macOS（Apple Silicon） | `ShellX`（AOT 单文件） | 同上 |
 
-- 系统要求：**Windows x64**；Native AOT 单文件**无需安装 .NET 运行时**。
+- 系统要求：Windows 版**无需安装 .NET 运行时**；Linux / macOS 版同样为 Native AOT 单文件。
+- **Linux / macOS 构建为实验性**：CI 仅验证编译与发布，尚未在真实系统完成运行验收；非 Windows 平台暂不支持保存密码（提示后仅本次连接生效），锁屏自动锁定在非 Windows 上不可用，服务器监控依赖 Linux `/proc`。
 - 应用内更新：`设置 → 更新` → 检查更新 → 下载安装包 → 确认后立即更新并重启；可开启“启动时自动检查更新”。
 
 ## 快速开始
@@ -136,14 +148,14 @@ GET  http://127.0.0.1:8765/healthz
 
 ![文件管理](docs/images/file-manager.png)
 
-## 开发
+## 从源码构建
 
 ### 环境要求
 
 | 依赖 | 用途 |
 | --- | --- |
 | .NET SDK 10 | 构建与运行 |
-| Visual Studio MSVC x64 工具 + Windows SDK | Native AOT 发布 |
+| Visual Studio MSVC x64 工具 + Windows SDK | Windows Native AOT 发布 |
 | Inno Setup 6 | 构建安装包（`winget install JRSoftware.InnoSetup`） |
 | Python + Paramiko | 本机 SSH 测试服务（仅集成测试需要） |
 
@@ -161,7 +173,18 @@ build.bat
 powershell -ExecutionPolicy Bypass -File scripts/publish.ps1 -Aot
 ```
 
-AOT 产物只分发一个 EXE，首次启动会把内嵌的原生组件释放到 `%LOCALAPPDATA%\ShellX\native\win-x64\<内容版本>\` 并在后续启动复用。XAML 与代码使用编译绑定，JSON 使用源生成，以保证 AOT 兼容。
+Linux 与 macOS 使用同一条发布命令（由 CI 在对应 runner 上执行）：
+
+```bash
+dotnet publish src/ShellX.Desktop/ShellX.Desktop.csproj \
+  -c Release -r linux-x64 --self-contained true \
+  -p:PublishAot=true -p:PublishSingleFile=false \
+  -o artifacts/publish/linux-x64
+
+# macOS Apple Silicon：把 -r 改为 osx-arm64
+```
+
+AOT 产物只分发一个可执行文件；Windows 版首次启动会把内嵌的原生组件释放到 `%LOCALAPPDATA%\ShellX\native\win-x64\<内容版本>\` 并在后续启动复用。XAML 与代码使用编译绑定，JSON 使用源生成，以保证 AOT 兼容。
 
 ### 一键发布
 
@@ -201,6 +224,8 @@ dotnet test tests/ShellX.Desktop.Tests -c Release
 
 渲染结果输出到 `artifacts\preview\`。若开发版正占用默认输出目录，可用 `--artifacts-path artifacts\isolated-build` 使用独立构建目录。
 
+持续集成见 [ci.yml](.github/workflows/ci.yml)：Windows runner 负责编译与全量测试，Ubuntu / macOS runner 负责 Native AOT 发布并上传构建产物。
+
 ### 项目结构
 
 | 项目 | 职责 |
@@ -228,12 +253,32 @@ dotnet test tests/ShellX.Desktop.Tests -c Release
 
 ## 已知限制
 
-- 仅验证 **Windows x64**；其他桌面平台的凭据存储与发布尚未适配。
+- Windows x64 为已验收平台；Linux x64 与 macOS（Apple Silicon）由 CI 产出，属实验性构建，尚未完成运行时验收。
+- 非 Windows 平台暂不支持凭据持久化（保存时明确提示，仅本次连接生效），锁屏自动锁定依赖 Windows 会话事件。
 - 内置编辑器面向中小配置文件，超出字节 / 字符 / 行数 / 单行长度限制时提示改用外部编辑器。
 - 单次目录下载上限为 100000 个项目、128 层；传输目录内的符号链接会跳过，下载不写入本地符号链接。
 - SFTP 不可用时终端仍可使用，可通过重新连接重试 SFTP。
 - 资源监控依赖 Linux `/proc` 与常见命令；非 Linux 或无权限账号会显示明确状态。
-- 验证基于本机 SSH 测试服务与真实服务器样本，尚未覆盖全部发行版与输入法组合场景，详见 [docs/verification.md](docs/verification.md)。
+- 验证基于本机 SSH 测试服务与真实服务器样本，详见 [docs/verification.md](docs/verification.md)。
+
+## 参与贡献
+
+欢迎 Issue 与 Pull Request：
+
+1. Fork 仓库并从 `dev` 分支创建你的改动分支。
+2. 保证 `dotnet build ShellX.slnx -c Release` 与 `dotnet test ShellX.slnx -c Release` 通过（网络集成测试可按上文启用本机 SSH 服务）。
+3. 提交信息使用简洁的约定式写法，例如 `fix(tunnels): 修复监听冲突提示`。
+4. 面向 `dev` 发起 Pull Request，说明改动动机、验证方式与影响面。
+
+涉及用户可见行为的改动，请同步补充 [docs/verification.md](docs/verification.md) 的验证记录；正式发版统一走 `scripts/release.ps1`。
+
+## 致谢
+
+- [Avalonia UI](https://avaloniaui.net/) —— 跨平台 UI 框架
+- [SSH.NET](https://github.com/sshnet/SSH.NET) —— SSH / SFTP / 端口转发实现
+- [AvaloniaEdit](https://github.com/AvaloniaUI/Avalonia.AvaloniaEdit) —— 内置文本编辑器
+- [Iciclecreek.Avalonia.Terminal](https://github.com/AvaloniaCommunity/Iciclecreek.Avalonia.Terminal) —— 终端控件
+- [CommunityToolkit.Mvvm](https://learn.microsoft.com/dotnet/communitytoolkit/mvvm)、[xUnit](https://xunit.net/)、[Inno Setup](https://jrsoftware.org/isinfo.php)
 
 ## 文档
 
