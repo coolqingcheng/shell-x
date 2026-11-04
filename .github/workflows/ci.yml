@@ -8,6 +8,7 @@ on:
 
 jobs:
   build:
+    name: 构建与测试 (Windows)
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -28,3 +29,42 @@ jobs:
             Start-Sleep -Seconds 10
           }
           exit 1
+
+  # 与 Windows 发布一致的 Native AOT 产物；测试暂不在 Unix runner 上运行，
+  # Windows 专属的 DPAPI/凭据用例在 Linux/macOS 上会失败。
+  publish-unix:
+    name: 构建 ${{ matrix.rid }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+          - os: macos-latest
+            rid: osx-arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Native AOT 发布
+        run: >
+          dotnet publish src/ShellX.Desktop/ShellX.Desktop.csproj
+          -c Release -r ${{ matrix.rid }} --self-contained true
+          -p:PublishAot=true -p:PublishSingleFile=false
+          -p:StripSymbols=true -p:DebugType=None -p:DebugSymbols=false
+          -o artifacts/publish/${{ matrix.rid }}
+      - name: 统一产物名称
+        shell: bash
+        run: |
+          mv "artifacts/publish/${{ matrix.rid }}/ShellX.Desktop" "artifacts/publish/${{ matrix.rid }}/ShellX"
+          ls -lh "artifacts/publish/${{ matrix.rid }}"
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShellX-${{ matrix.rid }}
+          path: artifacts/publish/${{ matrix.rid }}/
+          if-no-files-found: error
+          retention-days: 14
