@@ -18,8 +18,12 @@ function Resolve-InnoCompiler {
 }
 
 if (-not $Version) {
+    $versionFile = Join-Path $taskRoot 'VERSION'
+    if (Test-Path -LiteralPath $versionFile) { $Version = (Get-Content -LiteralPath $versionFile -Raw).Trim() }
+}
+if (-not $Version) {
     $props = Get-Content (Join-Path $taskRoot 'Directory.Build.props') -Raw
-    if ($props -match '<Version>([^<]+)</Version>') { $Version = $Matches[1] }
+    if ($props -match '<ShellXVersion>([^<]+)</ShellXVersion>') { $Version = $Matches[1] }
 }
 if (-not $Version) { throw '无法确定版本号，请使用 -Version 指定。' }
 $Version = $Version.Trim().TrimStart('v', 'V')

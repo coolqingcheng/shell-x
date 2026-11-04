@@ -51,8 +51,6 @@ public sealed class UpdateManagerTests
     public async Task UpdateSettingsArePersisted()
     {
         var vm = new SettingsViewModel(new AppSettings(), new LockPasswordHasher(), ["Consolas"]);
-        vm.UpdateOwner = "some-user";
-        vm.UpdateRepository = "shell-x";
         vm.CheckUpdateOnStartup = false;
         vm.AutoDownloadUpdate = true;
         AppSettings? saved = null;
@@ -60,8 +58,6 @@ public sealed class UpdateManagerTests
         await vm.SaveCommand.ExecuteAsync(null);
         Assert.Equal("", vm.Error);
         Assert.NotNull(saved);
-        Assert.Equal("some-user", saved!.UpdateRepositoryOwner);
-        Assert.Equal("shell-x", saved.UpdateRepositoryName);
         Assert.False(saved.CheckUpdateOnStartup);
         Assert.True(saved.AutoDownloadUpdate);
     }

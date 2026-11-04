@@ -1,4 +1,4 @@
-param([string]$Runtime = 'win-x64', [string]$BuildArtifactsPath = '', [switch]$Aot, [string]$Version = '')
+﻿param([string]$Runtime = 'win-x64', [string]$BuildArtifactsPath = '', [switch]$Aot, [string]$Version = '')
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path -Parent $PSScriptRoot
 $taskVariant = $Runtime
@@ -7,7 +7,7 @@ $taskOutput = Join-Path $taskRoot "artifacts\publish\$taskVariant"
 $taskProject = Join-Path $taskRoot 'src\ShellX.Desktop\ShellX.Desktop.csproj'
 $taskBuildArguments = @()
 if ($BuildArtifactsPath) { $taskBuildArguments = @('--artifacts-path', $BuildArtifactsPath) }
-if ($Version) { $taskBuildArguments += "-p:Version=$Version" }
+if ($Version) { $taskBuildArguments += "-p:ShellXVersion=$Version" }
 # Build the normal Release folder first; RID publish only updates its runtime subdirectory.
 dotnet build $taskProject -c Release @taskBuildArguments
 if ($LASTEXITCODE -ne 0) { throw 'ShellX Release build failed.' }
@@ -27,4 +27,6 @@ if ($Aot) {
     if ($taskExtraFiles.Count -gt 0) { throw ('AOT output still contains external dependencies: ' + ($taskExtraFiles.Name -join ', ')) }
 }
 Copy-Item -LiteralPath (Join-Path $taskOutput 'ShellX.Desktop.exe') -Destination (Join-Path $taskDelivery 'ShellX.exe') -Force
+$taskVersion = if ($Version) { $Version } else { (dotnet msbuild $taskProject -getProperty:Version -nologo | Select-Object -Last 1).Trim() }
+Write-Host "ShellX version: $taskVersion"
 Write-Host "ShellX: $(Join-Path $taskDelivery 'ShellX.exe')"

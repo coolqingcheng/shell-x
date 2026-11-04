@@ -299,3 +299,14 @@ GitHub Actions 实测：`CI`（提交 `dev`）构建与测试全部通过；`Rel
 - `ShellX-1.0.0-win-x64.zip`（25,181,764 字节）：免安装版本
 
 Release 地址：https://github.com/coolqingcheng/shell-x/releases/tag/v1.0.0 。应用内“设置 → 更新”的默认仓库已设为 `coolqingcheng/shell-x`，与实际发布地址一致。
+
+### 版本机制与更新流程改版（2026-11-04）
+
+**构建不产生新版本的两个根因**：其一，`Directory.Build.props` 把 `<Version>1.0.0</Version>` 硬编码，任何一次编译产出的都是 1.0.0，且 `dotnet publish -p:Version=` 会被项目内同名属性覆盖，形同无效；其二，改动代码后没有重新编译，`artifacts/release/win-x64-aot/ShellX.exe` 仍是旧时间戳的产物。
+
+**修复**：新增仓库根目录 `VERSION` 文件作为版本唯一来源（当前内容 `1.0.1`），`Directory.Build.props` 改为读取该文件并写入 `Version`/`AssemblyVersion`/`FileVersion`；`scripts/publish.ps1` 的 `-Version` 改传 `-p:ShellXVersion=`；`scripts/build-installer.ps1` 优先读取 `VERSION`。另外 `scripts/publish.ps1` 原为无 BOM 的 UTF-8，被 `build.bat` 调用的 Windows PowerShell 5.1 按 ANSI 读取，中文提示乱码且吞掉 `$` 变量，已改为 UTF-8 带 BOM 并把版本输出改为 ASCII 的 `ShellX version: <版本>`。
+
+**实测**：`dotnet msbuild src/ShellX.Desktop -getProperty:Version` 返回 `1.0.1`；`build.bat`（AOT）日志输出 `ShellX version: 1.0.1`，产物 `artifacts/release/win-x64-aot/ShellX.exe` 为 60,059,648 字节，FileVersion `1.0.1.0`、ProductVersion `1.0.1+895a838`。`dotnet build src/ShellX.Desktop -c Release` 0 警告 0 错误；`dotnet test ShellX.slnx -c Release` 通过 Core 20、Infrastructure 46（18 项网络集成测试按惯例跳过）、Desktop 58（12 项跳过）。
+
+**更新流程改版**：设置“更新”页签去掉“更新源（GitHub 公开仓库）”的账号与仓库输入框，也去掉“检查更新”按钮，改为“下载最新版”一步完成检查与下载，另有“另存安装包”“打开发布页”。下载完成后弹出“发现新版本”确认框：确认＝立即更新并重启，取消＝登记为“关闭时更新”，在 ShellX 退出时由更新引导进程静默安装；启动时自动下载走同一套提示。仓库地址固定取内置默认值 `coolqingcheng/shell-x`，保存设置时保留原值不被覆盖。
+

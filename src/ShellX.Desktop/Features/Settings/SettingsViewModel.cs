@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ShellX.Core.Security;
 using ShellX.Core.Settings;
+using ShellX.Core.Updates;
 using ShellX.Desktop.Services;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -45,8 +46,6 @@ public partial class SettingsViewModel : ObservableObject
         McpEnabled = original.McpEnabled;
         McpAddress = original.McpAddress;
         McpToken = string.IsNullOrWhiteSpace(original.McpToken) ? Convert.ToHexString(RandomNumberGenerator.GetBytes(32)) : original.McpToken;
-        UpdateOwner = original.UpdateRepositoryOwner;
-        UpdateRepository = original.UpdateRepositoryName;
         CheckUpdateOnStartup = original.CheckUpdateOnStartup;
         AutoDownloadUpdate = original.AutoDownloadUpdate;
         if (updates is not null) updates.PropertyChanged += (_, _) => RefreshUpdateState();
@@ -75,6 +74,7 @@ public partial class SettingsViewModel : ObservableObject
     public string UpdateSummary => _updates?.UpdateSummary ?? "";
     public bool UpdateAvailable => _updates?.UpdateAvailable ?? false;
     public bool HasPendingUpdate => _updates?.LoadPending() is not null;
+    public bool ShowUpdatePrompt => HasPendingUpdate && !UpdateDeferred;
     public string ReleaseUrl => _updates?.ReleaseUrl ?? "";
     [ObservableProperty, NotifyPropertyChangedFor(nameof(TerminalPreviewFont))] private string _terminalFontFamily = "";
     [ObservableProperty, NotifyPropertyChangedFor(nameof(TerminalPreviewSize))] private decimal _terminalFontSize = 14;
@@ -98,10 +98,9 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private bool _mcpEnabled;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(McpJson))] private string _mcpAddress = "";
     [ObservableProperty, NotifyPropertyChangedFor(nameof(McpJson))] private string _mcpToken = "";
-    [ObservableProperty] private string _updateOwner = "";
-    [ObservableProperty] private string _updateRepository = "";
     [ObservableProperty] private bool _checkUpdateOnStartup;
     [ObservableProperty] private bool _autoDownloadUpdate;
+    [ObservableProperty] private bool _updateDeferred;
     partial void OnChangePasswordChanged(bool value) { OnPropertyChanged(nameof(ShowPasswordFields)); OnPropertyChanged(nameof(ShowNewPassword)); }
     partial void OnRemovePasswordChanged(bool value) { OnPropertyChanged(nameof(ShowPasswordFields)); OnPropertyChanged(nameof(ShowNewPassword)); }
     public string McpJson => JsonSerializer.Serialize(new McpClientConfiguration(new Dictionary<string, McpServerConfiguration>
@@ -117,51 +116,71 @@ public partial class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(UpdateAvailable));
         OnPropertyChanged(nameof(CurrentVersionText));
         OnPropertyChanged(nameof(HasPendingUpdate));
+        OnPropertyChanged(nameof(ShowUpdatePrompt));
         OnPropertyChanged(nameof(ReleaseUrl));
     }
 
     [RelayCommand]
     private void GenerateMcpToken() => McpToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
 
+    /// <summary>直接下载最新版，下载完成后提示立即更新或关闭时更新。</summary>
     [RelayCommand]
-    private async Task CheckUpdateAsync()
+    private async Task DownloadLatestAsync()
     {
         if (_updates is null) { Error = "更新功能不可用。"; return; }
         Error = "";
-        await _updates.CheckAsync(UpdateOwner, UpdateRepository);
+        var release = await _updates.CheckAsync(_original.UpdateRepositoryOwner, _original.UpdateRepositoryName);
+        if (release is null) { Error = _updates.Status; RefreshUpdateState(); return; }
+        if (!UpdateVersion.IsNewer(release.Tag, _updates!.CurrentVersion))
+        {
+            Error = _updates.Status;
+            RefreshUpdateState();
+            return;
+        }
+        if (await _updates.DownloadAsync(release) is null) { Error = _updates.Status; RefreshUpdateState(); return; }
+        UpdateDeferred = false;
         RefreshUpdateState();
+        await PromptUpdateAsync(release.Version);
     }
 
-    [RelayCommand]
-    private async Task DownloadUpdateAsync()
+    private async Task PromptUpdateAsync(string version)
     {
-        if (_updates is null) { Error = "更新功能不可用。"; return; }
-        Error = "";
-        var release = _updates.Latest ?? await _updates.CheckAsync(UpdateOwner, UpdateRepository);
-        if (release is null) return;
-        await _updates.DownloadAsync(release);
-        RefreshUpdateState();
+        if (_dialogs is null || _updates is null) return;
+        var apply = await _dialogs.ConfirmAsync("发现新版本",
+            $"已下载新版本 {version}。\n点“确认”立即更新并重启；点“取消”则在关闭 ShellX 时自动安装。");
+        if (!apply) { UpdateDeferred = true; OnPropertyChanged(nameof(ShowUpdatePrompt)); return; }
+        _updates.ApplyAndRestart();
     }
 
-    [RelayCommand]
-    private async Task SaveInstallerAsync()
-    {
-        if (_updates is null || _dialogs is null) { Error = "更新功能不可用。"; return; }
-        Error = "";
-        var release = _updates.Latest ?? await _updates.CheckAsync(UpdateOwner, UpdateRepository);
-        if (release?.Installer is not { } asset) { Error = "该发布没有可下载的安装包。"; return; }
-        var path = await _dialogs.PickDownloadAsync(asset.Name);
-        if (path is null) return;
-        await _updates.DownloadAsync(release, path);
-        RefreshUpdateState();
-    }
-
+    /// <summary>立即更新并重启。</summary>
     [RelayCommand]
     private void InstallUpdate()
     {
         if (_updates is null) { Error = "更新功能不可用。"; return; }
         Error = "";
         if (!_updates.TryApply(restart: true)) Error = _updates.Status;
+        RefreshUpdateState();
+    }
+
+    /// <summary>稍后处理，关闭 ShellX 时自动安装已下载的更新。</summary>
+    [RelayCommand]
+    private void DeferUpdate()
+    {
+        UpdateDeferred = true;
+        OnPropertyChanged(nameof(ShowUpdatePrompt));
+    }
+
+    /// <summary>另存安装包到本地，不立即安装。</summary>
+    [RelayCommand]
+    private async Task SaveInstallerAsync()
+    {
+        if (_updates is null || _dialogs is null) { Error = "更新功能不可用。"; return; }
+        Error = "";
+        var release = _updates.Latest ?? await _updates.CheckAsync(_original.UpdateRepositoryOwner, _original.UpdateRepositoryName);
+        if (release?.Installer is not { } asset) { Error = "暂无可下载的安装包。"; return; }
+        var path = await _dialogs.PickDownloadAsync(asset.Name);
+        if (path is null) return;
+        await _updates.DownloadAsync(release, path);
         RefreshUpdateState();
     }
 
@@ -177,7 +196,6 @@ public partial class SettingsViewModel : ObservableObject
             if (ReconnectIntervalSeconds is < 1 or > 86400 || ReconnectIntervalSeconds != decimal.Truncate(ReconnectIntervalSeconds)) throw new ArgumentException("重连间隔需为 1–86400 的整数秒。");
             if (!Uri.TryCreate(McpAddress, UriKind.Absolute, out var mcpUri) || mcpUri.Scheme != Uri.UriSchemeHttp || !string.IsNullOrEmpty(mcpUri.UserInfo)) throw new ArgumentException("MCP 地址必须是不带账号密码的 http:// 完整地址。");
             if (McpToken.Trim().Length < 16) throw new ArgumentException("MCP 密钥至少需要 16 个字符。");
-            if (string.IsNullOrWhiteSpace(UpdateOwner) || string.IsNullOrWhiteSpace(UpdateRepository)) throw new ArgumentException("请填写 GitHub 仓库的账号和仓库名。");
             var minutes = Duration * (DurationUnit == 1 ? 60 : 1);
             if (minutes is < 1 or > 525600 || minutes != decimal.Truncate(minutes)) throw new ArgumentException("自动锁定时长需为整数分钟，范围为 1 分钟至 365 天。");
             var hash = _original.LockPasswordHash;
@@ -199,7 +217,8 @@ public partial class SettingsViewModel : ObservableObject
                 ShowHiddenFiles = ShowHidden, HighlightTerminalText = HighlightText,
                 AutoReconnectEnabled = AutoReconnect, ReconnectIntervalSeconds = (int)ReconnectIntervalSeconds,
                 LockPasswordHash = hash, AutoLockEnabled = AutoLock && !string.IsNullOrEmpty(hash), AutoLockOnlyWhenSystemLocked = AutoLockOnlyWhenSystemLocked, AutoLockMinutes = (int)minutes, McpEnabled = McpEnabled, McpAddress = McpAddress.TrimEnd('/' ), McpToken = McpToken.Trim(),
-                UpdateRepositoryOwner = UpdateOwner.Trim(), UpdateRepositoryName = UpdateRepository.Trim(), CheckUpdateOnStartup = CheckUpdateOnStartup, AutoDownloadUpdate = AutoDownloadUpdate };
+                UpdateRepositoryOwner = _original.UpdateRepositoryOwner, UpdateRepositoryName = _original.UpdateRepositoryName,
+                CheckUpdateOnStartup = CheckUpdateOnStartup, AutoDownloadUpdate = AutoDownloadUpdate };
             ClearPasswords(); Saved?.Invoke(result);
         }
         catch (Exception ex) { Error = ex.Message; CurrentPassword = ""; }

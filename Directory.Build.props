@@ -5,9 +5,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <AnalysisLevel>latest</AnalysisLevel>
-    <Version>1.0.0</Version>
-    <AssemblyVersion>$(Version)</AssemblyVersion>
-    <FileVersion>$(Version).0</FileVersion>
+    <ShellXVersionFile Condition="'$(ShellXVersionFile)' == '' And Exists('$(MSBuildThisFileDirectory)VERSION')">$(MSBuildThisFileDirectory)VERSION</ShellXVersionFile>
+    <ShellXVersion Condition="'$(ShellXVersion)' == '' And '$(ShellXVersionFile)' != ''">$([System.IO.File]::ReadAllText('$(ShellXVersionFile)').Trim())</ShellXVersion>
+    <ShellXVersion Condition="'$(ShellXVersion)' == ''">1.0.0</ShellXVersion>
+    <Version>$(ShellXVersion)</Version>
+    <AssemblyVersion>$(ShellXVersion)</AssemblyVersion>
+    <FileVersion>$(ShellXVersion).0</FileVersion>
     <Product>ShellX</Product>
     <AssemblyTitle>ShellX</AssemblyTitle>
   </PropertyGroup>

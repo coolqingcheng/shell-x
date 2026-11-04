@@ -90,25 +90,24 @@
         <TextBlock Text="{Binding CurrentVersionText}" FontWeight="SemiBold" />
         <TextBlock Text="{Binding UpdateSummary}" Foreground="{DynamicResource SecondaryForeground}" TextWrapping="Wrap" />
         <TextBlock Text="{Binding UpdateStatus}" Foreground="{DynamicResource SecondaryForeground}" TextWrapping="Wrap" />
-        <Border Height="1" Background="{DynamicResource BorderColor}" Margin="0,4" />
-        <TextBlock Text="更新源（GitHub 公开仓库）" />
-        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-          <TextBox Name="UpdateOwner" Text="{Binding UpdateOwner, Mode=TwoWay}" PlaceholderText="GitHub 用户名或组织" />
-          <TextBox Grid.Column="1" Name="UpdateRepository" Text="{Binding UpdateRepository, Mode=TwoWay}" PlaceholderText="仓库名" />
-        </Grid>
-        <CheckBox Name="CheckUpdateOnStartup" Content="启动时自动检查更新" IsChecked="{Binding CheckUpdateOnStartup, Mode=TwoWay}" />
-        <CheckBox Name="AutoDownloadUpdate" Content="发现新版本时自动下载安装包" IsChecked="{Binding AutoDownloadUpdate, Mode=TwoWay}" />
-        <StackPanel Orientation="Horizontal" Spacing="8">
-          <Button Name="CheckUpdate" Content="检查更新" Command="{Binding CheckUpdateCommand}" Classes="primary" />
-          <Button Name="DownloadUpdate" Content="下载更新" Command="{Binding DownloadUpdateCommand}" />
-          <Button Name="InstallUpdate" Content="重启并更新" Command="{Binding InstallUpdateCommand}" />
-        </StackPanel>
         <ProgressBar Name="UpdateProgressBar" Minimum="0" Maximum="100" Value="{Binding UpdateProgress, Mode=OneWay}" Height="6" />
         <StackPanel Orientation="Horizontal" Spacing="8">
-          <Button Name="SaveInstaller" Content="下载安装包" Command="{Binding SaveInstallerCommand}" ToolTip.Tip="把安装包保存到本地，不立即安装" />
-          <Button Name="OpenReleasePage" Content="打开发布页" Click="OpenReleasePageClick" ToolTip.Tip="在浏览器中打开 GitHub 发布页" />
+          <Button Name="DownloadLatest" Content="下载最新版" Command="{Binding DownloadLatestCommand}" Classes="primary" />
+          <Button Name="SaveInstaller" Content="另存安装包" Command="{Binding SaveInstallerCommand}" ToolTip.Tip="把安装包另存到本地，不立即安装" />
+          <Button Name="OpenReleasePage" Content="打开发布页" Click="OpenReleasePageClick" ToolTip.Tip="在浏览器中打开发布页" />
         </StackPanel>
-        <TextBlock Text="安装包来自 GitHub Releases。下载后关闭 ShellX 会在退出时自动安装，也可以点击“重启并更新”立即安装。" Foreground="{DynamicResource SecondaryForeground}" FontSize="12" TextWrapping="Wrap" />
+        <Border IsVisible="{Binding ShowUpdatePrompt}" Background="{DynamicResource PanelBackground}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="1" CornerRadius="4" Padding="10">
+          <StackPanel Spacing="8">
+            <TextBlock Text="新版本已下载。可以立即更新并重启，也可以直接关闭 ShellX，退出时会自动安装。" TextWrapping="Wrap" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Name="InstallUpdateNow" Content="立即更新" Command="{Binding InstallUpdateCommand}" Classes="primary" />
+              <Button Name="DeferUpdate" Content="关闭时更新" Command="{Binding DeferUpdateCommand}" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+        <CheckBox Name="CheckUpdateOnStartup" Content="启动时自动检查更新" IsChecked="{Binding CheckUpdateOnStartup, Mode=TwoWay}" />
+        <CheckBox Name="AutoDownloadUpdate" Content="发现新版本时自动下载安装包" IsChecked="{Binding AutoDownloadUpdate, Mode=TwoWay}" />
+        <TextBlock Text="“下载最新版”会直接下载最新安装包，下载完成后可立即更新，或在关闭 ShellX 时自动安装。" Foreground="{DynamicResource SecondaryForeground}" FontSize="12" TextWrapping="Wrap" />
       </StackPanel></ScrollViewer>
     </TabItem>  </TabControl>
 </UserControl>

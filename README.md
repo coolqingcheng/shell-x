@@ -43,7 +43,13 @@ winget install JRSoftware.InnoSetup
 powershell -ExecutionPolicy Bypass -File scripts/build-installer.ps1 -Version 1.0.1
 ```
 
-版本号统一来自 `Directory.Build.props` 的 `Version`，可用 `build.bat -Version 1.0.1` 编译指定版本的 AOT 产物，保证 EXE 与安装包版本一致。
+版本号统一来自根目录的 `VERSION` 文件（当前 `1.0.1`）：改这个文件即可换版本，`build.bat` 会读取它，编译产物、安装包和程序内显示的版本保持一致。也可以临时指定版本：
+
+```powershell
+build.bat -Version 1.0.2
+```
+
+编译结束会打印本次版本号；产物的 FileVersion 可用资源管理器“属性 →详细信息”核对。发布新版本时把 `VERSION` 改成目标版本后再打同名 `v*` 标签。
 
 应用内更新直接使用 GitHub 公开仓库的 Releases：
 
