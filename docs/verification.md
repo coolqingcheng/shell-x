@@ -310,3 +310,20 @@ Release 地址：https://github.com/coolqingcheng/shell-x/releases/tag/v1.0.0 �
 
 **更新流程改版**：设置“更新”页签去掉“更新源（GitHub 公开仓库）”的账号与仓库输入框，也去掉“检查更新”按钮，改为“下载最新版”一步完成检查与下载，另有“另存安装包”“打开发布页”。下载完成后弹出“发现新版本”确认框：确认＝立即更新并重启，取消＝登记为“关闭时更新”，在 ShellX 退出时由更新引导进程静默安装；启动时自动下载走同一套提示。仓库地址固定取内置默认值 `coolqingcheng/shell-x`，保存设置时保留原值不被覆盖。
 
+
+### GitHub 新版本未产出与 v1.0.1 发布（2026-11-04）
+
+**现象**：代码已推送到 `dev`，GitHub 上仍只有 v1.0.0，没有新版本安装包。
+
+**根因**：`ci.yml` 只在 `dev`/`main` 推送时做构建与测试，不产出安装包；`release.yml` 仅在推送 `v*` 标签时触发。修复版本号机制后只提交了代码、没有打标签，因此 Release 工作流从未运行。
+
+**处理**：在 `982b8f2` 上打 `v1.0.1` 标签并推送，Release 工作流实测成功（约 5 分钟）：AOT 单文件编译 → 安装 Inno Setup → 编译安装包 → 打包免安装版 → 上传资产。
+
+**产出**：
+
+- `ShellX-Setup-1.0.1.exe`（18,436,119 字节）
+- `ShellX-1.0.1-win-x64.zip`（25,181,200 字节）
+
+`GET /repos/coolqingcheng/shell-x/releases/latest` 返回 `v1.0.1`（非草稿、非预发布），应用内“下载最新版”可直接命中该版本。发布地址：https://github.com/coolqingcheng/shell-x/releases/tag/v1.0.1
+
+**版本一致性**：工作流从标签取版本号并以 `-Version` 传给 `publish.ps1`（转成 `-p:ShellXVersion=`）与 `build-installer.ps1`，因此产物 FileVersion 与标签一致；根目录 `VERSION` 文件与其保持同步。
