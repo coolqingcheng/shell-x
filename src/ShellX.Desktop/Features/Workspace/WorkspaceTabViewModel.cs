@@ -47,6 +47,9 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
     public string Name => _temporaryName ?? Profile.Name;
     public string Address => Profile.Address;
     public string AccentColor => Profile.AccentColor;
+    public IDialogService Dialogs => _dialogs;
+    /// <summary>标签被关闭（会话已释放）时触发，用于同步关闭该连接的附属窗口。</summary>
+    public event EventHandler? Disposed;
     public FileBrowserViewModel Files { get; }
     public SessionTerminalChannel Terminal { get; } = new();
     public ServerMonitorViewModel Monitor => _monitorLease.Monitor;
@@ -380,5 +383,11 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
         catch (Exception ex) { await _dialogs.ShowErrorAsync((saved ? "规则已保存，但应用失败：\n" : "规则未能保存：\n") + ex.Message); }
     }
     public async ValueTask DisposeAsync()
-    { if (_disposed) return; _disposed = true; await DisconnectAsync(); await _monitorLease.DisposeAsync(); await _sessions.DisposeAsync(); await Terminal.DisposeAsync(); Files.Dispose(); }
+    {
+        if (_disposed) return;
+        _disposed = true;
+        await DisconnectAsync(); await _monitorLease.DisposeAsync(); await _sessions.DisposeAsync();
+        await Terminal.DisposeAsync(); Files.Dispose();
+        Disposed?.Invoke(this, EventArgs.Empty);
+    }
 }
