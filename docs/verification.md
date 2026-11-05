@@ -431,11 +431,12 @@ bash: -c: line 21: syntax error near unexpected token `$'do\r''
 
 ### 实现
 
-- **入口（两处）**：①终端工具栏 `⇄` 旁的“服务”按钮（常驻，不依赖面板展开）；②端口转发面板标题栏的“服务”按钮。两处都走同一个 `Click="OpenServices"`，`IsEnabled` 跟随 `IsConnected`，打开非模态 `ServiceWindow`；同一连接重复打开只激活已有窗口，会话 `Disconnected` 或标签 `Disposed` 时窗口自动关闭。第一版只做了②，用户反馈找不到入口，因此补上常驻的①，并把断言改为 `TunnelPanelAndToolbarContainServicesEntry`（同时校验两个入口 + 渲染 `tunnel-services-entry.png`）。
+- **入口（最终形态：仅工具栏一处）**：终端工具栏 `⇄` 图标**旁边**的“服务”层叠图标按钮，`Click="OpenServices"`，`IsEnabled` 跟随 `IsConnected`，打开非模态 `ServiceWindow`；同一连接重复打开只激活已有窗口，会话 `Disconnected` 或标签 `Disposed` 时窗口自动关闭。演进：v1.0.9 只在端口转发面板标题栏 → 用户找不到（面板默认收起）→ v1.0.10 同时加到 `⇄` 旁 → 用户明确“要放在 ⇄ 图标的位置，不要放在功能内部” → **v1.0.11 移除面板内入口，只保留工具栏**，测试改名 `ToolbarContainsServicesEntryAndRendersPreview` 并断言面板内不存在 `OpenServicesButton`。
 - **数据链路**：`IRemoteSession.Services`（Core 新增 `IServiceCenter`，接口成员带默认实现 `null`，既有测试桩无需改动）→ `SshRemoteSession` 装配 `SshServiceCenter(SshClient, ILogger)`，与监控共用同一条 SSH 连接的 exec 通道。
 - **命令**：一次执行 `systemctl list-units --type=service --all --no-pager --no-legend --plain --full` + 标记行 + `systemctl list-unit-files --type=service --no-pager --no-legend`，按单位名合并出“服务 / 状态 / 开机 / 描述”。**所有命令都是单行字符串**，不再使用可能带 CRLF 的原始字符串。
 - **操作**：`start / stop / restart / enable / disable`，90 秒超时，返回 `ServiceActionResult(成功, 原始输出, 退出码)`；`StatusAsync` 用 `SYSTEMD_COLORS=0 systemctl status -l -n 25` 读取详情（无 ANSI 颜色）。
 - **安全**：单位名先过本地白名单正则 `^[A-Za-z0-9@_.:\-]+$` 再拼命令，非法名直接返回失败/抛出，不触碰 SSH 通道。
+- **长日志布局修复**：详情行从 `Auto` 改为固定 `210`（内部滚动），状态行 `MaxHeight=36` + 省略号 + 完整内容 `ToolTip`，`systemctl status` 输出再长也不会把上面的列表和表头顶掉。
 - **UI**：`Features/Services/ServiceWindow(.axaml/.cs)` + `ServiceWindowViewModel`——搜索框按服务名/描述过滤、四列 DataGrid（状态按 运行中/失败/未运行 着色）、排序、选中行加载 status 详情、五个操作按钮（确认后执行，结果显示原始输出与退出码并自动刷新）。`WorkspaceTabViewModel` 补 `Dialogs` 访问器与 `Disposed` 事件。
 
 ### 验证

@@ -3,7 +3,7 @@
         x:Class="ShellX.Desktop.Features.Services.ServiceWindow" x:DataType="vm:ServiceWindowViewModel"
         Title="服务状态" Width="960" Height="640" MinWidth="760" MinHeight="460"
         WindowStartupLocation="CenterOwner" Background="{DynamicResource AppBackground}">
-  <Grid RowDefinitions="Auto,*,Auto,Auto">
+  <Grid RowDefinitions="Auto,*,Auto,210">
     <Border Background="{DynamicResource HeaderBackground}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1" Padding="14,9">
       <Grid ColumnDefinitions="*,260,Auto" ColumnSpacing="10">
         <StackPanel Spacing="2">
@@ -54,7 +54,7 @@
     </Border>
 
     <Grid Grid.Row="3" RowDefinitions="Auto,*" Margin="10,7,10,10">
-      <TextBlock Text="{Binding Status}" Foreground="{Binding StatusColor}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,5" />
+      <TextBlock Text="{Binding Status}" Foreground="{Binding StatusColor}" FontSize="11" TextWrapping="Wrap" MaxHeight="36" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Status}" Margin="0,0,0,5" />
       <TextBox Grid.Row="1" Text="{Binding Detail, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
                FontFamily="Consolas,Microsoft YaHei UI" FontSize="11" MinHeight="90"
                Background="{DynamicResource TreeBackground}" BorderBrush="{DynamicResource BorderColor}" Padding="10,7"
