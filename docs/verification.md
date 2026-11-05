@@ -431,7 +431,7 @@ bash: -c: line 21: syntax error near unexpected token `$'do\r''
 
 ### 实现
 
-- **入口**：端口转发面板标题栏新增“服务”按钮（`IsEnabled` 跟随 `IsConnected`），点击打开非模态 `ServiceWindow`；同一连接重复打开只激活已有窗口，会话 `Disconnected` 或标签 `Disposed` 时窗口自动关闭。
+- **入口（两处）**：①终端工具栏 `⇄` 旁的“服务”按钮（常驻，不依赖面板展开）；②端口转发面板标题栏的“服务”按钮。两处都走同一个 `Click="OpenServices"`，`IsEnabled` 跟随 `IsConnected`，打开非模态 `ServiceWindow`；同一连接重复打开只激活已有窗口，会话 `Disconnected` 或标签 `Disposed` 时窗口自动关闭。第一版只做了②，用户反馈找不到入口，因此补上常驻的①，并把断言改为 `TunnelPanelAndToolbarContainServicesEntry`（同时校验两个入口 + 渲染 `tunnel-services-entry.png`）。
 - **数据链路**：`IRemoteSession.Services`（Core 新增 `IServiceCenter`，接口成员带默认实现 `null`，既有测试桩无需改动）→ `SshRemoteSession` 装配 `SshServiceCenter(SshClient, ILogger)`，与监控共用同一条 SSH 连接的 exec 通道。
 - **命令**：一次执行 `systemctl list-units --type=service --all --no-pager --no-legend --plain --full` + 标记行 + `systemctl list-unit-files --type=service --no-pager --no-legend`，按单位名合并出“服务 / 状态 / 开机 / 描述”。**所有命令都是单行字符串**，不再使用可能带 CRLF 的原始字符串。
 - **操作**：`start / stop / restart / enable / disable`，90 秒超时，返回 `ServiceActionResult(成功, 原始输出, 退出码)`；`StatusAsync` 用 `SYSTEMD_COLORS=0 systemctl status -l -n 25` 读取详情（无 ANSI 颜色）。

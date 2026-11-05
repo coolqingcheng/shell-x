@@ -109,17 +109,24 @@ public sealed class ServiceWindowTests
     }
 
     [AvaloniaFact]
-    public void TunnelPanelContainsServicesEntry()
+    public async Task TunnelPanelAndToolbarContainServicesEntry()
     {
         var view = new WorkspaceView();
-        var window = new Window { Content = view, Width = 900, Height = 600 };
+        var window = new Window { Content = view, Width = 1380, Height = 900 };
         window.Show();
         try
         {
-            var button = view.FindControl<Button>("OpenServicesButton");
-            Assert.NotNull(button);
+            Assert.NotNull(view.FindControl<Button>("OpenServicesButton"));      // 端口转发面板标题栏
+            Assert.NotNull(view.FindControl<Button>("ToolbarServicesButton"));   // 终端工具栏 ⇄ 旁边
             Assert.Contains(view.GetVisualDescendants().OfType<Controls.StrokeIcon>(), icon => icon.Symbol == "service");
             Assert.Contains(view.GetVisualDescendants().OfType<TextBlock>(), text => text.Text == "服务");
+            if (Environment.GetEnvironmentVariable("SHELLX_PREVIEW_PATH") is { Length: > 0 } preview)
+            {
+                await Task.Delay(120);
+                using var bitmap = new RenderTargetBitmap(new PixelSize(1380, 900), new Vector(96, 96));
+                bitmap.Render(window);
+                bitmap.Save(Path.Combine(Path.GetDirectoryName(preview)!, "tunnel-services-entry.png"), PngBitmapEncoderOptions.Default);
+            }
         }
         finally { window.Close(); }
     }
