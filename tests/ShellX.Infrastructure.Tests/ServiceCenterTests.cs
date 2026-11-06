@@ -99,6 +99,25 @@ public sealed class ServiceCenterTests
     }
 
     [Fact]
+    public void ProcessPathLookupAcceptsOnlyNumericPidsAndParsesTabbedPaths()
+    {
+        var command = SshServiceCenter.BuildProcessPathCommand(["866", "bad;rm -rf /", "866", "1234"]);
+        Assert.StartsWith("for sx_pid in 866 1234; do ", command);
+        Assert.DoesNotContain("bad", command);
+        Assert.Equal("true", SshServiceCenter.BuildProcessPathCommand(["bad", "", "-1"]));
+
+        var paths = SshServiceCenter.ParseProcessPaths(string.Join("\n",
+            "866\t/usr/sbin/sshd",
+            "1234\t/usr/sbin/mysqld",
+            "bad\t/injected",
+            "5678\t",                              // 路径缺失
+            "9012 /no-tab"));
+        Assert.Equal("/usr/sbin/sshd", paths["866"]);
+        Assert.Equal("/usr/sbin/mysqld", paths["1234"]);
+        Assert.False(paths.ContainsKey("5678"));
+        Assert.False(paths.ContainsKey("9012"));
+    }
+    [Fact]
     public void ParsePortsPrefersSsAndFallsBackToNetstat()
     {
         var ssSection = "LISTEN 0 128 0.0.0.0:7000 0.0.0.0:* users:((" + '"' + "sshd" + '"' + ",pid=10,fd=3))";

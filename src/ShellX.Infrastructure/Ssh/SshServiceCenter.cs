@@ -123,7 +123,74 @@ internal sealed class SshServiceCenter(SshClient ssh, ILogger log) : IServiceCen
             if (error.Length > 0) throw new InvalidOperationException(error);
             if (command.ExitStatus != 0) throw new InvalidOperationException($"读取监听端口失败（exit={command.ExitStatus}）。");
         }
-        return ports;
+        return await ReadProcessPathsAsync(ports, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>按 PID 批量读取 /proc/&lt;pid&gt;/exe；查询失败不影响端口列表本身。</summary>
+    private async Task<IReadOnlyList<ListeningPort>> ReadProcessPathsAsync(IReadOnlyList<ListeningPort> ports, CancellationToken cancellationToken)
+    {
+        var pids = ports.Select(port => port.ProcessId)
+            .Where(pid => pid.Length > 0 && pid.All(char.IsAsciiDigit))
+            .Distinct(StringComparer.Ordinal)
+            .Take(512)
+            .ToArray();
+        if (pids.Length == 0) return ports;
+
+        try
+        {
+            var command = ssh.CreateCommand(BuildProcessPathCommand(pids));
+            command.CommandTimeout = TimeSpan.FromSeconds(20);
+            await command.ExecuteAsync(cancellationToken).ConfigureAwait(false);
+            var paths = ParseProcessPaths(command.Result ?? "");
+            if (paths.Count == 0) return ports;
+            return ports.Select(port => paths.TryGetValue(port.ProcessId, out var path) && !string.IsNullOrWhiteSpace(path)
+                ? port with { ProcessPath = path, ProcessName = string.IsNullOrWhiteSpace(port.ProcessName) ? ProcessNameFromPath(path) : port.ProcessName }
+                : port).ToArray();
+        }
+        catch (OperationCanceledException) { throw; }
+        catch { return ports; }   // 非 Linux、hidepid 或无权限时只缺路径，不让整个端口窗口失败。
+    }
+
+    /// <summary>只拼接已验证为纯数字的 PID，避免任何命令注入；最多 512 个，控制命令长度。</summary>
+    internal static string BuildProcessPathCommand(IEnumerable<string> processIds)
+    {
+        var pids = processIds
+            .Where(pid => !string.IsNullOrWhiteSpace(pid) && pid.All(char.IsAsciiDigit))
+            .Distinct(StringComparer.Ordinal)
+            .Take(512)
+            .ToArray();
+        if (pids.Length == 0) return "true";
+        return "for sx_pid in " + string.Join(' ', pids) + "; do " +
+               "sx_path=$(readlink /proc/$sx_pid/exe 2>/dev/null); " +
+               "if [ -z \"$sx_path\" ]; then sx_path=$(tr '\\0' ' ' < /proc/$sx_pid/cmdline 2>/dev/null); fi; " +
+               "if [ -z \"$sx_path\" ]; then sx_path=$(ps -p \"$sx_pid\" -o args= 2>/dev/null | head -n 1); fi; " +
+               "printf '%s\\t%s\\n' \"$sx_pid\" \"$sx_path\"; done";
+    }
+
+    /// <summary>解析“PID TAB 路径”输出；路径缺失的行直接忽略。</summary>
+    internal static IReadOnlyDictionary<string, string> ParseProcessPaths(string output)
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        var text = (output ?? "").Replace("\r\n", "\n").Replace('\r', '\n');
+        foreach (var raw in text.Split('\n'))
+        {
+            var line = raw.Trim();
+            if (line.Length == 0) continue;
+            var separator = line.IndexOf('\t');
+            if (separator <= 0) continue;
+            var pid = line[..separator].Trim();
+            var path = line[(separator + 1)..].Trim();
+            if (pid.Length == 0 || !pid.All(char.IsAsciiDigit) || path.Length == 0) continue;
+            result[pid] = path;
+        }
+        return result;
+    }
+
+    private static string ProcessNameFromPath(string path)
+    {
+        var text = path.Trim().TrimEnd('/');
+        var index = Math.Max(text.LastIndexOf('/'), text.LastIndexOf('\\'));
+        return index < 0 || index == text.Length - 1 ? text : text[(index + 1)..];
     }
 
     /// <summary>优先用 ss 的输出，ss 没有结果时回退到 netstat。</summary>

@@ -16,16 +16,16 @@ public sealed class PortUsageTests
     {
         public List<ListeningPort> Rows { get; } =
         [
-            new("TCP", "LISTEN", "0.0.0.0", 22, "sshd", "866", "LISTEN 0 128 0.0.0.0:22 …"),
-            new("TCP", "LISTEN", "127.0.0.1", 3306, "mysqld", "1234", "LISTEN 0 128 127.0.0.1:3306 …"),
-            new("UDP", "UNCONN", "0.0.0.0", 68, "dhclient", "700", "UNCONN 0 0 0.0.0.0:68 …")
+            new("TCP", "LISTEN", "0.0.0.0", 22, "sshd", "866", "LISTEN 0 128 0.0.0.0:22 …") { ProcessPath = "/usr/sbin/sshd" },
+            new("TCP", "LISTEN", "127.0.0.1", 3306, "mysqld", "1234", "LISTEN 0 128 127.0.0.1:3306 …") { ProcessPath = "/usr/sbin/mysqld" },
+            new("UDP", "UNCONN", "0.0.0.0", 68, "dhclient", "700", "UNCONN 0 0 0.0.0.0:68 …") { ProcessPath = "/sbin/dhclient" }
         ];
         public Task<IReadOnlyList<ListeningPort>> PortsAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<ListeningPort>>(Rows);
     }
 
     [Fact]
-    public async Task SearchMatchesPortProcessIdProcessNameAndAddress()
+    public async Task SearchMatchesPortProcessIdProcessNameAddressAndPath()
     {
         var vm = new PortUsageWindowViewModel(new FakeReader(), "测试 · 127.0.0.1:22");
         await vm.RefreshAsync();
@@ -44,10 +44,14 @@ public sealed class PortUsageTests
         vm.Search = "127.0.0.1";                             // 按地址
         Assert.Equal(3306, Assert.Single(vm.VisiblePorts).Port);
 
+        vm.Search = "/usr/sbin/mysqld";                    // 按进程路径
+        Assert.Equal(3306, Assert.Single(vm.VisiblePorts).Port);
+        Assert.Equal("/usr/sbin/mysqld", Assert.Single(vm.VisiblePorts).ProcessPathDisplay);
+
         vm.Search = "9999";
         Assert.Empty(vm.VisiblePorts);
         Assert.True(vm.HasEmptyText);
-        Assert.Equal("没有匹配的端口或进程 ID。", vm.EmptyText);
+        Assert.Equal("没有匹配的端口、PID 或进程路径。", vm.EmptyText);
     }
 
     [Fact]
@@ -83,7 +87,7 @@ public sealed class PortUsageTests
                 {
                     portsWindow.Show();
                     await Task.Delay(150);
-                    using var bitmap = new RenderTargetBitmap(new PixelSize(860, 560), new Vector(96, 96));
+                    using var bitmap = new RenderTargetBitmap(new PixelSize(1100, 580), new Vector(96, 96));
                     bitmap.Render(portsWindow);
                     bitmap.Save(Path.Combine(Path.GetDirectoryName(preview)!, "port-usage.png"), PngBitmapEncoderOptions.Default);
                     portsWindow.Close();

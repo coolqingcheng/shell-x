@@ -5,7 +5,7 @@ using ShellX.Core.Services;
 
 namespace ShellX.Desktop.Features.Ports;
 
-/// <summary>端口占用窗口：读取服务端监听端口，支持按端口号、进程 PID、进程名搜索。</summary>
+/// <summary>端口占用窗口：读取服务端监听端口，支持按端口号、进程 PID、进程名和进程路径搜索。</summary>
 public partial class PortUsageWindowViewModel(IPortUsageReader? reader, string target) : ObservableObject
 {
     private readonly List<ListeningPort> _all = [];
@@ -18,7 +18,7 @@ public partial class PortUsageWindowViewModel(IPortUsageReader? reader, string t
     private string _emptyText = "正在读取监听端口…";
     [ObservableProperty] private string _search = "";
     [ObservableProperty] private string _summary = "";
-    [ObservableProperty] private string _status = "支持按端口号、进程 PID 或进程名搜索。";
+    [ObservableProperty] private string _status = "支持按端口号、进程 PID、进程名或进程路径搜索。";
     [ObservableProperty] private string _statusColor = "#858585";
     [ObservableProperty] private bool _busy;
 
@@ -73,6 +73,6 @@ public partial class PortUsageWindowViewModel(IPortUsageReader? reader, string t
         Summary = _all.Count == 0 ? "" : $"共 {_all.Count} 个监听端口 · 匹配 {VisiblePorts.Count} 个";
         EmptyText = VisiblePorts.Count > 0
             ? ""
-            : _all.Count == 0 ? "没有读取到监听端口，该系统可能没有 ss / netstat。" : "没有匹配的端口或进程 ID。";
+            : _all.Count == 0 ? "没有读取到监听端口，该系统可能没有 ss / netstat。" : "没有匹配的端口、PID 或进程路径。";
     }
 }

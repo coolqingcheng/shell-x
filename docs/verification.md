@@ -485,6 +485,6 @@ bash: -c: line 21: syntax error near unexpected token `$'do\r''
   - ss：`LISTEN`→TCP、`UNCONN`→UDP，跳过表头与其他状态；`pid=(\\d+)` 取 PID，双引号内取进程名；`0.0.0.0:22`、`[::]:8080`、`*:631`、`:::80` 都按最后一个冒号切端口；
   - netstat：跳过说明/表头行，7 列取 `state + pid/prog`，6 列且第6列含 `/` 判为 UDP 行，`-` 或缺失置空；`1234/mysqld` 拆成 PID 与进程名；
   - 两段都按端口升序（同端口按协议）。
-- **UI**：`Features/Ports/PortUsageWindow`（标题 `端口占用 · 目标`，带版本号）+ `PortUsageWindowViewModel`：搜索框实时过滤端口/PID/进程名/地址、刷新按钮、计数摘要、底部权限说明（非 root 只能看到自己进程的 PID）；入口为终端工具栏服务图标旁的**插头图标**（`StrokeIcon ports`），未连接禁用，同一连接重复打开只激活，会话断开窗口自动关闭。
-- **测试**：`ServiceCenterTests` 新增 ss 解析（表头/无进程/IPv6/UDP）、netstat 解析（含 `-`、UDP6列）、`ParsePorts` 优先级与回退共3项；`PortUsageTests` 覆盖按端口/PID/进程名/地址搜索、无 reader 提示、工具栏入口与预览渲染；`WorkspaceTabTunnelTests` 覆盖删除确认（取消不删、确认才删）、未连接全部启动标记失败、面板存在全部启动与右上角小叉（DataTemplate 内的 `EditTunnelRule` 用视觉树断言，模板内名称不在视图 NameScope）。
-- **结果**：`dotnet build ShellX.slnx -c Release` 0 错误；无夹具全量 Core 49 / Infra 53（18 跳过） / Desktop 92（12 跳过） 全绿；预览渲染 `port-usage.png` 并核对了列宽（状态列 90→100 避免 UNCONN 被截断）。
+- **进程路径**：拿到 PID 后再执行一条白名单命令，按 PID 批量读取服务端 `/proc/PID/exe`，失败时依次回退 `cmdline` 与 `ps -o args=`；只允许纯数字 PID、最多 512 个，路径查询失败仅显示 `—`，不会让端口列表失败。进程名缺失时从路径末段补齐。\n- **UI**：`Features/Ports/PortUsageWindow`（标题 `端口占用 · 目标`，带版本号）+ `PortUsageWindowViewModel`：搜索框实时过滤端口/PID/进程名/进程路径/地址、刷新按钮、计数摘要、底部权限说明（非 root 或无权限时 PID、进程名或路径可能显示 `—`）；列表包含进程名称与进程路径两列；入口为终端工具栏服务图标旁的**插头图标**（`StrokeIcon ports`），未连接禁用，同一连接重复打开只激活，会话断开窗口自动关闭。
+- **测试**：`ServiceCenterTests` 新增 ss 解析（表头/无进程/IPv6/UDP）、netstat 解析（含 `-`、UDP6列）、`ParsePorts` 优先级与回退共3项；`PortUsageTests` 覆盖按端口/PID/进程名/路径/地址搜索、无 reader 提示、工具栏入口与预览渲染；`WorkspaceTabTunnelTests` 覆盖删除确认（取消不删、确认才删）、未连接全部启动标记失败、面板存在全部启动与右上角小叉（DataTemplate 内的 `EditTunnelRule` 用视觉树断言，模板内名称不在视图 NameScope）。
+- **结果**：`dotnet build ShellX.slnx -c Release` 0 错误（仅既有 UpdateManagerTests xUnit1051 警告）；无夹具全量 Core 49 / Infra 54（18 跳过） / Desktop 92（12 跳过） 全绿，共 195 通过；预览渲染 `port-usage.png` 并核对了进程名称、进程路径列与列宽（状态列 90→100 避免 UNCONN 被截断）。

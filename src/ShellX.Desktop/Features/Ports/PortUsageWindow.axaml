@@ -1,16 +1,16 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:ShellX.Desktop.Features.Ports" xmlns:core="using:ShellX.Core.Services"
         x:Class="ShellX.Desktop.Features.Ports.PortUsageWindow" x:DataType="vm:PortUsageWindowViewModel"
-        Title="端口占用" Width="860" Height="560" MinWidth="700" MinHeight="400"
+        Title="端口占用" Width="1100" Height="580" MinWidth="900" MinHeight="420"
         WindowStartupLocation="CenterOwner" Background="{DynamicResource AppBackground}">
   <Grid RowDefinitions="Auto,*,Auto">
     <Border Background="{DynamicResource HeaderBackground}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1" Padding="14,9">
-      <Grid ColumnDefinitions="*,260,Auto" ColumnSpacing="10">
+      <Grid ColumnDefinitions="*,340,Auto" ColumnSpacing="10">
         <StackPanel Spacing="2">
           <TextBlock Text="端口占用" FontSize="14" VerticalAlignment="Center" />
           <TextBlock Text="{Binding Target}" FontSize="10" Foreground="{DynamicResource MutedForeground}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Target}" />
         </StackPanel>
-        <TextBox Grid.Column="1" Text="{Binding Search, Mode=TwoWay}" PlaceholderText="搜索端口、PID 或进程名…" VerticalAlignment="Center" Padding="8,5" />
+        <TextBox Grid.Column="1" Text="{Binding Search, Mode=TwoWay}" PlaceholderText="搜索端口、PID、进程名或路径…" VerticalAlignment="Center" Padding="8,5" />
         <Button Grid.Column="2" Content="刷新" Command="{Binding RefreshCommand}" VerticalAlignment="Center" />
       </Grid>
     </Border>
@@ -18,14 +18,15 @@
     <Grid Grid.Row="1" Margin="8,6">
       <DataGrid x:Name="PortGrid" ItemsSource="{Binding VisiblePorts}" IsReadOnly="True" AutoGenerateColumns="False"
                 SelectionMode="Single" CanUserSortColumns="True" GridLinesVisibility="Horizontal" HeadersVisibility="Column"
-                FontSize="12" RowHeight="28" HorizontalScrollBarVisibility="Disabled">
+                FontSize="12" RowHeight="30" HorizontalScrollBarVisibility="Auto">
         <DataGrid.Columns>
           <DataGridTextColumn Header="端口" Binding="{Binding PortText}" Width="90" SortMemberPath="Port" />
           <DataGridTextColumn Header="协议" Binding="{Binding Protocol}" Width="70" SortMemberPath="Protocol" />
-          <DataGridTextColumn Header="状态" Binding="{Binding State}" Width="100" SortMemberPath="State" />
+          <DataGridTextColumn Header="状态" Binding="{Binding State}" Width="110" SortMemberPath="State" />
           <DataGridTextColumn Header="本地地址" Binding="{Binding Address}" Width="170" SortMemberPath="Address" />
-          <DataGridTextColumn Header="进程" Binding="{Binding ProcessDisplay}" Width="180" SortMemberPath="ProcessName" />
-          <DataGridTextColumn Header="PID" Binding="{Binding PidDisplay}" Width="90" SortMemberPath="ProcessId" />
+          <DataGridTextColumn Header="进程名称" Binding="{Binding ProcessDisplay}" Width="140" SortMemberPath="ProcessName" />
+          <DataGridTextColumn Header="PID" Binding="{Binding PidDisplay}" Width="80" SortMemberPath="ProcessId" />
+          <DataGridTextColumn Header="进程路径" Binding="{Binding ProcessPathDisplay}" Width="*" SortMemberPath="ProcessPath" />
         </DataGrid.Columns>
       </DataGrid>
       <TextBlock Text="{Binding EmptyText}" IsVisible="{Binding HasEmptyText}" HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -36,7 +37,7 @@
       <Grid RowDefinitions="Auto,Auto">
         <TextBlock Text="{Binding Status}" Foreground="{Binding StatusColor}" FontSize="11" TextWrapping="Wrap" MaxHeight="34"
                    TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Status}" />
-        <TextBlock Grid.Row="1" Text="端口与 PID 来自服务端 ss / netstat；非 root 只能看到自己进程的 PID，其余显示“—”。" FontSize="10"
+        <TextBlock Grid.Row="1" Text="进程名称来自 ss / netstat，进程路径来自服务端 /proc/PID/exe；非 root 或无权限时 PID、进程名或路径可能显示“—”。" FontSize="10"
                    Foreground="{DynamicResource MutedForeground}" TextWrapping="Wrap" Margin="0,4,0,0" />
       </Grid>
     </Border>
