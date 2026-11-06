@@ -488,3 +488,15 @@ bash: -c: line 21: syntax error near unexpected token `$'do\r''
 - **进程路径**：拿到 PID 后再执行一条白名单命令，按 PID 批量读取服务端 `/proc/PID/exe`，失败时依次回退 `cmdline` 与 `ps -o args=`；只允许纯数字 PID、最多 512 个，路径查询失败仅显示 `—`，不会让端口列表失败。进程名缺失时从路径末段补齐。\n- **UI**：`Features/Ports/PortUsageWindow`（标题 `端口占用 · 目标`，带版本号）+ `PortUsageWindowViewModel`：搜索框实时过滤端口/PID/进程名/进程路径/地址、刷新按钮、计数摘要、底部权限说明（非 root 或无权限时 PID、进程名或路径可能显示 `—`）；列表包含进程名称与进程路径两列；入口为终端工具栏服务图标旁的**插头图标**（`StrokeIcon ports`），未连接禁用，同一连接重复打开只激活，会话断开窗口自动关闭。
 - **测试**：`ServiceCenterTests` 新增 ss 解析（表头/无进程/IPv6/UDP）、netstat 解析（含 `-`、UDP6列）、`ParsePorts` 优先级与回退共3项；`PortUsageTests` 覆盖按端口/PID/进程名/路径/地址搜索、无 reader 提示、工具栏入口与预览渲染；`WorkspaceTabTunnelTests` 覆盖删除确认（取消不删、确认才删）、未连接全部启动标记失败、面板存在全部启动与右上角小叉（DataTemplate 内的 `EditTunnelRule` 用视觉树断言，模板内名称不在视图 NameScope）。
 - **结果**：`dotnet build ShellX.slnx -c Release` 0 错误（仅既有 UpdateManagerTests xUnit1051 警告）；无夹具全量 Core 49 / Infra 54（18 跳过） / Desktop 92（12 跳过） 全绿，共 195 通过；预览渲染 `port-usage.png` 并核对了进程名称、进程路径列与列宽（状态列 90→100 避免 UNCONN 被截断）。
+
+## Xshell 会话导入（2026-11-07）
+
+- **入口**：连接管理器底部新增 `从 Xshell 导入…`，与 `导出配置…` 并列；文件选择器支持一次多选 `*.xsh`，并优先打开本机 `Documents\NetSarang Computer\版本\Xshell\Sessions` 目录。
+- **解析**：新增 `ShellX.Core.Connections.XshellSessionImporter`。按节解析 `[CONNECTION]`、`[CONNECTION:SSH]`、`[CONNECTION:AUTHENTICATION]`，仅接受 `Protocol=SSH`，读取主机、端口、账号、`InitRemoteDirectory`；支持 UTF-16LE/BE、UTF-8 BOM、无 BOM UTF-16 与严格 UTF-8，旧 ANSI 至少保留 ASCII 主机/账号字段。
+- **私钥**：`UserKey` 且 `AuthMethodList` 包含 `11` 时，依次查找会话目录、`~/.ssh` 和 `Documents\NetSarang Computer\*\Xshell\Profiles\*\Keys`；找到才切换为私钥认证，找不到保持密码认证，等待用户在连接编辑器选择。
+- **安全**：解析时显式跳过 `.xsh` 的 `Password=`、`Passphrase=`，不写入 `ConnectionSecret`，导入结果 `RememberSecret=false`；导入摘要与按钮悬浮提示都明确说明不会导入密码。
+- **分组与去重**：选中最底层文件夹时导入该文件夹，否则进入 `Xshell` 分组；按 `主机 + 端口 + 账号` 对现有连接和同批文件去重，重复项不重复创建。导入完成后自动选中目标文件夹并清空搜索。
+- **失败处理**：非 SSH、端口无效、缺少 `[CONNECTION]`、文件损坏等情况按文件单独报告，其余有效会话继续导入；全部失败时不修改配置。
+- **实机解析**：对本机 Xshell 8 的两个 UTF-16LE `.xsh` 样例实际执行解析：`183.66.27.19.xsh` → `183.66.27.19:30436/root/密码认证`，`iot99.xiaolab.cn.xsh` → `iot99.xiaolab.cn:22/root/私钥认证`，私钥正确解析到 `~/.ssh/id_ed25519`；未连接任何服务器，也未解析或输出密码字段。
+- **测试**：Core 新增 `XshellSessionImporterTests` 4 项（字段解析、私钥回退、UTF-16 文件、协议/端口拒绝与跨节键忽略）；Desktop 新增导入流程测试，覆盖入口绑定、首次导入、自动选中 `Xshell`、密码忽略、重复导入不新增。
+- **结果**：`dotnet build ShellX.slnx -c Release` 0 错误（仅既有 UpdateManagerTests xUnit1051 警告）；全量 Core 53 / Infra 54（18 跳过） / Desktop 93（12 跳过）全绿，共 200 通过、30 跳过、0 失败。连接管理器预览重新渲染到 `docs/images/connection-manager.png` 并核对了导入/导出按钮与 Xshell 分组。

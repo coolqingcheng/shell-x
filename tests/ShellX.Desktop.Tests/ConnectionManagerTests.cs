@@ -41,6 +41,7 @@ public sealed class ConnectionManagerTests
             await vm.InitializeAsync(); vm.Search = "missing"; await Task.Delay(60);
             Assert.Empty(vm.VisibleConnections);
             var export = view.FindControl<Button>("ExportConfiguration")!; Assert.Same(vm.ExportConfigurationCommand, export.Command);
+            Assert.Same(vm.ImportXshellSessionsCommand, view.FindControl<Button>("ImportXshellSessions")!.Command);
             Assert.Same(vm.SettingsCommand, view.FindControl<Button>("ManagerSettings")!.Command);
             Click(window, export); await Until(() => dialogs.Information.Count == 1);
             using var json = JsonDocument.Parse(await File.ReadAllTextAsync(dialogs.ExportPath));
@@ -50,6 +51,47 @@ public sealed class ConnectionManagerTests
             dialogs.ExportPath = null; await vm.ExportConfigurationCommand.ExecuteAsync(null); Assert.Single(dialogs.Information);
             dialogs.ExportPath = root; await vm.ExportConfigurationCommand.ExecuteAsync(null);
             Assert.Contains(dialogs.Errors, e => e.StartsWith("导出失败"));
+        }
+        finally { await vm.ShutdownAsync(); window.Close(); Directory.Delete(root, true); }
+    }
+    [AvaloniaFact]
+    public async Task ImportsXshellSessionsOnceSelectsXshellFolderAndNeverImportsPasswords()
+    {
+        var root = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "shellx-xsh-ui-" + Guid.NewGuid().ToString("N"))).FullName;
+        var store = new JsonConnectionRepository(new(root));
+        var sessionPath = Path.Combine(root, "iot99.xiaolab.cn.xsh");
+        var content = string.Join('\n',
+            "[SessionInfo]", "Version=8.1",
+            "[CONNECTION]", "Host=iot99.xiaolab.cn", "Port=22", "Protocol=SSH",
+            "[CONNECTION:AUTHENTICATION]", "AuthMethodList=01", "UserKey=", "UserName=root", "Password=应被忽略");
+        File.WriteAllText(sessionPath, content, System.Text.Encoding.Unicode);
+
+        var dialogs = new Dialogs { XshellPaths = [sessionPath] };
+        var vm = Model(root, store, dialogs);
+        var view = new ConnectionManagerView { DataContext = vm };
+        var window = new Window { Content = view, Width = 900, Height = 620 };
+        window.Show();
+        try
+        {
+            await vm.InitializeAsync();
+            await vm.ImportXshellSessionsCommand.ExecuteAsync(null);
+            await Until(() => dialogs.Information.Count == 1);
+
+            var imported = Assert.Single(await store.LoadAsync());
+            Assert.Equal("iot99.xiaolab.cn", imported.Host);
+            Assert.Equal(XshellSessionImporter.DefaultGroup, imported.Group);
+            Assert.Equal(AuthenticationKind.Password, imported.Authentication);
+            Assert.False(imported.RememberSecret);
+            Assert.Equal("Xshell", vm.SelectedGroup!.Name);
+            Assert.Equal(imported.Id, Assert.Single(vm.VisibleConnections).Id);
+            Assert.Contains("已从 Xshell 导入 1 个连接", vm.Status);
+            Capture(window, "connection-manager.png");
+            Assert.Contains("不会解析或导入密码", dialogs.Information.Single());
+
+            await vm.ImportXshellSessionsCommand.ExecuteAsync(null);
+            await Until(() => dialogs.Information.Count == 2);
+            Assert.Single(await store.LoadAsync());   // 相同 endpoint 再次导入只保留一个
+            Assert.Contains("跳过重复 1 个", dialogs.Information[1]);
         }
         finally { await vm.ShutdownAsync(); window.Close(); Directory.Delete(root, true); }
     }
@@ -272,6 +314,7 @@ public sealed class ConnectionManagerTests
     private sealed class Dialogs : IDialogService
     {
         public string? ExportPath { get; set; }
+        public List<string> XshellPaths { get; set; } = [];
         public List<string> Information { get; } = [];
         public Queue<string> Prompts { get; } = [];
         public List<string> Errors { get; } = [];
@@ -281,6 +324,7 @@ public sealed class ConnectionManagerTests
         public Task<string?> PromptAsync(string title, string label, string value = "", bool secret = false) => Task.FromResult<string?>(Prompts.Dequeue());
         public Task<IReadOnlyList<string>> PickUploadAsync() => Task.FromResult<IReadOnlyList<string>>([]);
         public Task<string?> PickDownloadAsync(string name) => Task.FromResult(ExportPath);
+        public Task<IReadOnlyList<string>> PickXshellSessionsAsync() => Task.FromResult<IReadOnlyList<string>>(XshellPaths);
         public Task ShowInformationAsync(string title, string message) { Information.Add(message); return Task.CompletedTask; }
         public Task EditFileAsync(TextDocument document, Func<TextDocument, string, Task<TextDocument>> save) => Task.CompletedTask;
         public Task<int?> PermissionsAsync(RemoteEntry entry) => Task.FromResult<int?>(null);

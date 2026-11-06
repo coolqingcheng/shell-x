@@ -235,6 +235,32 @@ public sealed class DialogService(ITextCodec codec, AppLockService? appLock = nu
     }
     public async Task<string?> PickDownloadAsync(string name)
         => (await Owner.StorageProvider.SaveFilePickerAsync(new() { Title = "下载文件", SuggestedFileName = name, ShowOverwritePrompt = true }))?.TryGetLocalPath();
+    public async Task<IReadOnlyList<string>> PickXshellSessionsAsync()
+    {
+        var startFolder = FindXshellSessionsDirectory();
+        using var location = startFolder == null
+            ? null
+            : await DialogOwner.StorageProvider.TryGetFolderFromPathAsync(startFolder);
+        var files = await DialogOwner.StorageProvider.OpenFilePickerAsync(new()
+        {
+            Title = "选择 Xshell 会话文件",
+            AllowMultiple = true,
+            SuggestedStartLocation = location,
+            FileTypeFilter = [new FilePickerFileType("Xshell 会话（*.xsh）") { Patterns = ["*.xsh"] }]
+        });
+        return files.Select(file => file.TryGetLocalPath()).OfType<string>().ToArray();
+    }
+
+    private static string? FindXshellSessionsDirectory()
+    {
+        var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "NetSarang Computer");
+        if (!Directory.Exists(root)) return null;
+        return Directory.EnumerateDirectories(root)
+            .Select(version => Path.Combine(version, "Xshell", "Sessions"))
+            .Where(Directory.Exists)
+            .OrderByDescending(Directory.GetLastWriteTimeUtc)
+            .FirstOrDefault();
+    }
     public async Task<string?> PickConfigurationExportAsync()
         => (await DialogOwner.StorageProvider.SaveFilePickerAsync(new()
         {

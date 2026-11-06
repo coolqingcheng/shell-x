@@ -159,6 +159,69 @@ public partial class MainWindowViewModel : ObservableObject
         }
         catch (Exception ex) { await _dialogs.ShowErrorAsync("导出失败：\n" + ex.Message); }
     }
+    [RelayCommand]
+    private async Task ImportXshellSessionsAsync()
+    {
+        if (_applicationLock.IsLocked || !_configurationLoaded) return;
+        try
+        {
+            var paths = await _dialogs.PickXshellSessionsAsync();
+            if (paths.Count == 0 || _applicationLock.IsLocked) return;
+
+            // 选中了最底层文件夹就导入到那里，否则统一放进 Xshell 文件夹，避免混入现有分组。
+            var group = SelectedGroup is { Path.Length: > 0, Children.Count: 0 } folder
+                ? folder.Path
+                : XshellSessionImporter.DefaultGroup;
+            var parsed = new List<ConnectionProfile>();
+            var failures = new List<string>();
+            var selectedDuplicates = 0;
+            var seen = new HashSet<ConnectionEndpoint>();
+            foreach (var path in paths.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var profile = XshellSessionImporter.ParseFile(path) with { Group = ConnectionFolders.Normalize(group) };
+                    profile.Validate();
+                    if (seen.Add(ConnectionEndpoint.From(profile))) parsed.Add(profile);
+                    else selectedDuplicates++;
+                }
+                catch (Exception ex) { failures.Add($"{Path.GetFileName(path)}：{ex.Message}"); }
+            }
+
+            if (parsed.Count == 0)
+            {
+                Status = "Xshell 导入失败";
+                var detail = failures.Count == 0 ? "所选会话与现有连接重复。" : string.Join('\n', failures);
+                await _dialogs.ShowErrorAsync("没有导入任何 Xshell 连接。\n" + detail);
+                return;
+            }
+
+            var added = 0;
+            var duplicates = selectedDuplicates;
+            await CommitCatalogAsync(catalog =>
+            {
+                var known = catalog.Connections.Select(ConnectionEndpoint.From).ToHashSet();
+                var additions = parsed.Where(profile => known.Add(ConnectionEndpoint.From(profile))).ToArray();
+                added = additions.Length;
+                duplicates += parsed.Count - additions.Length;
+                if (added == 0) return catalog;
+                return catalog with
+                {
+                    Connections = [.. catalog.Connections, .. additions],
+                    Folders = [.. catalog.Folders, ConnectionFolders.Normalize(group)]
+                };
+            });
+
+            SelectedGroup = FindFolder(ConnectionFolders.Normalize(group));
+            Search = "";
+            Status = added > 0 ? $"已从 Xshell 导入 {added} 个连接" : "Xshell 会话均为重复连接";
+            var summary = $"新增 {added} 个连接，跳过重复 {duplicates} 个。";
+            if (failures.Count > 0) summary += $"\n未导入 {failures.Count} 个文件：\n" + string.Join('\n', failures);
+            summary += "\n\n已导入密码认证的会话仍会在首次连接时要求输入密码；不会解析或导入密码，Xshell 文件中的 Password / Passphrase 字段会被跳过。";
+            await _dialogs.ShowInformationAsync(added > 0 ? "Xshell 导入完成" : "Xshell 导入完成", summary);
+        }
+        catch (Exception ex) { await _dialogs.ShowErrorAsync("Xshell 导入失败：\n" + ex.Message); }
+    }
     public ConnectionGroupViewModel? FindFolder(string path)
     {
         ConnectionGroupViewModel? Find(IEnumerable<ConnectionGroupViewModel> nodes)
