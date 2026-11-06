@@ -456,3 +456,9 @@ bash: -c: line 21: syntax error near unexpected token `$'do\r''
   - 迁移两处“文件面板在主窗口内”的夹具测试：`DualPaneTransfersUseVisibleDirectoriesAndRespectOverwrite`（改为对弹出窗口做 1050/1380 宽度断言，双栏预览改渲染弹出窗口）与 `NativeTerminalRendersAnsiAndChineseAndSurvivesTabSwitch`（本地面板改在弹出窗口中接收 Ctrl+滚轮，继续断言终端字号不受影响）；两者 `finally` 会关闭全部 `OwnedWindows`。
   - 无夹具全量：Core 49 / Infra 50 / Desktop 85 全绿；带夹具全量：Desktop 95 过 / 2 失败、Infra 67 过 / 1 失败——3 项均为既有问题（`ConnectionTestTests` 在改动前 HEAD 可复现，`McpLogLayoutTests`、`MultipleListenersToOneTarget…` 为并行偶发、单独重跑通过），**DualPane 与 NativeTerminal 两个被迁移的测试均通过**。
 - **截图**：`file-manager-window.png`（独立窗口双栏）、`workspace-dark.png`（主窗口 = 监控 + 终端 + 命令）、`dual-pane-layout-preview.png`（弹出窗口内的双栏布局）。
+## 锁屏密码框禁用输入法（2026-11-06）
+
+- 反馈：锁屏密码框的输入法状态不对——密码输入不应处于中文输入法状态（默认应是英文直输）。
+- 处理：`SecretTextBox` 构造中调用 `InputMethod.SetIsInputMethodEnabled(this, false)`。它是所有密码框的基类控件（`LockScreen.UnlockPassword`、设置页的当前/新/确认锁定密码、`DialogService` 里的密码与私钥口令输入），因此一处生效、全部覆盖：中文 IME 不再接管按键、不弹候选窗、不转全角，剪贴板粘贴与自动化输入不受影响。
+- 测试：`SecretTextBoxTests.PasswordBoxesNeverUseInputMethod` 断言 `SecretTextBox` 与锁屏 `UnlockPassword` 的 `InputMethod.GetIsInputMethodEnabled` 均为 `false`。
+- 边界：IME 行为发生在操作系统层，单测只能断言属性已置位；实际输入法状态需在 Windows 上人工确认。密码含 CJK 字符时仍可粘贴（IME 已禁用，无法逐字组词输入）。

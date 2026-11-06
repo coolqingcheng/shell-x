@@ -2,13 +2,19 @@ using Avalonia.Automation;
 using Avalonia.Automation.Peers;
 using Avalonia.Automation.Provider;
 using Avalonia.Controls;
+using Avalonia.Input;
 
 namespace ShellX.Desktop.Controls;
 
 public sealed class SecretTextBox : TextBox
 {
     protected override Type StyleKeyOverride => typeof(TextBox);
-    public SecretTextBox() { PasswordChar = '●'; }
+    public SecretTextBox()
+    {
+        PasswordChar = '●';
+        // 密码输入用不到输入法：禁用 IME，中文输入法下也不弹候选窗、不转全角，密码始终按英文/ASCII 直接输入（剪贴板粘贴不受影响）。
+        InputMethod.SetIsInputMethodEnabled(this, false);
+    }
     protected override AutomationPeer OnCreateAutomationPeer() => new SecretPeer(this);
     private sealed class SecretPeer(SecretTextBox owner) : ControlAutomationPeer(owner), IValueProvider
     {
