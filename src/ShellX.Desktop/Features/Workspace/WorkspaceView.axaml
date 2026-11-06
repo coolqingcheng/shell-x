@@ -1,5 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:ShellX.Desktop.Features.Workspace" x:DataType="vm:WorkspaceTabViewModel"
-             xmlns:controls="using:ShellX.Desktop.Controls" xmlns:files="using:ShellX.Desktop.Features.FileBrowser"
+             xmlns:controls="using:ShellX.Desktop.Controls"
              xmlns:commands="using:ShellX.Desktop.Features.Commands"
              xmlns:tunnels="using:ShellX.Desktop.Features.Tunnels" x:Class="ShellX.Desktop.Features.Workspace.WorkspaceView">
   <UserControl.Styles>
@@ -28,7 +28,7 @@
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
               <Ellipse Width="7" Height="7" Fill="{Binding StatusColor}" VerticalAlignment="Center" />
               <TextBlock Text="{Binding Status}" Foreground="{DynamicResource SecondaryForeground}" FontSize="10" VerticalAlignment="Center" MaxWidth="180" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Status}" />
-              <Button x:Name="TunnelButton" Classes="flat" Foreground="{Binding TunnelStatusColor}" Command="{Binding ToggleTunnelsCommand}" ToolTip.Tip="{Binding TunnelTooltip}" Padding="6,3"><controls:StrokeIcon Symbol="tunnel" Width="18" Height="18" Foreground="{Binding TunnelStatusColor}" /></Button><Button Name="ToolbarServicesButton" Classes="flat" Padding="6,3" Click="OpenServices" IsEnabled="{Binding IsConnected}" ToolTip.Tip="查看服务器服务（systemctl）"><controls:StrokeIcon Symbol="service" Width="18" Height="18" /></Button>
+              <Button x:Name="TunnelButton" Classes="flat" Foreground="{Binding TunnelStatusColor}" Command="{Binding ToggleTunnelsCommand}" ToolTip.Tip="{Binding TunnelTooltip}" Padding="6,3"><controls:StrokeIcon Symbol="tunnel" Width="18" Height="18" Foreground="{Binding TunnelStatusColor}" /></Button><Button Name="ToolbarServicesButton" Classes="flat" Padding="6,3" Click="OpenServices" IsEnabled="{Binding IsConnected}" ToolTip.Tip="查看服务器服务（systemctl）"><controls:StrokeIcon Symbol="service" Width="18" Height="18" /></Button><Button Name="OpenFileManagerButton" Classes="flat" Padding="6,3" Click="OpenFileManager" ToolTip.Tip="打开文件管理器（独立窗口）"><controls:StrokeIcon Symbol="folder" Width="18" Height="18" /></Button>
               <Button Classes="flat" Command="{Binding ReconnectCommand}" ToolTip.Tip="重新连接" IsEnabled="{Binding !IsConnecting}" Padding="6,3"><controls:StrokeIcon Symbol="refresh" Width="18" Height="18" /></Button>
               <Button Classes="flat" Command="{Binding DisconnectCommand}" ToolTip.Tip="断开连接" Padding="6,3"><controls:StrokeIcon Symbol="power" Width="18" Height="18" /></Button>
               <Button Classes="flat" Command="{Binding ToggleMaximizeTerminalCommand}" ToolTip.Tip="最大化 / 还原终端" Padding="6,3"><controls:StrokeIcon Symbol="maximize" Width="18" Height="18" /></Button>
@@ -66,7 +66,6 @@
       <GridSplitter x:Name="WorkspaceSplitter" Grid.Row="1" ResizeDirection="Rows" Background="{DynamicResource RaisedBackground}" DragCompleted="WorkspaceSplitterDragCompleted" />
       <TabControl Grid.Row="2" SelectedIndex="{Binding LowerTabIndex, Mode=TwoWay}" Background="{DynamicResource AppBackground}" Padding="0">
         <TabControl.Styles><Style Selector="TabItem"><Setter Property="FontSize" Value="12" /><Setter Property="Padding" Value="14,5" /><Setter Property="MinHeight" Value="28" /></Style></TabControl.Styles>
-        <TabItem Header="文件"><files:FileBrowserView DataContext="{Binding Files}" /></TabItem>
         <TabItem Header="命令"><commands:CommandPanelView DataContext="{Binding Commands}" /></TabItem>
       </TabControl>
     </Grid>

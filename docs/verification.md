@@ -446,3 +446,13 @@ bash: -c: line 21: syntax error near unexpected token `$'do\r''
 - **真实服务器只读联调**：用 `~/.ssh/id_ed25519` 连接 `iot99.xiaolab.cn`（未执行任何 start/stop 等写操作），`ListAsync` 返回 **132 个服务**，列正确（如 `aliyun.service | active / running | enabled | Aliyun Assist`、`apparmor.service | active / exited | enabled`）；`StatusAsync("ssh.service")` 返回完整 `systemctl status` 详情（Loaded/Active/Main PID/Memory）。
 - 预览截图：`SHELLX_PREVIEW_PATH` 渲染 `service-status.png`，核对了列宽（“开机”列由 90 调到 118 避免 enabled 被截断）、状态着色、操作按钮与详情区。
 - 带夹具**全量**（三个测试程序集并行）出现 3 项失败，均与本次改动无关，并已在改动前的 HEAD worktree（v1.0.8）上复现同样结果：`SshIntegrationTests.MultipleListenersToOneTarget…`（精确连接数 + 11 秒等待，受并行负载影响，**Infrastructure 单独运行 68/68 全过**）、`ConnectionTestTests.NewConnectionCanTest…`（HEAD 同样失败）、`WorkspaceTests.RightClickEdits…`（单独重跑通过，偶发）。
+## 文件管理器改为独立窗口（2026-11-06）
+
+- **入口**：终端工具栏在 `⇄`（端口转发）与服务图标旁新增文件夹按钮 `OpenFileManagerButton` → `Click="OpenFileManager"`；未连接也可打开（本地目录仍可浏览）。点击弹出**独立窗口**：`Window` + `Show(owner)` 非模态，标题为 `文件管理 · 标签名 · 主机`（附版本号），内容是 `new FileBrowserView { DataContext = tab.Files }`——**复用同一个 VM**，路径、选中、传输任务、本地/远程分栏全部保留；同一连接重复点击只激活已有窗口；`WorkspaceTabViewModel.Disposed`（标签关闭）时窗口一并关闭。
+- **主窗口**：移除下方“文件”标签页，只保留“命令”，`xmlns:files` 一并清理，纵向空间让给终端；`LowerTabIndex` 仍绑定唯一标签，目录树回调里的 `LowerTabIndex = 0` 无副作用。
+- **拖拽不掉**：`FileDragDrop.Attach` 挂在 `Local/RemoteFileBrowserView` 自身，随控件进入新窗口，从 Windows 资源管理器拖入仍可用；`F5/F2/Delete/Alt+↑` 键绑定同样随视图迁移。
+- **测试**：
+  - 新增 `FileManagerWindowTests.ToolbarOpensFileManagerInItsOwnWindowAndMainViewNoLongerEmbedsIt`：入口存在且未连接可用、主窗口内不含 `FileBrowserView`、点击后唯一 `OwnedWindow` 的 DataContext 等于 `tab.Files`、重复点击不重复开、关闭后清空，并渲染 `file-manager-window.png`。
+  - 迁移两处“文件面板在主窗口内”的夹具测试：`DualPaneTransfersUseVisibleDirectoriesAndRespectOverwrite`（改为对弹出窗口做 1050/1380 宽度断言，双栏预览改渲染弹出窗口）与 `NativeTerminalRendersAnsiAndChineseAndSurvivesTabSwitch`（本地面板改在弹出窗口中接收 Ctrl+滚轮，继续断言终端字号不受影响）；两者 `finally` 会关闭全部 `OwnedWindows`。
+  - 无夹具全量：Core 49 / Infra 50 / Desktop 85 全绿；带夹具全量：Desktop 95 过 / 2 失败、Infra 67 过 / 1 失败——3 项均为既有问题（`ConnectionTestTests` 在改动前 HEAD 可复现，`McpLogLayoutTests`、`MultipleListenersToOneTarget…` 为并行偶发、单独重跑通过），**DualPane 与 NativeTerminal 两个被迁移的测试均通过**。
+- **截图**：`file-manager-window.png`（独立窗口双栏）、`workspace-dark.png`（主窗口 = 监控 + 终端 + 命令）、`dual-pane-layout-preview.png`（弹出窗口内的双栏布局）。

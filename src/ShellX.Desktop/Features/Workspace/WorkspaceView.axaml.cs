@@ -3,7 +3,9 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using System.ComponentModel;
 using ShellX.Core.Settings;
+using ShellX.Desktop.Features.FileBrowser;
 using ShellX.Desktop.Features.Services;
+using ShellX.Desktop.Services;
 using ShellX.Desktop.Features.Shell;
 
 namespace ShellX.Desktop.Features.Workspace;
@@ -15,6 +17,7 @@ public partial class WorkspaceView : UserControl
     private bool _maximized;
     private MainWindowViewModel? _layoutVm;
     private ServiceWindow? _serviceWindow;
+    private Window? _fileWindow;
     public WorkspaceView()
     {
         InitializeComponent();
@@ -29,8 +32,12 @@ public partial class WorkspaceView : UserControl
         _vm = DataContext as WorkspaceTabViewModel;
         if (_vm != null) { _vm.PropertyChanged += VmChanged; _vm.Disposed += VmDisposed; UpdateLayoutMode(); AttachLayout(); }
     }
-    // 标签被关闭时会话已经释放，同步关掉该连接的服务窗口。
-    private void VmDisposed(object? sender, EventArgs e) => _serviceWindow?.Close();
+    // 标签被关闭时会话已经释放，同步关掉该连接的服务窗口与文件管理器窗口。
+    private void VmDisposed(object? sender, EventArgs e)
+    {
+        _serviceWindow?.Close();
+        _fileWindow?.Close();
+    }
     private void VmChanged(object? sender, PropertyChangedEventArgs e)
     { if (e.PropertyName == nameof(WorkspaceTabViewModel.IsTerminalMaximized)) UpdateLayoutMode(); }
     private void AttachLayout()
@@ -113,6 +120,24 @@ public partial class WorkspaceView : UserControl
         _serviceWindow.Closed += (_, _) => _serviceWindow = null;
         if (TopLevel.GetTopLevel(this) is Window owner) _serviceWindow.Show(owner);
         else _serviceWindow.Show();
+    }
+    private void OpenFileManager(object? sender, RoutedEventArgs e)
+    {
+        if (_vm is not { Files: var files } vm) return;
+        if (_fileWindow is { IsVisible: true }) { _fileWindow.Activate(); return; }
+        if (TopLevel.GetTopLevel(this) is not Window owner) return;
+        var window = new Window
+        {
+            Title = $"文件管理 · {vm.Name} · {vm.Profile.Host}",
+            Width = 1180, Height = 760, MinWidth = 780, MinHeight = 460,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Icon = owner.Icon,
+            Content = new FileBrowserView { DataContext = files }
+        };
+        WindowTitles.ApplyVersion(window);
+        _fileWindow = window;
+        window.Closed += (_, _) => _fileWindow = null;
+        window.Show(owner);
     }
     private async void CopyTerminal(object? sender, RoutedEventArgs e) => await Terminal.CopyAsync();
     private async void PasteTerminal(object? sender, RoutedEventArgs e) => await Terminal.PasteAsync();

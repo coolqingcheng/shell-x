@@ -10,6 +10,7 @@ using Avalonia.VisualTree;
 using Avalonia.Media.Imaging;
 using Avalonia.Media;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Iciclecreek.Terminal;
 using Microsoft.Extensions.Logging.Abstractions;
 using ShellX.Core.Connections;
@@ -200,10 +201,14 @@ public sealed class WorkspaceTests
             Assert.StartsWith("25%", selected.Monitor.MemoryText);
             var process = selected.Monitor.Processes.Single(p => p.Pid == 123);
             Assert.Equal("0.1%", process.MemoryPercent); Assert.Contains("10 MiB", process.Description);
-            var browser = window.GetVisualDescendants().OfType<FileBrowserView>().Single();
+            var filesWorkspace = window.GetVisualDescendants().OfType<WorkspaceView>().Single(view => ReferenceEquals(view.DataContext, selected));
+            filesWorkspace.FindControl<Button>("OpenFileManagerButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await Task.Delay(80);
+            var fileWindow = window.OwnedWindows.Single(w => w.GetVisualDescendants().OfType<FileBrowserView>().Any());
+            var browser = fileWindow.GetVisualDescendants().OfType<FileBrowserView>().Single();
             foreach (var width in new[] { 1050d, 1380d })
             {
-                window.Width = width; await Task.Delay(80);
+                fileWindow.Width = width; await Task.Delay(80);
                 var left = browser.FindControl<LocalFileBrowserView>("LocalPane")!;
                 var right = browser.FindControl<RemoteFileBrowserView>("RemotePane")!;
                 Assert.Same(files.Local, left.DataContext); Assert.Same(files, right.DataContext);
@@ -220,8 +225,8 @@ public sealed class WorkspaceTests
                 await files.Local.NavigateAsync(localRoot); await files.NavigateAsync("/");
                 await Until(() => selected.Monitor.CpuText.EndsWith('%'));
                 await Task.Delay(60);
-                using var bitmap = new RenderTargetBitmap(new PixelSize((int)window.ClientSize.Width, (int)window.ClientSize.Height), new Vector(96, 96));
-                bitmap.Render(window); bitmap.Save(Path.Combine(Path.GetDirectoryName(preview)!, "dual-pane-layout-preview.png"), PngBitmapEncoderOptions.Default);
+                using var bitmap = new RenderTargetBitmap(new PixelSize((int)fileWindow.ClientSize.Width, (int)fileWindow.ClientSize.Height), new Vector(96, 96));
+                bitmap.Render(fileWindow); bitmap.Save(Path.Combine(Path.GetDirectoryName(preview)!, "dual-pane-layout-preview.png"), PngBitmapEncoderOptions.Default);
                 foreach (var theme in new[] { AppTheme.Light, AppTheme.Dark })
                 {
                     ThemeService.Apply(theme); await Task.Delay(80);
@@ -233,7 +238,12 @@ public sealed class WorkspaceTests
             }
             await selected.Session!.Files!.DeleteAsync(uploaded.FullPath);
         }
-        finally { await vm.ShutdownAsync(); window.Close(); Directory.Delete(localRoot, true); }
+        finally
+        {
+            foreach (var owned in window.OwnedWindows.ToArray()) owned.Close();
+            foreach (var owned in window.OwnedWindows.ToArray()) owned.Close();
+            await vm.ShutdownAsync(); window.Close(); Directory.Delete(localRoot, true);
+        }
     }
 
     [AvaloniaFact]
@@ -365,8 +375,11 @@ public sealed class WorkspaceTests
             window.MouseWheel(terminalPoint, new Vector(0, -1), RawInputModifiers.Control);
             Assert.Equal(10, first.FontSize);
             selected.FontSize = 15;
-            var localPane = workspace.GetVisualDescendants().OfType<LocalFileBrowserView>().Single();
-            window.MouseWheel(localPane.TranslatePoint(new Point(100, 100), window)!.Value, new Vector(0, 1), RawInputModifiers.Control);
+            workspace.FindControl<Button>("OpenFileManagerButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await Task.Delay(80);
+            var fileWindow = window.OwnedWindows.Single(w => w.GetVisualDescendants().OfType<LocalFileBrowserView>().Any());
+            var localPane = fileWindow.GetVisualDescendants().OfType<LocalFileBrowserView>().Single();
+            fileWindow.MouseWheel(localPane.TranslatePoint(new Point(100, 100), fileWindow)!.Value, new Vector(0, 1), RawInputModifiers.Control);
             Assert.Equal(15, first.FontSize);
             Assert.False(workspace.FindControl<Border>("TunnelPanel")!.IsVisible);
             Assert.Equal(Color.Parse("#F48771"), Assert.IsAssignableFrom<ISolidColorBrush>(workspace.FindControl<Button>("TunnelButton")!.Foreground).Color);
@@ -418,6 +431,7 @@ public sealed class WorkspaceTests
         finally
         {
             if (applicationLock.IsLocked) { applicationLock.Password = "test-live-lock"; await applicationLock.UnlockCommand.ExecuteAsync(null); }
+            foreach (var owned in window.OwnedWindows.ToArray()) owned.Close();
             await vm.ShutdownAsync(); window.Close();
         }
     }
