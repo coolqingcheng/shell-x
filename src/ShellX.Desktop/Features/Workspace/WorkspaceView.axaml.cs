@@ -1,98 +1,44 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using System.ComponentModel;
-using ShellX.Core.Settings;
 using ShellX.Desktop.Features.FileBrowser;
+using ShellX.Core.Services;
+using ShellX.Desktop.Features.Ports;
 using ShellX.Desktop.Features.Services;
 using ShellX.Desktop.Services;
-using ShellX.Desktop.Features.Shell;
 
 namespace ShellX.Desktop.Features.Workspace;
 public partial class WorkspaceView : UserControl
 {
     private WorkspaceTabViewModel? _vm;
-    private GridLength _top = new(1.3, GridUnitType.Star);
-    private GridLength _bottom = new(1, GridUnitType.Star);
-    private bool _maximized;
-    private MainWindowViewModel? _layoutVm;
     private ServiceWindow? _serviceWindow;
     private Window? _fileWindow;
+    private PortUsageWindow? _portsWindow;
+
     public WorkspaceView()
     {
         InitializeComponent();
         Terminal.AddHandler(PointerWheelChangedEvent, TerminalWheelChanged, RoutingStrategies.Tunnel);
         DataContextChanged += (_, _) => Subscribe();
         AttachedToVisualTree += (_, _) => Subscribe();
-        DetachedFromVisualTree += (_, _) => { if (_vm != null) { _vm.PropertyChanged -= VmChanged; _vm.Disposed -= VmDisposed; } _vm = null; DetachLayout(); };
+        DetachedFromVisualTree += (_, _) => { if (_vm != null) _vm.Disposed -= VmDisposed; _vm = null; };
     }
+
     private void Subscribe()
     {
-        if (_vm != null) { _vm.PropertyChanged -= VmChanged; _vm.Disposed -= VmDisposed; }
+        if (_vm != null) _vm.Disposed -= VmDisposed;
         _vm = DataContext as WorkspaceTabViewModel;
-        if (_vm != null) { _vm.PropertyChanged += VmChanged; _vm.Disposed += VmDisposed; UpdateLayoutMode(); AttachLayout(); }
+        if (_vm != null) _vm.Disposed += VmDisposed;
     }
+
     // 标签被关闭时会话已经释放，同步关掉该连接的服务窗口与文件管理器窗口。
     private void VmDisposed(object? sender, EventArgs e)
     {
         _serviceWindow?.Close();
         _fileWindow?.Close();
-    }
-    private void VmChanged(object? sender, PropertyChangedEventArgs e)
-    { if (e.PropertyName == nameof(WorkspaceTabViewModel.IsTerminalMaximized)) UpdateLayoutMode(); }
-    private void AttachLayout()
-    {
-        var vm = TopLevel.GetTopLevel(this)?.DataContext as MainWindowViewModel;
-        if (ReferenceEquals(_layoutVm, vm)) return;
-        DetachLayout();
-        _layoutVm = vm;
-        if (_layoutVm == null) return;
-        _layoutVm.LayoutChanged += ApplyLayout;
-        ApplyLayout(_layoutVm.LayoutSettings);
-    }
-    private void DetachLayout()
-    {
-        if (_layoutVm != null) _layoutVm.LayoutChanged -= ApplyLayout;
-        _layoutVm = null;
-    }
-    private void ApplyLayout(AppSettings settings)
-    {
-        if (_maximized)
-        {
-            _maximized = false;
-            if (_vm != null) _vm.IsTerminalMaximized = false;
-            WorkspaceLayout.RowDefinitions[1].Height = new(5);
-        }
-        _top = new(Math.Clamp(settings.TerminalPaneStar, 0.3, 8), GridUnitType.Star);
-        _bottom = new(1, GridUnitType.Star);
-        WorkspaceLayout.RowDefinitions[0].Height = _top;
-        WorkspaceLayout.RowDefinitions[2].Height = _bottom;
-    }
-    private async void WorkspaceSplitterDragCompleted(object? sender, Avalonia.Input.VectorEventArgs e)
-    {
-        if (_layoutVm == null || _maximized) return;
-        var top = WorkspaceLayout.RowDefinitions[0].Height;
-        var bottom = WorkspaceLayout.RowDefinitions[2].Height;
-        await _layoutVm.SaveWorkspaceLayoutAsync(top.GridUnitType == GridUnitType.Star ? top.Value : 1.3,
-            bottom.GridUnitType == GridUnitType.Star ? bottom.Value : 1);
+        _portsWindow?.Close();
     }
 
-    private void UpdateLayoutMode()
-    {
-        var maximize = _vm?.IsTerminalMaximized == true;
-        if (maximize == _maximized) return;
-        if (maximize)
-        {
-            _top = WorkspaceLayout.RowDefinitions[0].Height; _bottom = WorkspaceLayout.RowDefinitions[2].Height;
-            WorkspaceLayout.RowDefinitions[0].Height = new(1, GridUnitType.Star);
-            WorkspaceLayout.RowDefinitions[1].Height = new(0); WorkspaceLayout.RowDefinitions[2].Height = new(0);
-        }
-        else
-        {
-            WorkspaceLayout.RowDefinitions[0].Height = _top; WorkspaceLayout.RowDefinitions[1].Height = new(5); WorkspaceLayout.RowDefinitions[2].Height = _bottom;
-        }
-        _maximized = maximize;
-    }
     private async void CommandKeyDown(object? sender, KeyEventArgs e)
     {
         if (_vm == null) return;
@@ -120,6 +66,17 @@ public partial class WorkspaceView : UserControl
         _serviceWindow.Closed += (_, _) => _serviceWindow = null;
         if (TopLevel.GetTopLevel(this) is Window owner) _serviceWindow.Show(owner);
         else _serviceWindow.Show();
+    }
+    private void OpenPorts(object? sender, RoutedEventArgs e)
+    {
+        if (_vm is not { Session: { } session }) return;
+        if (_portsWindow is { IsVisible: true }) { _portsWindow.Activate(); return; }
+        var target = $"{_vm.Name} · {_vm.Profile.Host}:{_vm.Profile.Port}";
+        var viewModel = new PortUsageWindowViewModel(session.Services as IPortUsageReader, target);
+        _portsWindow = new PortUsageWindow(viewModel, session);
+        _portsWindow.Closed += (_, _) => _portsWindow = null;
+        if (TopLevel.GetTopLevel(this) is Window owner) _portsWindow.Show(owner);
+        else _portsWindow.Show();
     }
     private void OpenFileManager(object? sender, RoutedEventArgs e)
     {

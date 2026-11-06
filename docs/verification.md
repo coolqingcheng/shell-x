@@ -462,3 +462,29 @@ bash: -c: line 21: syntax error near unexpected token `$'do\r''
 - 处理：`SecretTextBox` 构造中调用 `InputMethod.SetIsInputMethodEnabled(this, false)`。它是所有密码框的基类控件（`LockScreen.UnlockPassword`、设置页的当前/新/确认锁定密码、`DialogService` 里的密码与私钥口令输入），因此一处生效、全部覆盖：中文 IME 不再接管按键、不弹候选窗、不转全角，剪贴板粘贴与自动化输入不受影响。
 - 测试：`SecretTextBoxTests.PasswordBoxesNeverUseInputMethod` 断言 `SecretTextBox` 与锁屏 `UnlockPassword` 的 `InputMethod.GetIsInputMethodEnabled` 均为 `false`。
 - 边界：IME 行为发生在操作系统层，单测只能断言属性已置位；实际输入法状态需在 Windows 上人工确认。密码含 CJK 字符时仍可粘贴（IME 已禁用，无法逐字组词输入）。
+## 底部命令面板移除、隧道批量操作与端口占用查看（2026-11-06）
+
+### 1. 底部“命令 / 历史命令”面板移除
+
+- `WorkspaceView` 删除下方 `TabControl`（只剩一个“命令”标签）与 `WorkspaceSplitter`，`RowDefinitions` 从 `1.3*,5,*` 收敛为 `*`，终端占满工作区；`xmlns:commands` 仍保留（历史条目模板用）。
+- 一并删除只服务于该面板的代码：`UpdateLayoutMode / AttachLayout / DetachLayout / ApplyLayout / WorkspaceSplitterDragCompleted`、`_layoutVm/_top/_bottom/_maximized`，以及 VM 上的 `LowerTabIndex`、`IsTerminalMaximized`、`ToggleMaximizeTerminal`；工具栏“最大化/还原终端”按钮与其菜单项同步移除（没有可隐藏的面板后它已无意义）。`AppSettings.TerminalPaneStar` 等设置字段保留，避免配置文件迁移。
+- `CommandPanelView.axaml/.cs` 删除（无引用）；`CommandPanelViewModel` 保留，历史与快捷命令改为**命令输入框旁的两个弹出入口**：
+  - **历史**：列表 + “清空历史”，点击条目填入输入框（原有 `UseHistory` 行为不变）；
+  - **常用命令**（图标+文字，`StrokeIcon` 新增 `command` 符号）：列表 + 每行「填入 / 执行 / 小叉删除」，顶部“添加”把输入框内容存为常用命令（`AddQuickAsync` 原有流程，随连接保存）。
+
+### 2. 端口转发面板
+
+- 顶部 `＋ 新建隧道` 同一行新增 **全部启动**（`Name="StartAllTunnelsButton"`，`IsEnabled` 跟随 `IsConnected`）：`StartAllTunnelsAsync` 跳过运行中/检测中的规则，**单条失败不影响其余规则**；未连接时把每条规则标记为“请先连接 SSH”。
+- **删除**从文字按钮改为**行右上角的小叉**（`StrokeIcon close` 12px），并在 `RemoveTunnelAsync` 开头增加 `ConfirmAsync("删除隧道规则", …, danger: true)` —— 取消确认时规则原样保留；`编辑`按钮的 `Name="EditTunnelRule"` 保留（既有测试依赖）。
+
+### 3. 端口占用查看（与服务管理同一套入口模式）
+
+- **Core**：`ShellX.Core.Services` 新增 `ListeningPort`（协议/状态/地址/端口/进程/PID + `Matches` 搜索）与 `IPortUsageReader`；**不改 `IRemoteSession`**，由 `SshServiceCenter` 同时实现 `IServiceCenter, IPortUsageReader`，入口处 `session.Services as IPortUsageReader` 取用（取不到时窗口提示“不支持端口查看”）。
+- **执行**：单行命令 `ss -lntup; printf '\\n__SX_PORTS__\\n'; netstat -lntup`，ss 结果优先、缺失时回退 netstat；stderr 仅在无结果时上抛（例如两个命令都不存在）。
+- **解析**（`ParsePorts/ParseSs/ParseNetstat` 均为 internal static，可单测）：
+  - ss：`LISTEN`→TCP、`UNCONN`→UDP，跳过表头与其他状态；`pid=(\\d+)` 取 PID，双引号内取进程名；`0.0.0.0:22`、`[::]:8080`、`*:631`、`:::80` 都按最后一个冒号切端口；
+  - netstat：跳过说明/表头行，7 列取 `state + pid/prog`，6 列且第6列含 `/` 判为 UDP 行，`-` 或缺失置空；`1234/mysqld` 拆成 PID 与进程名；
+  - 两段都按端口升序（同端口按协议）。
+- **UI**：`Features/Ports/PortUsageWindow`（标题 `端口占用 · 目标`，带版本号）+ `PortUsageWindowViewModel`：搜索框实时过滤端口/PID/进程名/地址、刷新按钮、计数摘要、底部权限说明（非 root 只能看到自己进程的 PID）；入口为终端工具栏服务图标旁的**插头图标**（`StrokeIcon ports`），未连接禁用，同一连接重复打开只激活，会话断开窗口自动关闭。
+- **测试**：`ServiceCenterTests` 新增 ss 解析（表头/无进程/IPv6/UDP）、netstat 解析（含 `-`、UDP6列）、`ParsePorts` 优先级与回退共3项；`PortUsageTests` 覆盖按端口/PID/进程名/地址搜索、无 reader 提示、工具栏入口与预览渲染；`WorkspaceTabTunnelTests` 覆盖删除确认（取消不删、确认才删）、未连接全部启动标记失败、面板存在全部启动与右上角小叉（DataTemplate 内的 `EditTunnelRule` 用视觉树断言，模板内名称不在视图 NameScope）。
+- **结果**：`dotnet build ShellX.slnx -c Release` 0 错误；无夹具全量 Core 49 / Infra 53（18 跳过） / Desktop 92（12 跳过） 全绿；预览渲染 `port-usage.png` 并核对了列宽（状态列 90→100 避免 UNCONN 被截断）。

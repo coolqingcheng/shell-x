@@ -1,5 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:ShellX.Desktop.Features.Workspace" x:DataType="vm:WorkspaceTabViewModel"
-             xmlns:controls="using:ShellX.Desktop.Controls"
+             xmlns:controls="using:ShellX.Desktop.Controls" xmlns:models="using:ShellX.Core.Commands"
              xmlns:commands="using:ShellX.Desktop.Features.Commands"
              xmlns:tunnels="using:ShellX.Desktop.Features.Tunnels" x:Class="ShellX.Desktop.Features.Workspace.WorkspaceView">
   <UserControl.Styles>
@@ -18,7 +18,7 @@
   </UserControl.Styles>
 
   <Grid ColumnDefinitions="*,Auto">
-    <Grid x:Name="WorkspaceLayout" RowDefinitions="1.3*,5,*">
+    <Grid x:Name="WorkspaceLayout" RowDefinitions="*">
       <controls:ConnectionAccentBorder Name="TerminalAccentFrame" Appearance="Frame" AccentColor="{Binding AccentColor}" BorderThickness="2">
       <Grid RowDefinitions="30,*,Auto">
         <Border BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1">
@@ -28,10 +28,9 @@
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
               <Ellipse Width="7" Height="7" Fill="{Binding StatusColor}" VerticalAlignment="Center" />
               <TextBlock Text="{Binding Status}" Foreground="{DynamicResource SecondaryForeground}" FontSize="10" VerticalAlignment="Center" MaxWidth="180" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Status}" />
-              <Button x:Name="TunnelButton" Classes="flat" Foreground="{Binding TunnelStatusColor}" Command="{Binding ToggleTunnelsCommand}" ToolTip.Tip="{Binding TunnelTooltip}" Padding="6,3"><controls:StrokeIcon Symbol="tunnel" Width="18" Height="18" Foreground="{Binding TunnelStatusColor}" /></Button><Button Name="ToolbarServicesButton" Classes="flat" Padding="6,3" Click="OpenServices" IsEnabled="{Binding IsConnected}" ToolTip.Tip="查看服务器服务（systemctl）"><controls:StrokeIcon Symbol="service" Width="18" Height="18" /></Button><Button Name="OpenFileManagerButton" Classes="flat" Padding="6,3" Click="OpenFileManager" ToolTip.Tip="打开文件管理器（独立窗口）"><controls:StrokeIcon Symbol="folder" Width="18" Height="18" /></Button>
+              <Button x:Name="TunnelButton" Classes="flat" Foreground="{Binding TunnelStatusColor}" Command="{Binding ToggleTunnelsCommand}" ToolTip.Tip="{Binding TunnelTooltip}" Padding="6,3"><controls:StrokeIcon Symbol="tunnel" Width="18" Height="18" Foreground="{Binding TunnelStatusColor}" /></Button><Button Name="ToolbarServicesButton" Classes="flat" Padding="6,3" Click="OpenServices" IsEnabled="{Binding IsConnected}" ToolTip.Tip="查看服务器服务（systemctl）"><controls:StrokeIcon Symbol="service" Width="18" Height="18" /></Button><Button Name="ToolbarPortsButton" Classes="flat" Padding="6,3" Click="OpenPorts" IsEnabled="{Binding IsConnected}" ToolTip.Tip="查看端口占用（ss / netstat）"><controls:StrokeIcon Symbol="ports" Width="18" Height="18" /></Button><Button Name="OpenFileManagerButton" Classes="flat" Padding="6,3" Click="OpenFileManager" ToolTip.Tip="打开文件管理器（独立窗口）"><controls:StrokeIcon Symbol="folder" Width="18" Height="18" /></Button>
               <Button Classes="flat" Command="{Binding ReconnectCommand}" ToolTip.Tip="重新连接" IsEnabled="{Binding !IsConnecting}" Padding="6,3"><controls:StrokeIcon Symbol="refresh" Width="18" Height="18" /></Button>
               <Button Classes="flat" Command="{Binding DisconnectCommand}" ToolTip.Tip="断开连接" Padding="6,3"><controls:StrokeIcon Symbol="power" Width="18" Height="18" /></Button>
-              <Button Classes="flat" Command="{Binding ToggleMaximizeTerminalCommand}" ToolTip.Tip="最大化 / 还原终端" Padding="6,3"><controls:StrokeIcon Symbol="maximize" Width="18" Height="18" /></Button>
             </StackPanel>
           </Grid>
         </Border>
@@ -45,38 +44,59 @@
           </StackPanel>
         </Border>
         <Border Grid.Row="2" Background="{DynamicResource PanelBackground}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,1,0,0" Padding="8,5">
-          <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="5">
+          <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="5">
             <TextBox x:Name="CommandInput" Text="{Binding Commands.Input, Mode=TwoWay}" PlaceholderText="命令输入 · Enter 发送 · Alt+↑/↓ 历史" FontFamily="Consolas" FontSize="12" Foreground="{DynamicResource CommandForeground}" Padding="8,5" KeyDown="CommandKeyDown" ToolTip.Tip="{Binding Commands.Status}" />
-            <Button x:Name="HistoryButton" Grid.Column="1" Content="历史" Classes="flat" FontSize="11">
-              <Button.Flyout><Flyout><ScrollViewer MaxHeight="300" Width="420"><ItemsControl ItemsSource="{Binding Commands.History}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="commands:CommandHistoryEntry">
-                <Button Classes="flat" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Click="UseHistory" Tag="{Binding Text}"><TextBlock Text="{Binding Text}" FontFamily="Consolas" FontSize="11" TextTrimming="CharacterEllipsis" /></Button>
-              </DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer></Flyout></Button.Flyout>
+            <Button x:Name="HistoryButton" Grid.Column="1" Content="历史" Classes="flat" FontSize="11" ToolTip.Tip="从最近发送的命令里选择">
+              <Button.Flyout><Flyout>
+                <StackPanel Width="440" Spacing="6" Margin="8">
+                  <Grid ColumnDefinitions="*,Auto"><TextBlock Text="历史命令" FontSize="12" VerticalAlignment="Center" /><Button Grid.Column="1" Content="清空历史" Classes="flat" FontSize="11" Command="{Binding Commands.ClearHistoryCommand}" /></Grid>
+                  <ScrollViewer MaxHeight="300"><ItemsControl ItemsSource="{Binding Commands.History}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="commands:CommandHistoryEntry">
+                    <Button Classes="flat" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Click="UseHistory" Tag="{Binding Text}"><TextBlock Text="{Binding Text}" FontFamily="Consolas" FontSize="11" TextTrimming="CharacterEllipsis" /></Button>
+                  </DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer>
+                  <TextBlock Text="点击填入命令输入框；历史只保留最近 200 条。" FontSize="10" Foreground="{DynamicResource MutedForeground}" />
+                </StackPanel>
+              </Flyout></Button.Flyout>
             </Button>
-            <Button Grid.Column="2" Content="发送" Classes="primary" Command="{Binding Commands.SendCommand}" FontSize="11" Padding="10,4" />
-            <Button Grid.Column="3" Classes="flat" ToolTip.Tip="终端选项"><controls:StrokeIcon Symbol="more" Width="18" Height="18" />
+            <Button Grid.Column="2" Classes="flat" FontSize="11" ToolTip.Tip="常用命令：点击填入或执行，可添加、删除">
+              <StackPanel Orientation="Horizontal" Spacing="5"><controls:StrokeIcon Symbol="command" Width="14" Height="14" Foreground="{DynamicResource ForegroundBrush}" /><TextBlock Text="常用命令" FontSize="11" VerticalAlignment="Center" /></StackPanel>
+              <Button.Flyout><Flyout>
+                <StackPanel Width="470" Spacing="6" Margin="8">
+                  <Grid ColumnDefinitions="*,Auto"><TextBlock Text="常用命令" FontSize="12" VerticalAlignment="Center" /><Button Grid.Column="1" Classes="flat" FontSize="11" Command="{Binding Commands.AddQuickCommand}"><StackPanel Orientation="Horizontal" Spacing="5"><controls:StrokeIcon Symbol="plus" Width="12" Height="12" Foreground="{DynamicResource ForegroundBrush}" /><TextBlock Text="添加" FontSize="11" VerticalAlignment="Center" /></StackPanel></Button></Grid>
+                  <ScrollViewer MaxHeight="300"><ItemsControl ItemsSource="{Binding Commands.QuickCommands}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="models:SavedCommand">
+                    <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="4" Margin="4,3">
+                      <StackPanel Spacing="1"><TextBlock Text="{Binding Name}" FontSize="11" /><TextBlock Text="{Binding Text}" FontFamily="Consolas" FontSize="10" Foreground="{DynamicResource CommandForeground}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Text}" /></StackPanel>
+                      <Button Grid.Column="1" Content="填入" Classes="flat" FontSize="11" Command="{Binding $parent[ItemsControl].((vm:WorkspaceTabViewModel)DataContext).Commands.FillCommand}" CommandParameter="{Binding Text}" />
+                      <Button Grid.Column="2" Content="执行" Classes="flat" FontSize="11" Command="{Binding $parent[ItemsControl].((vm:WorkspaceTabViewModel)DataContext).Commands.ExecuteQuickCommand}" CommandParameter="{Binding}" />
+                      <Button Grid.Column="3" Classes="flat" Padding="4,2" ToolTip.Tip="删除该常用命令" Command="{Binding $parent[ItemsControl].((vm:WorkspaceTabViewModel)DataContext).Commands.RemoveQuickCommand}" CommandParameter="{Binding}"><controls:StrokeIcon Symbol="close" Width="12" Height="12" /></Button>
+                    </Grid>
+                  </DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer>
+                  <TextBlock Text="点击“填入”放到输入框；“执行”立即发送；“添加”把输入框内容存成常用命令（随当前连接保存）。" FontSize="10" Foreground="{DynamicResource MutedForeground}" TextWrapping="Wrap" />
+                </StackPanel>
+              </Flyout></Button.Flyout>
+            </Button>
+            <Button Grid.Column="3" Content="发送" Classes="primary" Command="{Binding Commands.SendCommand}" FontSize="11" Padding="10,4" />
+            <Button Grid.Column="4" Classes="flat" ToolTip.Tip="终端选项"><controls:StrokeIcon Symbol="more" Width="18" Height="18" />
               <Button.Flyout><MenuFlyout>
                 <MenuItem Header="复制选中内容" Click="CopyTerminal" /><MenuItem Header="粘贴到终端" Click="PasteTerminal" /><MenuItem Header="清屏" Click="ClearTerminal" /><Separator />
-                <MenuItem Header="终端进入文件面板当前目录" Command="{Binding TerminalDirectoryCommand}" /><MenuItem Header="放大字体" Command="{Binding IncreaseFontCommand}" /><MenuItem Header="缩小字体" Command="{Binding DecreaseFontCommand}" /><MenuItem Header="最大化 / 还原终端" Command="{Binding ToggleMaximizeTerminalCommand}" />
+                <MenuItem Header="终端进入文件面板当前目录" Command="{Binding TerminalDirectoryCommand}" /><MenuItem Header="放大字体" Command="{Binding IncreaseFontCommand}" /><MenuItem Header="缩小字体" Command="{Binding DecreaseFontCommand}" />
               </MenuFlyout></Button.Flyout>
             </Button>
           </Grid>
         </Border>
       </Grid>
       </controls:ConnectionAccentBorder>
-      <GridSplitter x:Name="WorkspaceSplitter" Grid.Row="1" ResizeDirection="Rows" Background="{DynamicResource RaisedBackground}" DragCompleted="WorkspaceSplitterDragCompleted" />
-      <TabControl Grid.Row="2" SelectedIndex="{Binding LowerTabIndex, Mode=TwoWay}" Background="{DynamicResource AppBackground}" Padding="0">
-        <TabControl.Styles><Style Selector="TabItem"><Setter Property="FontSize" Value="12" /><Setter Property="Padding" Value="14,5" /><Setter Property="MinHeight" Value="28" /></Style></TabControl.Styles>
-        <TabItem Header="命令"><commands:CommandPanelView DataContext="{Binding Commands}" /></TabItem>
-      </TabControl>
     </Grid>
     <Border x:Name="TunnelPanel" Grid.Column="1" IsVisible="{Binding ShowTunnels}" Width="300" Background="{DynamicResource PanelBackground}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="1,0,0,0">
       <DockPanel>
         <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="14,8,6,8"><TextBlock Text="端口转发" VerticalAlignment="Center" /><Button Grid.Column="1" Classes="flat" Command="{Binding ToggleTunnelsCommand}" ToolTip.Tip="收起端口转发" Padding="5,3"><controls:StrokeIcon Symbol="close" Width="16" Height="16" /></Button></Grid>
-        <Button DockPanel.Dock="Top" Command="{Binding AddTunnelCommand}" Margin="10,0,10,10" Classes="primary" Padding="10,6"><StackPanel Orientation="Horizontal" Spacing="6"><controls:StrokeIcon Symbol="plus" Width="16" Height="16" Foreground="White" /><TextBlock Text="新建隧道" VerticalAlignment="Center" /></StackPanel></Button>
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="10,0,10,10">
+            <Button Command="{Binding AddTunnelCommand}" Classes="primary" Padding="10,6"><StackPanel Orientation="Horizontal" Spacing="6"><controls:StrokeIcon Symbol="plus" Width="16" Height="16" Foreground="White" /><TextBlock Text="新建隧道" VerticalAlignment="Center" /></StackPanel></Button>
+            <Button Grid.Column="1" Name="StartAllTunnelsButton" Content="全部启动" Command="{Binding StartAllTunnelsCommand}" IsEnabled="{Binding IsConnected}" ToolTip.Tip="启动本连接所有未运行的转发规则" />
+          </Grid>
         <TextBlock DockPanel.Dock="Bottom" Text="同一主机、SSH 端口和账号的标签共享隧道状态，可在任一标签启停；最后一个连接断开时释放。每 10 秒检测 TCP 可达性：绿色连通，红色失败，灰色停止。" TextWrapping="Wrap" FontSize="10" Foreground="{DynamicResource MutedForeground}" Margin="14" />
         <ScrollViewer><ItemsControl ItemsSource="{Binding Tunnels}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="tunnels:TunnelViewModel">
           <Border Padding="12" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1"><StackPanel Spacing="8">
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8"><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}" /><StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5"><Ellipse Width="8" Height="8" Fill="{Binding StatusColor}" VerticalAlignment="Center" /><TextBlock Text="{Binding Status}" Foreground="{Binding StatusColor}" FontSize="11" /></StackPanel></Grid>
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8"><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding Name}" /><StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center"><Ellipse Width="8" Height="8" Fill="{Binding StatusColor}" VerticalAlignment="Center" /><TextBlock Text="{Binding Status}" Foreground="{Binding StatusColor}" FontSize="11" /></StackPanel><Button Grid.Column="2" Classes="flat" Padding="2" Command="{Binding RemoveCommand}" ToolTip.Tip="删除规则"><controls:StrokeIcon Symbol="close" Width="12" Height="12" /></Button></Grid>
             <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryForeground}" FontSize="11" />
             <TextBlock Text="{Binding Reason}" IsVisible="{Binding HasReason}" TextWrapping="Wrap" Foreground="{Binding StatusColor}" FontSize="11" />
             <TextBlock Text="{Binding CheckedText}" Foreground="{DynamicResource MutedForeground}" FontSize="10" />
@@ -86,7 +106,7 @@
               </Border>
               <TextBlock Text="{Binding TrafficText}" FontSize="10" FontFamily="Consolas" Foreground="{DynamicResource SecondaryForeground}" VerticalAlignment="Center" />
             </StackPanel>
-            <StackPanel Orientation="Horizontal" Spacing="8"><Button Content="{Binding ActionText}" Command="{Binding ToggleCommand}" /><Button Content="检测" Classes="flat" Command="{Binding CheckCommand}" /><Button Name="EditTunnelRule" Content="编辑" Classes="flat" Command="{Binding EditCommand}" /><Button Content="删除规则" Classes="flat" Command="{Binding RemoveCommand}" /></StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8"><Button Content="{Binding ActionText}" Command="{Binding ToggleCommand}" /><Button Content="检测" Classes="flat" Command="{Binding CheckCommand}" /><Button Name="EditTunnelRule" Content="编辑" Classes="flat" Command="{Binding EditCommand}" /></StackPanel>
           </StackPanel></Border>
         </DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer>
       </DockPanel>

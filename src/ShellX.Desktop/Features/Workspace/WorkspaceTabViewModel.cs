@@ -60,8 +60,6 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty] private bool _isConnected;
     [ObservableProperty] private bool _isReconnecting;
     [ObservableProperty] private bool _showTunnels;
-    [ObservableProperty] private int _lowerTabIndex;
-    [ObservableProperty] private bool _isTerminalMaximized;
     [ObservableProperty] private bool _highlightTerminalText = true;
     [ObservableProperty] private string _status = "未连接";
     [ObservableProperty] private double _fontSize = 14;
@@ -101,7 +99,7 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
         ApplySettings(settings); RebuildTunnels();
     }
     private SharedMonitorRegistry.Lease AcquireMonitor() => _monitors.Acquire(Profile, () => IsSelected,
-        async path => { LowerTabIndex = 0; await Files.NavigateAsync(path); }, _saveProcessSort);
+        async path => await Files.NavigateAsync(path), _saveProcessSort);
     private void TunnelChanged(object? sender, PropertyChangedEventArgs e)
     { if (e.PropertyName is nameof(TunnelViewModel.State) or nameof(TunnelViewModel.Running) or nameof(TunnelViewModel.Reason)) NotifyTunnelStatus(); }
     private void NotifyTunnelStatus() { OnPropertyChanged(nameof(TunnelStatusColor)); OnPropertyChanged(nameof(TunnelTooltip)); }
@@ -283,7 +281,6 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
     }
     [RelayCommand] private Task CloseAsync() => _close(this);
     [RelayCommand] private void ToggleTunnels() => ShowTunnels = !ShowTunnels;
-    [RelayCommand] private void ToggleMaximizeTerminal() => IsTerminalMaximized = !IsTerminalMaximized;
     [RelayCommand] private void IncreaseFont() => FontSize = Math.Min(28, FontSize + 1);
     [RelayCommand] private void DecreaseFont() => FontSize = Math.Max(10, FontSize - 1);
     [RelayCommand]
@@ -351,8 +348,36 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
         catch (Exception ex) { if (ReferenceEquals(Session, session)) tunnel.Apply(new(tunnel.Definition.Id, TunnelState.Failed, session.Tunnels.IsRunning(tunnel.Definition.Id), ex.Message)); }
         if (ReferenceEquals(Session, session)) tunnel.Apply(session.Tunnels.GetStatus(tunnel.Definition.Id));
     }
+    /// <summary>一键启动本连接所有未运行的转发规则；单条失败不影响其余规则。</summary>
+    [RelayCommand]
+    private async Task StartAllTunnelsAsync()
+    {
+        var session = Session;
+        if (session == null || !IsConnected)
+        {
+            foreach (var tunnel in Tunnels) tunnel.Apply(new(tunnel.Definition.Id, TunnelState.Failed, false, "请先连接 SSH，再启动隧道。"));
+            return;
+        }
+        foreach (var tunnel in Tunnels.ToArray())
+        {
+            if (tunnel.Running || tunnel.IsBusy) continue;
+            try
+            {
+                await session.Tunnels.StartAsync(tunnel.Definition, _connection?.Token ?? CancellationToken.None);
+                if (ReferenceEquals(Session, session)) tunnel.Apply(session.Tunnels.GetStatus(tunnel.Definition.Id));
+            }
+            catch (Exception ex)
+            {
+                if (!ReferenceEquals(Session, session)) continue;
+                var state = session.Tunnels.GetStatus(tunnel.Definition.Id);
+                tunnel.Apply(state.State == TunnelState.Failed ? state : new(tunnel.Definition.Id, TunnelState.Failed, session.Tunnels.IsRunning(tunnel.Definition.Id), ex.Message));
+            }
+        }
+    }
+
     private async Task RemoveTunnelAsync(TunnelViewModel tunnel)
     {
+        if (!await _dialogs.ConfirmAsync("删除隧道规则", $"确认删除规则“{tunnel.Name}”？删除后该转发不再自动启动，正在运行的监听会立即停止。", true)) return;
         try
         {
             if (Session != null) await Session.Tunnels.StopAsync(tunnel.Definition.Id);
