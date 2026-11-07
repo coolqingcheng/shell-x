@@ -204,7 +204,8 @@ public sealed class WorkspaceTests
             var filesWorkspace = window.GetVisualDescendants().OfType<WorkspaceView>().Single(view => ReferenceEquals(view.DataContext, selected));
             filesWorkspace.FindControl<Button>("OpenFileManagerButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await Task.Delay(80);
-            var fileWindow = window.OwnedWindows.Single(w => w.GetVisualDescendants().OfType<FileBrowserView>().Any());
+            var fileWindow = vm.FileManagerWindow!;
+            Assert.Null(fileWindow.Owner);
             var browser = fileWindow.GetVisualDescendants().OfType<FileBrowserView>().Single();
             foreach (var width in new[] { 1050d, 1380d })
             {
@@ -377,7 +378,8 @@ public sealed class WorkspaceTests
             selected.FontSize = 15;
             workspace.FindControl<Button>("OpenFileManagerButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await Task.Delay(80);
-            var fileWindow = window.OwnedWindows.Single(w => w.GetVisualDescendants().OfType<LocalFileBrowserView>().Any());
+            var fileWindow = vm.FileManagerWindow!;
+            Assert.Null(fileWindow.Owner);
             var localPane = fileWindow.GetVisualDescendants().OfType<LocalFileBrowserView>().Single();
             fileWindow.MouseWheel(localPane.TranslatePoint(new Point(100, 100), fileWindow)!.Value, new Vector(0, 1), RawInputModifiers.Control);
             Assert.Equal(15, first.FontSize);

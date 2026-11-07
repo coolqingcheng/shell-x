@@ -551,3 +551,10 @@ bash: -c: line 21: syntax error near unexpected token `$'do\r''
 - **生命周期**：终端连接关闭时移除它的全部文件页签；应用退出时逐个 Dispose 独立 `FileBrowserViewModel`、取消传输并清理会话事件订阅。
 - **测试**：`FileManagerWindowTests.OneFileManagerWindowSupportsMultipleNumberedTabsPerConnectionAndAAndB` 覆盖重复打开 A 不新增、＋ 创建 A (1)/A (2)、两个 A 页签 Files 实例独立、B 追加为 B (1)、始终单窗口、关闭 B 后 A 页签仍保留且编号连续。
 - **结果**：`dotnet build ShellX.slnx -c Release` 0 警告 0 错误；全量 Core 54 / Infra 55（18 跳过） / Desktop 98（12 跳过）全绿，共 207 通过、30 跳过、0 失败。预览更新为 `artifacts/readme-shots/file-manager-tabs-numbered.jpg`。
+## 文件管理器改为非模态独立窗口（2026-11-07）
+
+- **问题**：文件管理器打开后主窗口工具栏图标无法继续点击，表现为模态窗口。
+- **处理**：`MainWindowViewModel.ShowFileManagerWindow` 不再把文件窗口作为主窗口 Owner，也绝不使用 `ShowDialog`；统一改为 `window.Show()` + `CenterScreen`。窗口仍是同一个非模态顶层窗口，可与主窗口同时操作。
+- **保持能力**：文件页签、同一连接多编号页签、独立浏览状态、传输任务和关闭语义全部保留；窗口只是不再绑定 Owner，因此不会禁用主窗口。
+- **测试**：`FileManagerWindowTests` 增加 `Assert.Null(fileWindow.Owner)` 与 `Assert.True(owner.IsEnabled)`，同时保留 A/A(2)/B(1) 多页签、单窗口和独立 Files 状态断言；`WorkspaceTests` 中文件窗口改为通过 `MainWindowViewModel.FileManagerWindow` 获取，不再依赖 `owner.OwnedWindows`。
+- **结果**：`dotnet build ShellX.slnx -c Release` 0 警告 0 错误；全量测试沿用 Core 54 / Infra 55（18 跳过） / Desktop 98（12 跳过），共 207 通过、30 跳过、0 失败。

@@ -55,6 +55,7 @@ public partial class MainWindowViewModel : ObservableObject
     [ObservableProperty] private FileManagerTabViewModel? _selectedFileManagerTab;
     public string FileManagerWindowTitle => SelectedFileManagerTab is null ? "文件管理" : $"文件管理 · {SelectedFileManagerTab.Title}";
     public bool HasSelectedFileManagerTab => SelectedFileManagerTab is not null;
+    public Window? FileManagerWindow => _fileWindow;
     [ObservableProperty] private WorkspaceTabViewModel? _selectedTab;
     [ObservableProperty] private string _search = "";
     [ObservableProperty] private string _status = "就绪";
@@ -576,7 +577,7 @@ public partial class MainWindowViewModel : ObservableObject
         {
             Title = WindowTitles.ApplyVersionToTitle(FileManagerWindowTitle),
             Width = 1180, Height = 760, MinWidth = 780, MinHeight = 460,
-            WindowStartupLocation = owner is { IsVisible: true } ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen,
+            WindowStartupLocation = WindowStartupLocation.CenterScreen,
             Icon = owner?.Icon,
             Content = new FileManagerWindowView { DataContext = this }
         };
@@ -585,8 +586,8 @@ public partial class MainWindowViewModel : ObservableObject
         {
             if (ReferenceEquals(_fileWindow, window)) _fileWindow = null;
         };
-        if (owner is { IsVisible: true }) window.Show(owner);
-        else window.Show();
+        // 文件管理器必须是独立顶层窗口：不设置 Owner、不使用 ShowDialog，主窗口图标和终端始终可点击。
+        window.Show();
         window.Activate();
     }
 

@@ -104,7 +104,9 @@ public sealed class FileManagerWindowTests
             var button = view.FindControl<Button>("OpenFileManagerButton")!;
             button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await Task.Delay(80);
-            var fileWindow = owner.OwnedWindows.OfType<Window>().Single();
+            var fileWindow = main.FileManagerWindow!;
+            Assert.Null(fileWindow.Owner);                                  // 独立顶层窗口，不是模态/Owner 窗口
+            Assert.True(owner.IsEnabled);                                    // 主窗口图标与终端保持可点击
             Assert.Equal("文件管理 · 连接 A (1)", TitleWithoutVersion(fileWindow.Title));
             Assert.Single(main.FileManagerTabs);
             Assert.Equal("连接 A (1)", main.SelectedFileManagerTab!.Title);
@@ -126,7 +128,7 @@ public sealed class FileManagerWindowTests
             view.DataContext = tabB;
             button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));       // B 追加到同一个窗口
             await Task.Delay(80);
-            Assert.Single(owner.OwnedWindows);
+            Assert.Same(fileWindow, main.FileManagerWindow);
             Assert.Equal(3, main.FileManagerTabs.Count);
             Assert.Equal("连接 B (1)", main.SelectedFileManagerTab!.Title);
             Assert.Equal(3, fileWindow.GetVisualDescendants().OfType<ListBoxItem>().Count());
@@ -149,10 +151,11 @@ public sealed class FileManagerWindowTests
             Assert.Same(tabA, main.SelectedFileManagerTab!.Connection);
             Assert.Equal("连接 A (2)", main.SelectedFileManagerTab.Title);   // 关闭 B 后剩余 A 页签重新连续编号
             Assert.True(fileWindow.IsVisible);
-            Assert.Single(owner.OwnedWindows);
+            Assert.Null(fileWindow.Owner);
         }
         finally
         {
+            main.FileManagerWindow?.Close();
             foreach (var owned in owner.OwnedWindows.ToArray()) owned.Close();
             owner.Close();
             await main.ShutdownAsync();
