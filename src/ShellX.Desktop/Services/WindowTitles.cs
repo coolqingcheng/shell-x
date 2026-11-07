@@ -8,10 +8,13 @@ public static class WindowTitles
 {
     public static void ApplyVersion(Window window)
     {
-        var baseTitle = window.Title;
-        if (string.IsNullOrWhiteSpace(baseTitle)) return;
+        if (!string.IsNullOrWhiteSpace(window.Title)) window.Title = ApplyVersionToTitle(window.Title);
+    }
+
+    public static string ApplyVersionToTitle(string title)
+    {
+        if (string.IsNullOrWhiteSpace(title)) return title;
         var version = $"v{AppVersion.Value}";
-        if (baseTitle.Contains(version, StringComparison.OrdinalIgnoreCase)) return;
-        window.Title = $"{baseTitle} {version}";
+        return title.Contains(version, StringComparison.OrdinalIgnoreCase) ? title : $"{title} {version}";
     }
 }

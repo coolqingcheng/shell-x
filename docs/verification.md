@@ -529,3 +529,14 @@ bash: -c: line 21: syntax error near unexpected token `$'do\r''
 - **任务显示**：`TransferViewModel` 新增 `HasDetails`，有错误/跳过/取消说明时才占第二行，避免活动任务重复显示进度文本；进度条仅活动任务显示，结束后仍以文本显示 100%。
 - **测试**：`TransferTests.TransferPanelResizesAndCollapsesToTrayIcon` 验证 Rows 分隔条、180→260→420 高度调整、96–420 夹紧、收起后 30px 托盘、图标与展开命令、总体进度文案；既有文本/进度边界测试全部保持通过。
 - **结果**：`dotnet build ShellX.slnx -c Release` 0 警告 0 错误；全量 Core 54 / Infra 55（18 跳过） / Desktop 97（12 跳过）全绿，共 206 通过、30 跳过、0 失败。预览导出为 `artifacts/readme-shots/transfers-panel.png` 与 `transfers-tray.png`。
+## 文件管理器按连接分页签（2026-11-07）
+
+- **需求**：A 连接打开文件管理器后再打开 B，不再产生两个独立窗口，而是在同一个文件管理器窗口顶部显示“连接 A / 连接 B”页签，交互方式与终端标签一致。
+- **统一入口**：`WorkspaceView.OpenFileManager` 检测顶层窗口的 `MainWindowViewModel` 后改为调用 `OpenFileManager(tab, owner)`；测试环境没有主窗口 VM 时仍保留原单连接窗口回退，既有隔离测试不被破坏。
+- **单窗口多页签**：`MainWindowViewModel` 持有唯一 `_fileWindow`、`FileManagerTabs` 和 `SelectedFileManagerTab`。首次打开创建 `FileManagerWindowView`；A、B 分别追加页签；重复打开同一连接只选中已有页签；关闭窗口后页签状态保留，再次打开恢复。
+- **页签 UI**：新 `FileManagerWindowView` 顶部使用横向 `ListBox` 页签条，显示连接状态点、名称和小叉；下方 `ContentControl` 根据选中页签渲染对应 `FileBrowserView`，DataContext 始终是该连接原有的 `WorkspaceTabViewModel.Files`，路径、传输、布局状态不丢。
+- **关闭语义**：关闭文件页签只移除文件管理器页签，不关闭终端连接；关闭终端连接时先同步移除对应文件页签，再释放终端；最后一个文件页签关闭时窗口才关闭。窗口整体关闭只隐藏窗口，不释放各连接文件状态。
+- **选择恢复**：移除当前页签时 ListBox 会回写 `SelectedItem=null`，`OnSelectedFileManagerTabChanged` 在仍有页签时立即恢复相邻/首个页签，避免内容区变空；应用退出时统一清理订阅并关闭窗口。
+- **标题**：窗口标题随选中连接变化为 `文件管理 · 连接名`，继续通过 `WindowTitles.ApplyVersionToTitle` 附加版本号。
+- **测试**：`FileManagerWindowTests.OneFileManagerWindowUsesConnectionTabsForAAndB` 验证 A 打开一个窗口、B 只追加页签、始终只有一个 OwnedWindow、选中 B 时内容为 `tabB.Files`、关闭 B 后回到 A 且窗口不关闭；原“单连接独立窗口”测试继续通过。
+- **结果**：`dotnet build ShellX.slnx -c Release` 0 警告 0 错误；全量 Core 54 / Infra 55（18 跳过） / Desktop 98（12 跳过）全绿，共 207 通过、30 跳过、0 失败。预览为 `artifacts/readme-shots/file-manager-tabs.png`。

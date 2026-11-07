@@ -14,6 +14,10 @@ using ShellX.Core.Tunnels;
 using ShellX.Desktop.Features.FileBrowser;
 using ShellX.Desktop.Features.Workspace;
 using ShellX.Desktop.Services;
+using ShellX.Desktop.Features.Shell;
+using ShellX.Desktop.Features.Security;
+using ShellX.Infrastructure.Persistence;
+using ShellX.Infrastructure.Security;
 using ShellX.Infrastructure.Files;
 
 namespace ShellX.Desktop.Tests;
@@ -72,6 +76,75 @@ public sealed class FileManagerWindowTests
         }
     }
 
+    [AvaloniaFact]
+    public async Task OneFileManagerWindowUsesConnectionTabsForAAndB()
+    {
+        var root = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "shellx-filetabs-" + Guid.NewGuid().ToString("N"))).FullName;
+        var paths = new AppPaths(root);
+        var repository = new JsonConnectionRepository(paths);
+        var dialogs = new FakeDialogs();
+        var main = new MainWindowViewModel(repository, new WindowsCredentialStore(paths), new JsonHostKeyStore(paths),
+            new JsonSettingsStore(paths), new UnusedFactory(), dialogs, NullLoggerFactory.Instance, new LocalFileSystem(root),
+            new AppLockService(new LockPasswordHasher()), new JsonConfigurationExporter(paths));
+        await main.InitializeAsync();
+
+        static WorkspaceTabViewModel CreateTab(string name, string host, string root) => new(
+            new ConnectionProfile { Name = name, Host = host, Port = 22, Username = "root" },
+            new UnusedFactory(), new FakeDialogs(), NullLoggerFactory.Instance,
+            () => Task.FromResult<ConnectionSecret?>(null), _ => Task.FromResult(true),
+            _ => Task.CompletedTask, _ => Task.CompletedTask, new AppSettings(), new LocalFileSystem(root));
+
+        var tabA = CreateTab("连接 A", "a.test", root);
+        var tabB = CreateTab("连接 B", "b.test", root);
+        var view = new WorkspaceView { DataContext = tabA };
+        var owner = new Window { DataContext = main, Content = view, Width = 1200, Height = 760 };
+        owner.Show();
+        try
+        {
+            var button = view.FindControl<Button>("OpenFileManagerButton")!;
+            button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await Task.Delay(80);
+            var fileWindow = owner.OwnedWindows.OfType<Window>().Single();
+            var title = fileWindow.Title ?? "";
+            var versionIndex = title.IndexOf(" v", StringComparison.Ordinal);
+            Assert.True(versionIndex > 0);
+            Assert.Equal("文件管理 · 连接 A", title[..versionIndex]);
+            Assert.Single(main.FileManagerTabs);
+            Assert.Same(tabA, main.SelectedFileManagerTab);
+
+            view.DataContext = tabB;
+            button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await Task.Delay(80);
+            Assert.Single(owner.OwnedWindows);                       // B 追加到同一个窗口，不新建窗口
+            Assert.Equal(2, main.FileManagerTabs.Count);
+            Assert.Same(tabB, main.SelectedFileManagerTab);
+            Assert.Equal(2, fileWindow.GetVisualDescendants().OfType<ListBoxItem>().Count());
+            var browser = fileWindow.GetVisualDescendants().OfType<FileBrowserView>().Single();
+            Assert.Same(tabB.Files, browser.DataContext);
+            if (Environment.GetEnvironmentVariable("SHELLX_PREVIEW_PATH") is { Length: > 0 } tabsPreview)
+            {
+                using var bitmap = new RenderTargetBitmap(new PixelSize((int)fileWindow.ClientSize.Width, (int)fileWindow.ClientSize.Height), new Vector(96, 96));
+                bitmap.Render(fileWindow);
+                bitmap.Save(Path.Combine(Path.GetDirectoryName(tabsPreview)!, "file-manager-tabs.png"), PngBitmapEncoderOptions.Default);
+            }
+
+            var closeB = fileWindow.GetVisualDescendants().OfType<Button>()
+                .Single(b => ReferenceEquals(b.DataContext, tabB) && Equals(Avalonia.Controls.ToolTip.GetTip(b), "关闭文件标签"));
+            closeB.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await Task.Delay(40);
+            Assert.Single(main.FileManagerTabs);
+            Assert.Same(tabA, main.SelectedFileManagerTab);
+            Assert.False(fileWindow.IsVisible == false);             // 关闭 A/B 中一个页签不会关闭窗口
+            Assert.Single(owner.OwnedWindows);
+        }
+        finally
+        {
+            foreach (var owned in owner.OwnedWindows.ToArray()) owned.Close();
+            owner.Close();
+            await main.ShutdownAsync();
+            Directory.Delete(root, true);
+        }
+    }
     private sealed class UnusedFactory : IRemoteSessionFactory
     {
         public Task<IRemoteSession> ConnectAsync(ConnectionProfile profile, ConnectionSecret secret,

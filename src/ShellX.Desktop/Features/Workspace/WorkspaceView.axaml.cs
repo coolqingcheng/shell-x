@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using ShellX.Desktop.Features.FileBrowser;
+using ShellX.Desktop.Features.Shell;
 using ShellX.Core.Services;
 using ShellX.Desktop.Features.Ports;
 using ShellX.Desktop.Features.Services;
@@ -82,7 +83,13 @@ public partial class WorkspaceView : UserControl
     {
         if (_vm is not { Files: var files } vm) return;
         if (_fileWindow is { IsVisible: true }) { _fileWindow.Activate(); return; }
-        if (TopLevel.GetTopLevel(this) is not Window owner) return;
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel?.DataContext is MainWindowViewModel manager)
+        {
+            manager.OpenFileManager(vm, topLevel as Window);
+            return;
+        }
+        if (topLevel is not Window owner) return;
         var window = new Window
         {
             Title = $"文件管理 · {vm.Name} · {vm.Profile.Host}",
