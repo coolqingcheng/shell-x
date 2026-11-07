@@ -41,6 +41,7 @@ public sealed class ConnectionManagerTests
             await vm.InitializeAsync(); vm.Search = "missing"; await Task.Delay(60);
             Assert.Empty(vm.VisibleConnections);
             var export = view.FindControl<Button>("ExportConfiguration")!; Assert.Same(vm.ExportConfigurationCommand, export.Command);
+            Assert.Same(vm.ImportConfigurationCommand, view.FindControl<Button>("ImportConfiguration")!.Command);
             Assert.Same(vm.ImportXshellSessionsCommand, view.FindControl<Button>("ImportXshellSessions")!.Command);
             Assert.Same(vm.SettingsCommand, view.FindControl<Button>("ManagerSettings")!.Command);
             Click(window, export); await Until(() => dialogs.Information.Count == 1);
@@ -94,6 +95,57 @@ public sealed class ConnectionManagerTests
             Assert.Contains("跳过重复 1 个", dialogs.Information[1]);
         }
         finally { await vm.ShutdownAsync(); window.Close(); Directory.Delete(root, true); }
+    }
+    [AvaloniaFact]
+    public async Task EncryptedConfigurationExportRestoresConnectionPasswordAndPortableSettingsOnFreshInstall()
+    {
+        var sourceRoot = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "shellx-config-src-" + Guid.NewGuid().ToString("N"))).FullName;
+        var restoreRoot = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "shellx-config-dst-" + Guid.NewGuid().ToString("N"))).FullName;
+        var backup = Path.Combine(sourceRoot, "ShellX-backup.json");
+        var profile = new ConnectionProfile { Name = "备份连接", Host = "backup.test", Group = "恢复", Username = "deploy" };
+        var secret = new ConnectionSecret("Exported-Login-Password", "");
+        var backupPassword = "backup-password-123";
+        try
+        {
+            await new JsonConnectionRepository(new(sourceRoot)).SaveAsync([profile]);
+            await new JsonSettingsStore(new(sourceRoot)).SaveAsync(new AppSettings { Theme = AppTheme.Light, TerminalFontSize = 19 });
+            await new WindowsCredentialStore(new(sourceRoot)).SaveAsync(profile.Id, secret);
+
+            var sourceDialogs = new Dialogs { ExportPath = backup };
+            sourceDialogs.Prompts.Enqueue(backupPassword);
+            var source = Model(sourceRoot, new JsonConnectionRepository(new(sourceRoot)), sourceDialogs);
+            await source.InitializeAsync();
+            await source.ExportConfigurationCommand.ExecuteAsync(null);
+            Assert.Contains("配置导出成功", source.Status);
+            Assert.Contains("直接使用", sourceDialogs.Information.Single());
+            var backupJson = await File.ReadAllTextAsync(backup);
+            Assert.DoesNotContain(secret.Password, backupJson, StringComparison.Ordinal);
+            await source.ShutdownAsync();
+
+            var restoreStore = new JsonConnectionRepository(new(restoreRoot));
+            var restoreCredentials = new WindowsCredentialStore(new(restoreRoot));
+            var restoreDialogs = new Dialogs { ConfigurationImportPath = backup };
+            restoreDialogs.Prompts.Enqueue(backupPassword);
+            var restored = Model(restoreRoot, restoreStore, restoreDialogs);
+            await restored.InitializeAsync();
+            await restored.ImportConfigurationCommand.ExecuteAsync(null);
+
+            Assert.Contains("配置导入成功", restored.Status);
+            Assert.Contains("恢复凭据 1 条", restoreDialogs.Information.Single());
+            var restoredProfile = Assert.Single(await restoreStore.LoadAsync());
+            Assert.Equal(profile.Id, restoredProfile.Id);
+            Assert.Equal("backup.test", restoredProfile.Host);
+            Assert.True(restoredProfile.RememberSecret);
+            Assert.Equal(secret, await restoreCredentials.ReadAsync(profile.Id));
+            Assert.Equal(AppTheme.Light, restored.LayoutSettings.Theme);
+            Assert.Equal(19, restored.LayoutSettings.TerminalFontSize);
+            await restored.ShutdownAsync();
+        }
+        finally
+        {
+            if (Directory.Exists(sourceRoot)) Directory.Delete(sourceRoot, true);
+            if (Directory.Exists(restoreRoot)) Directory.Delete(restoreRoot, true);
+        }
     }
     [AvaloniaFact]
     public async Task EmptyAndNestedFoldersPersistRenameConnectionsAndRejectDeletingNonemptyFolders()
@@ -287,7 +339,7 @@ public sealed class ConnectionManagerTests
 
     private static MainWindowViewModel Model(string root, IConnectionRepository store, IDialogService dialogs, AppLockService? state = null)
         => new(store, new WindowsCredentialStore(new(root)), new JsonHostKeyStore(new(root)), new JsonSettingsStore(new(root)), new SshSessionFactory(NullLoggerFactory.Instance), dialogs,
-            NullLoggerFactory.Instance, new LocalFileSystem(root), state ?? new AppLockService(new LockPasswordHasher()), new JsonConfigurationExporter(new(root)));
+            NullLoggerFactory.Instance, new LocalFileSystem(root), state ?? new AppLockService(new LockPasswordHasher()), new JsonConfigurationExporter(new(root)), new JsonConfigurationImporter());
     private static void Click(Window window, Control control)
     {
         var point = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window)!.Value;
@@ -314,6 +366,7 @@ public sealed class ConnectionManagerTests
     private sealed class Dialogs : IDialogService
     {
         public string? ExportPath { get; set; }
+        public string? ConfigurationImportPath { get; set; }
         public List<string> XshellPaths { get; set; } = [];
         public List<string> Information { get; } = [];
         public Queue<string> Prompts { get; } = [];
@@ -325,6 +378,7 @@ public sealed class ConnectionManagerTests
         public Task<IReadOnlyList<string>> PickUploadAsync() => Task.FromResult<IReadOnlyList<string>>([]);
         public Task<string?> PickDownloadAsync(string name) => Task.FromResult(ExportPath);
         public Task<IReadOnlyList<string>> PickXshellSessionsAsync() => Task.FromResult<IReadOnlyList<string>>(XshellPaths);
+        public Task<string?> PickConfigurationImportAsync() => Task.FromResult(ConfigurationImportPath);
         public Task ShowInformationAsync(string title, string message) { Information.Add(message); return Task.CompletedTask; }
         public Task EditFileAsync(TextDocument document, Func<TextDocument, string, Task<TextDocument>> save) => Task.CompletedTask;
         public Task<int?> PermissionsAsync(RemoteEntry entry) => Task.FromResult<int?>(null);

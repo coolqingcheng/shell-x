@@ -500,3 +500,14 @@ bash: -c: line 21: syntax error near unexpected token `$'do\r''
 - **实机解析**：对本机 Xshell 8 的两个 UTF-16LE `.xsh` 样例实际执行解析：`183.66.27.19.xsh` → `183.66.27.19:30436/root/密码认证`，`iot99.xiaolab.cn.xsh` → `iot99.xiaolab.cn:22/root/私钥认证`，私钥正确解析到 `~/.ssh/id_ed25519`；未连接任何服务器，也未解析或输出密码字段。
 - **测试**：Core 新增 `XshellSessionImporterTests` 4 项（字段解析、私钥回退、UTF-16 文件、协议/端口拒绝与跨节键忽略）；Desktop 新增导入流程测试，覆盖入口绑定、首次导入、自动选中 `Xshell`、密码忽略、重复导入不新增。
 - **结果**：`dotnet build ShellX.slnx -c Release` 0 错误（仅既有 UpdateManagerTests xUnit1051 警告）；全量 Core 53 / Infra 54（18 跳过） / Desktop 93（12 跳过）全绿，共 200 通过、30 跳过、0 失败。连接管理器预览重新渲染到 `docs/images/connection-manager.png` 并核对了导入/导出按钮与 Xshell 分组。
+## 加密配置备份与直接恢复（2026-11-07）
+
+- **需求**：导出的配置需要包含已保存的登录密码/私钥口令，在另一份 ShellX 中还原后可以直接连接，不能把密码明文写进 JSON。
+- **导出流程**：连接管理器 `导出配置…` 先收集当前连接中已记住的 `ConnectionSecret`，也包含仍留在当前会话内存里的凭据；发现非空凭据时弹出密文输入框，要求设置**至少 8 位备份密码**。没有可导出凭据时不弹密码框，仍导出不含凭据的普通备份。
+- **加密格式**：配置版本升级到 `ShellX.Configuration Version=2`，新增 `CredentialVault`。随机 16 字节 Salt、12 字节 Nonce，使用 PBKDF2-SHA256（600,000 次）派生 32 字节密钥，再用 AES-256-GCM 加密 `List<ExportedCredential>`；16 字节 Tag 同时校验密码错误与文件篡改。
+- **明文边界**：原始 JSON 中不出现登录密码、私钥口令、锁定密码哈希或 MCP Token；私钥文件本身从不进入备份。备份密码只在当次导出/导入内存中使用，不写文件、不写日志。
+- **导入流程**：连接管理器新增 `导入配置…`。`JsonConfigurationImporter` 先识别文件是否含 `CredentialVault`；含凭据时要求输入备份密码，密码错误在任何本地修改发生前终止。随后恢复连接、文件夹、隧道、常用命令和可移植界面设置。
+- **合并策略**：相同连接 ID 更新原连接；不同 ID 但 `主机 + 端口 + 账号` 相同则跳过；其余新增。文件夹取并集。解密出的凭据只写入最终仍存在的连接，并保存到目标机的 `ICredentialStore`（Windows 为 DPAPI 当前用户），因此恢复后无需再次输入密码。
+- **设置白名单**：只恢复主题、终端/编辑器字体字号、隐藏文件、终端高亮、自动重连与进程排序；锁定密码、自动锁定、MCP、更新源、面板布局不被导入覆盖。配置格式 Version 1 与 2 均可读取，旧的无凭据备份仍能导入。
+- **测试**：`ConfigurationExportTests` 新增加密往返测试，验证错误密码拒绝、JSON 无明文密码/口令/锁定哈希/MCP Token、连接与设置恢复；Desktop 新增完整流程测试，从源实例导出含 DPAPI 凭据的备份，在空实例输入备份密码后恢复连接、密码和 Light 主题。
+- **结果**：`dotnet build ShellX.slnx -c Release` 0 警告 0 错误；全量 Core 53 / Infra 55（18 跳过） / Desktop 94（12 跳过）全绿，共 202 通过、30 跳过、0 失败。连接管理器预览重新渲染到 `docs/images/connection-manager.png`，核对 `导入配置 / 从 Xshell 导入 / 导出配置` 三个入口。

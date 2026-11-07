@@ -261,6 +261,13 @@ public sealed class DialogService(ITextCodec codec, AppLockService? appLock = nu
             .OrderByDescending(Directory.GetLastWriteTimeUtc)
             .FirstOrDefault();
     }
+    public async Task<string?> PickConfigurationImportAsync()
+        => (await DialogOwner.StorageProvider.OpenFilePickerAsync(new()
+        {
+            Title = "导入 ShellX 配置",
+            AllowMultiple = false,
+            FileTypeFilter = [new FilePickerFileType("ShellX 配置（JSON）") { Patterns = ["*.json"] }]
+        })).FirstOrDefault()?.TryGetLocalPath();
     public async Task<string?> PickConfigurationExportAsync()
         => (await DialogOwner.StorageProvider.SaveFilePickerAsync(new()
         {

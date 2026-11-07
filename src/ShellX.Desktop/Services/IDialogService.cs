@@ -20,6 +20,7 @@ public interface IDialogService
     Task<IReadOnlyList<string>> PickUploadAsync();
     Task<string?> PickDownloadAsync(string name);
     Task<string?> PickConfigurationExportAsync() => PickDownloadAsync("ShellX-config.json");
+    Task<string?> PickConfigurationImportAsync() => Task.FromResult<string?>(null);
     Task<IReadOnlyList<string>> PickXshellSessionsAsync() => PickUploadAsync();
     Task<string?> PickDownloadFolderAsync() => Task.FromResult<string?>(null);
     Task EditFileAsync(TextDocument document, Func<TextDocument, string, Task<TextDocument>> save);

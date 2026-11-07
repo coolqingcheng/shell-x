@@ -23,6 +23,7 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly IHostKeyStore _hosts;
     private readonly ISettingsStore _settingsStore;
     private readonly IConfigurationExporter _configurationExporter;
+    private readonly IConfigurationImporter? _configurationImporter;
     private readonly IRemoteSessionFactory _sessions;
     private readonly IDialogService _dialogs;
     private readonly ILoggerFactory _logs;
@@ -57,8 +58,8 @@ public partial class MainWindowViewModel : ObservableObject
     public bool HasNoResults => !NeedsLeafFolder && VisibleConnections.Count == 0 && !string.IsNullOrWhiteSpace(Search);
 
     public MainWindowViewModel(IConnectionRepository connections, ICredentialStore credentials, IHostKeyStore hosts,
-        ISettingsStore settingsStore, IRemoteSessionFactory sessions, IDialogService dialogs, ILoggerFactory logs, ILocalFileSystem localFiles, AppLockService applicationLock, IConfigurationExporter configurationExporter)
-    { _connections = connections; _credentials = credentials; _hosts = hosts; _settingsStore = settingsStore; _configurationExporter = configurationExporter; _sessions = sessions; _dialogs = dialogs; _logs = logs; _localFiles = localFiles; _applicationLock = applicationLock; _monitors = new(dialogs, logs); }
+        ISettingsStore settingsStore, IRemoteSessionFactory sessions, IDialogService dialogs, ILoggerFactory logs, ILocalFileSystem localFiles, AppLockService applicationLock, IConfigurationExporter configurationExporter, IConfigurationImporter? configurationImporter = null)
+    { _connections = connections; _credentials = credentials; _hosts = hosts; _settingsStore = settingsStore; _configurationExporter = configurationExporter; _configurationImporter = configurationImporter; _sessions = sessions; _dialogs = dialogs; _logs = logs; _localFiles = localFiles; _applicationLock = applicationLock; _monitors = new(dialogs, logs); }
     public async Task InitializeAsync()
     {
         try
@@ -153,11 +154,126 @@ public partial class MainWindowViewModel : ObservableObject
             await _catalogGate.WaitAsync();
             try { catalog = new(_profiles.ToArray(), FolderPaths.ToArray()); }
             finally { _catalogGate.Release(); }
-            await _configurationExporter.ExportAsync(path, catalog, _settings);
+
+            var secrets = new Dictionary<Guid, ConnectionSecret>();
+            foreach (var profile in catalog.Connections)
+            {
+                var secret = _secrets.GetValueOrDefault(profile.Id) ?? await _credentials.ReadAsync(profile.Id);
+                if (secret is { Password.Length: > 0 } or { Passphrase.Length: > 0 }) secrets[profile.Id] = secret;
+            }
+
+            string? encryptionPassword = null;
+            if (secrets.Count > 0)
+            {
+                encryptionPassword = await _dialogs.PromptAsync("导出配置（含已保存凭据）",
+                    "设置备份加密密码（至少 8 个字符，导入时输入）", "", true);
+                if (encryptionPassword == null || _applicationLock.IsLocked) return;
+                if (encryptionPassword.Length < 8)
+                {
+                    await _dialogs.ShowErrorAsync("备份加密密码至少需要 8 个字符。");
+                    return;
+                }
+            }
+
+            await _configurationExporter.ExportAsync(path, catalog, _settings, secrets, encryptionPassword);
             Status = "配置导出成功";
-            await _dialogs.ShowInformationAsync("导出成功", $"已导出 {catalog.Connections.Count} 个连接及文件夹、隧道和常规设置。\n{path}\n\n不包含登录密码、锁定密码和私钥内容；私钥路径仍按原配置保留。");
+            var credentialText = secrets.Count > 0
+                ? $"包含 {secrets.Count} 条已保存的登录密码或私钥口令，使用本次设置的备份加密密码保护；导入时输入该密码即可直接使用。"
+                : "当前没有可导出的已保存登录密码或私钥口令。";
+            await _dialogs.ShowInformationAsync("导出成功",
+                $"已导出 {catalog.Connections.Count} 个连接及文件夹、隧道和常规设置。\n{path}\n\n{credentialText}\n锁定密码、私钥文件内容和应用本机安全设置不会导出。");
         }
         catch (Exception ex) { await _dialogs.ShowErrorAsync("导出失败：\n" + ex.Message); }
+    }
+    [RelayCommand]
+    private async Task ImportConfigurationAsync()
+    {
+        if (_applicationLock.IsLocked || !_configurationLoaded) return;
+        try
+        {
+            if (_configurationImporter == null)
+            {
+                await _dialogs.ShowErrorAsync("当前版本不支持导入 ShellX 配置。");
+                return;
+            }
+            var path = await _dialogs.PickConfigurationImportAsync();
+            if (path == null || _applicationLock.IsLocked) return;
+
+            string? encryptionPassword = null;
+            if (await _configurationImporter.HasCredentialsAsync(path))
+            {
+                encryptionPassword = await _dialogs.PromptAsync("导入配置（含已保存凭据）",
+                    "输入导出时设置的备份密码", "", true);
+                if (encryptionPassword == null || _applicationLock.IsLocked) return;
+                if (encryptionPassword.Length == 0)
+                {
+                    await _dialogs.ShowErrorAsync("该配置包含加密凭据，必须输入备份密码。");
+                    return;
+                }
+            }
+
+            var restore = await _configurationImporter.ImportAsync(path, encryptionPassword);
+            if (_applicationLock.IsLocked) return;
+
+            var added = 0;
+            var updated = 0;
+            var skipped = 0;
+            await CommitCatalogAsync(catalog =>
+            {
+                var profiles = catalog.Connections.ToList();
+                var endpoints = profiles.Select(ConnectionEndpoint.From).ToHashSet();
+                foreach (var imported in restore.Catalog.Connections)
+                {
+                    var index = profiles.FindIndex(profile => profile.Id == imported.Id);
+                    if (index >= 0)
+                    {
+                        endpoints.Remove(ConnectionEndpoint.From(profiles[index]));
+                        profiles[index] = imported;
+                        endpoints.Add(ConnectionEndpoint.From(imported));
+                        updated++;
+                    }
+                    else if (endpoints.Add(ConnectionEndpoint.From(imported)))
+                    {
+                        profiles.Add(imported);
+                        added++;
+                    }
+                    else skipped++;
+                }
+                var folders = ConnectionFolders.Expand(catalog.Folders.Concat(restore.Catalog.Folders).Concat(profiles.Select(profile => profile.Group)));
+                return new(profiles, folders);
+            });
+
+            var restoredSecrets = 0;
+            var secretFailures = new List<string>();
+            foreach (var pair in restore.Secrets)
+            {
+                if (pair.Value.Password.Length == 0 && pair.Value.Passphrase.Length == 0) continue;
+                if (!_profiles.Any(profile => profile.Id == pair.Key)) continue;
+                try { await _credentials.SaveAsync(pair.Key, pair.Value); restoredSecrets++; }
+                catch (Exception ex) { secretFailures.Add(ex.Message); }
+            }
+
+            var portable = restore.Settings;
+            _settings = _settings with
+            {
+                Theme = portable.Theme, TerminalFontFamily = portable.TerminalFontFamily, TerminalFontSize = portable.TerminalFontSize,
+                EditorFontFamily = portable.EditorFontFamily, EditorFontSize = portable.EditorFontSize, ShowHiddenFiles = portable.ShowHiddenFiles,
+                HighlightTerminalText = portable.HighlightTerminalText, AutoReconnectEnabled = portable.AutoReconnectEnabled,
+                ReconnectIntervalSeconds = portable.ReconnectIntervalSeconds, ProcessSortColumn = portable.ProcessSortColumn,
+                ProcessSortDescending = portable.ProcessSortDescending
+            };
+            await _settingsStore.SaveAsync(_settings);
+            ThemeService.Apply(_settings.Theme);
+            LayoutChanged?.Invoke(_settings);
+
+            Status = "ShellX 配置导入成功";
+            var summary = $"新增 {added} 个连接，更新 {updated} 个，跳过重复 {skipped} 个，恢复凭据 {restoredSecrets} 条。";
+            if (secretFailures.Count > 0)
+                summary += "\n部分凭据未能写入本机安全存储：\n" + string.Join('\n', secretFailures);
+            summary += "\n锁定密码、私钥文件内容和本机 MCP / 更新设置不会被导入覆盖。";
+            await _dialogs.ShowInformationAsync("导入成功", summary);
+        }
+        catch (Exception ex) { await _dialogs.ShowErrorAsync("配置导入失败：\n" + ex.Message); }
     }
     [RelayCommand]
     private async Task ImportXshellSessionsAsync()

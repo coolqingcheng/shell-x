@@ -21,6 +21,7 @@ public static class DependencyInjection
         .AddSingleton<IConnectionRepository, JsonConnectionRepository>()
         .AddSingleton<ISettingsStore, JsonSettingsStore>()
         .AddSingleton<IConfigurationExporter, JsonConfigurationExporter>()
+        .AddSingleton<IConfigurationImporter, JsonConfigurationImporter>()
         .AddSingleton<ICredentialStore, WindowsCredentialStore>()
         .AddSingleton<IHostKeyStore, JsonHostKeyStore>()
         .AddSingleton<ILocalFileSystem, LocalFileSystem>()
