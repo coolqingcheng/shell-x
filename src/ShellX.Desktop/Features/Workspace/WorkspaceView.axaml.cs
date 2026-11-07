@@ -79,14 +79,14 @@ public partial class WorkspaceView : UserControl
         if (TopLevel.GetTopLevel(this) is Window owner) _portsWindow.Show(owner);
         else _portsWindow.Show();
     }
-    private void OpenFileManager(object? sender, RoutedEventArgs e)
+    private async void OpenFileManager(object? sender, RoutedEventArgs e)
     {
         if (_vm is not { Files: var files } vm) return;
         if (_fileWindow is { IsVisible: true }) { _fileWindow.Activate(); return; }
         var topLevel = TopLevel.GetTopLevel(this);
         if (topLevel?.DataContext is MainWindowViewModel manager)
         {
-            manager.OpenFileManager(vm, topLevel as Window);
+            await manager.OpenFileManagerAsync(vm, topLevel as Window);
             return;
         }
         if (topLevel is not Window owner) return;

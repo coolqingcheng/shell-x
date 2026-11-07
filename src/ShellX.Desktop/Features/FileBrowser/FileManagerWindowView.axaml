@@ -1,42 +1,48 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:ShellX.Desktop.Features.Shell" xmlns:workspace="using:ShellX.Desktop.Features.Workspace"
-             xmlns:local="using:ShellX.Desktop.Features.FileBrowser" xmlns:controls="using:ShellX.Desktop.Controls"
+             xmlns:vm="using:ShellX.Desktop.Features.Shell" xmlns:local="using:ShellX.Desktop.Features.FileBrowser"
+             xmlns:controls="using:ShellX.Desktop.Controls"
              x:Class="ShellX.Desktop.Features.FileBrowser.FileManagerWindowView" x:DataType="vm:MainWindowViewModel">
   <Grid RowDefinitions="38,*">
-    <ListBox Name="FileTabs" ItemsSource="{Binding FileManagerTabs}" SelectedItem="{Binding SelectedFileManagerTab, Mode=TwoWay}"
-             Background="Transparent" Padding="0" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Disabled">
-      <ListBox.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ListBox.ItemsPanel>
-      <ListBox.Styles>
-        <Style Selector="ListBoxItem">
-          <Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="MinHeight" Value="37" />
-        </Style>
-        <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
-          <Setter Property="Background" Value="{DynamicResource AppBackground}" />
-        </Style>
-        <Style Selector="ListBoxItem:not(:selected) /template/ ContentPresenter">
-          <Setter Property="Background" Value="{DynamicResource HeaderBackground}" />
-        </Style>
-      </ListBox.Styles>
-      <ListBox.ItemTemplate>
-        <DataTemplate x:DataType="workspace:WorkspaceTabViewModel">
-          <Border BorderBrush="{DynamicResource RaisedBackground}" BorderThickness="0,0,1,0" MinWidth="145" Padding="12,0">
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-              <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
-                <Ellipse Width="7" Height="7" Fill="{Binding StatusColor}" VerticalAlignment="Center" />
-                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" MaxWidth="180" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}" />
-              </StackPanel>
-              <Button Grid.Column="1" Classes="flat" Padding="4,2" Click="CloseFileManagerTab" ToolTip.Tip="关闭文件标签">
-                <controls:StrokeIcon Symbol="close" Width="12" Height="12" />
-              </Button>
-            </Grid>
-          </Border>
-        </DataTemplate>
-      </ListBox.ItemTemplate>
-    </ListBox>
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+      <ListBox Name="FileTabs" ItemsSource="{Binding FileManagerTabs}" SelectedItem="{Binding SelectedFileManagerTab, Mode=TwoWay}"
+               Background="Transparent" Padding="0" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Disabled">
+        <ListBox.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ListBox.ItemsPanel>
+        <ListBox.Styles>
+          <Style Selector="ListBoxItem">
+            <Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="MinHeight" Value="37" />
+          </Style>
+          <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource AppBackground}" />
+          </Style>
+          <Style Selector="ListBoxItem:not(:selected) /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource HeaderBackground}" />
+          </Style>
+        </ListBox.Styles>
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="local:FileManagerTabViewModel">
+            <Border BorderBrush="{DynamicResource RaisedBackground}" BorderThickness="0,0,1,0" MinWidth="150" Padding="12,0">
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                  <Ellipse Width="7" Height="7" Fill="{Binding StatusColor}" VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding Title}" VerticalAlignment="Center" MaxWidth="190" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Title}" />
+                </StackPanel>
+                <Button Grid.Column="1" Classes="flat" Padding="4,2" Click="CloseFileManagerTab" ToolTip.Tip="关闭文件标签">
+                  <controls:StrokeIcon Symbol="close" Width="12" Height="12" />
+                </Button>
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+      <Button Grid.Column="1" Name="AddFileManagerTab" Classes="flat" Padding="7,4" Click="AddFileManagerTabClicked"
+              IsEnabled="{Binding HasSelectedFileManagerTab}" ToolTip.Tip="为当前连接新建文件标签">
+        <controls:StrokeIcon Symbol="plus" Width="16" Height="16" />
+      </Button>
+    </Grid>
 
     <ContentControl Grid.Row="1" Content="{Binding SelectedFileManagerTab}">
       <ContentControl.ContentTemplate>
-        <DataTemplate x:DataType="workspace:WorkspaceTabViewModel">
+        <DataTemplate x:DataType="local:FileManagerTabViewModel">
           <local:FileBrowserView DataContext="{Binding Files}" />
         </DataTemplate>
       </ContentControl.ContentTemplate>

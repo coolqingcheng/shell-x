@@ -540,3 +540,14 @@ bash: -c: line 21: syntax error near unexpected token `$'do\r''
 - **标题**：窗口标题随选中连接变化为 `文件管理 · 连接名`，继续通过 `WindowTitles.ApplyVersionToTitle` 附加版本号。
 - **测试**：`FileManagerWindowTests.OneFileManagerWindowUsesConnectionTabsForAAndB` 验证 A 打开一个窗口、B 只追加页签、始终只有一个 OwnedWindow、选中 B 时内容为 `tabB.Files`、关闭 B 后回到 A 且窗口不关闭；原“单连接独立窗口”测试继续通过。
 - **结果**：`dotnet build ShellX.slnx -c Release` 0 警告 0 错误；全量 Core 54 / Infra 55（18 跳过） / Desktop 98（12 跳过）全绿，共 207 通过、30 跳过、0 失败。预览为 `artifacts/readme-shots/file-manager-tabs.png`。
+## 同一连接多文件页签与自动编号（2026-11-07）
+
+- **需求**：同一连接不仅能打开文件管理器，还能再开多个文件页签；页签名称必须带编号，例如 `连接 A (1)`、`连接 A (2)`，不同连接继续显示 `连接 B (1)`。
+- **入口语义**：终端工具栏文件图标重复点击仍只激活该连接已有页签，避免误开；文件页签栏右侧新增 `＋`，点击后为当前选中页签所属连接创建下一个独立页签。
+- **独立状态**：新增 `FileManagerTabViewModel`，每个页签持有自己的 `FileBrowserViewModel`，但挂接到同一连接当前 `IRemoteSession.Files` 与连接取消令牌；因此 A (1)、A (2) 可分别浏览不同目录，路径、目录树、选择和分栏状态互不影响。
+- **会话同步**：`WorkspaceTabViewModel` 新增 `SessionChanged` 与 `ConnectionToken`；连接建立、断开或自动重连时，所有该连接的文件页签同步 Attach / Detach，断开时取消各自传输。
+- **编号规则**：创建时按同连接现有页签数量取下一个编号；删除任意页签后调用 `RenumberFileManagerTabs()`，同连接剩余页签连续重排，始终保证标题唯一。关闭文件页签只释放该页签的浏览状态，不关闭终端。
+- **窗口标题**：`文件管理 · 连接 A (2)` 等标题随选中页签变化，并继续附加 ShellX 版本号。
+- **生命周期**：终端连接关闭时移除它的全部文件页签；应用退出时逐个 Dispose 独立 `FileBrowserViewModel`、取消传输并清理会话事件订阅。
+- **测试**：`FileManagerWindowTests.OneFileManagerWindowSupportsMultipleNumberedTabsPerConnectionAndAAndB` 覆盖重复打开 A 不新增、＋ 创建 A (1)/A (2)、两个 A 页签 Files 实例独立、B 追加为 B (1)、始终单窗口、关闭 B 后 A 页签仍保留且编号连续。
+- **结果**：`dotnet build ShellX.slnx -c Release` 0 警告 0 错误；全量 Core 54 / Infra 55（18 跳过） / Desktop 98（12 跳过）全绿，共 207 通过、30 跳过、0 失败。预览更新为 `artifacts/readme-shots/file-manager-tabs-numbered.jpg`。

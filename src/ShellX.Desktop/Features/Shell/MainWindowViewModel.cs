@@ -51,9 +51,10 @@ public partial class MainWindowViewModel : ObservableObject
     private bool _configurationLoaded;
     public ObservableCollection<ConnectionGroupViewModel> Groups { get; } = [];
     public ObservableCollection<WorkspaceTabViewModel> Tabs { get; } = [];
-    public ObservableCollection<WorkspaceTabViewModel> FileManagerTabs { get; } = [];
-    [ObservableProperty] private WorkspaceTabViewModel? _selectedFileManagerTab;
-    public string FileManagerWindowTitle => SelectedFileManagerTab is null ? "文件管理" : $"文件管理 · {SelectedFileManagerTab.Name}";
+    public ObservableCollection<FileManagerTabViewModel> FileManagerTabs { get; } = [];
+    [ObservableProperty] private FileManagerTabViewModel? _selectedFileManagerTab;
+    public string FileManagerWindowTitle => SelectedFileManagerTab is null ? "文件管理" : $"文件管理 · {SelectedFileManagerTab.Title}";
+    public bool HasSelectedFileManagerTab => SelectedFileManagerTab is not null;
     [ObservableProperty] private WorkspaceTabViewModel? _selectedTab;
     [ObservableProperty] private string _search = "";
     [ObservableProperty] private string _status = "就绪";
@@ -83,7 +84,7 @@ public partial class MainWindowViewModel : ObservableObject
     { RefreshVisibleConnections(); OnPropertyChanged(nameof(CanManageFolder)); OnPropertyChanged(nameof(FolderCaption)); }
     partial void OnSelectedTabChanged(WorkspaceTabViewModel? value)
     { foreach (var tab in Tabs) tab.IsSelected = ReferenceEquals(tab, value); }
-    partial void OnSelectedFileManagerTabChanged(WorkspaceTabViewModel? value)
+    partial void OnSelectedFileManagerTabChanged(FileManagerTabViewModel? value)
     {
         // 移除当前页签时 ListBox 会先回写 null；剩余页签存在时立即恢复选择，避免内容区变空。
         if (value is null && !_disposingFileManagerTabs && FileManagerTabs.Count > 0)
@@ -92,6 +93,7 @@ public partial class MainWindowViewModel : ObservableObject
             return;
         }
         OnPropertyChanged(nameof(FileManagerWindowTitle));
+        OnPropertyChanged(nameof(HasSelectedFileManagerTab));
         if (_fileWindow is not null) _fileWindow.Title = WindowTitles.ApplyVersionToTitle(FileManagerWindowTitle);
     }
     public IReadOnlyList<string> FolderPaths => ConnectionFolders.Expand(_folders.Concat(_profiles.Select(p => p.Group)));
@@ -523,14 +525,47 @@ public partial class MainWindowViewModel : ObservableObject
         }
         finally { _hostGate.Release(); }
     }
-    /// <summary>打开统一的文件管理器窗口；同一连接只占一个页签，A、B 连接分别追加页签。</summary>
-    public void OpenFileManager(WorkspaceTabViewModel tab, Window? owner = null)
+    /// <summary>打开统一的文件管理器窗口；同一连接默认激活已有页签，可通过“+”创建多个独立页签。</summary>
+    public async Task OpenFileManagerAsync(WorkspaceTabViewModel tab, Window? owner = null)
     {
         if (_applicationLock.IsLocked || tab is null) return;
         SubscribeFileManagerTab(tab);
-        if (!FileManagerTabs.Contains(tab)) FileManagerTabs.Add(tab);
-        SelectedFileManagerTab = tab;
+        ShowFileManagerWindow(owner);
 
+        var existing = FileManagerTabs.LastOrDefault(item => ReferenceEquals(item.Connection, tab));
+        if (existing != null)
+        {
+            SelectedFileManagerTab = existing;
+            _fileWindow?.Activate();
+            await existing.InitializeAsync();
+            return;
+        }
+
+        var fileTab = CreateFileManagerTab(tab);
+        await fileTab.InitializeAsync();
+    }
+
+    /// <summary>为当前选中的文件页签所属连接再开一个独立文件页签。</summary>
+    public async Task AddFileManagerTabAsync()
+    {
+        if (_applicationLock.IsLocked || SelectedFileManagerTab is not { } current) return;
+        SubscribeFileManagerTab(current.Connection);
+        var fileTab = CreateFileManagerTab(current.Connection);
+        ShowFileManagerWindow(null);
+        await fileTab.InitializeAsync();
+    }
+
+    private FileManagerTabViewModel CreateFileManagerTab(WorkspaceTabViewModel connection)
+    {
+        var number = FileManagerTabs.Count(item => ReferenceEquals(item.Connection, connection)) + 1;
+        var fileTab = new FileManagerTabViewModel(connection, number, _dialogs, _logs, _localFiles);
+        FileManagerTabs.Add(fileTab);
+        SelectedFileManagerTab = fileTab;
+        return fileTab;
+    }
+
+    private void ShowFileManagerWindow(Window? owner)
+    {
         if (_fileWindow is { IsVisible: true })
         {
             _fileWindow.Activate();
@@ -555,7 +590,7 @@ public partial class MainWindowViewModel : ObservableObject
         window.Activate();
     }
 
-    public void CloseFileManagerTab(WorkspaceTabViewModel tab) => RemoveFileManagerTab(tab);
+    public void CloseFileManagerTab(FileManagerTabViewModel tab) => RemoveFileManagerTab(tab);
 
     private void SubscribeFileManagerTab(WorkspaceTabViewModel tab)
     {
@@ -573,31 +608,57 @@ public partial class MainWindowViewModel : ObservableObject
 
     private void FileManagerTabDisposed(object? sender, EventArgs e)
     {
-        if (sender is WorkspaceTabViewModel tab) RemoveFileManagerTab(tab);
+        if (sender is WorkspaceTabViewModel tab) RemoveFileManagerTabsForConnection(tab);
     }
 
     private void FileManagerTabChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(WorkspaceTabViewModel.Name) && ReferenceEquals(sender, SelectedFileManagerTab))
-            if (_fileWindow is not null) _fileWindow.Title = WindowTitles.ApplyVersionToTitle(FileManagerWindowTitle);
+        if (e.PropertyName == nameof(WorkspaceTabViewModel.Name) &&
+            sender is WorkspaceTabViewModel connection &&
+            ReferenceEquals(SelectedFileManagerTab?.Connection, connection) &&
+            _fileWindow is not null)
+            _fileWindow.Title = WindowTitles.ApplyVersionToTitle(FileManagerWindowTitle);
     }
 
-    private void RemoveFileManagerTab(WorkspaceTabViewModel tab)
+    private void RemoveFileManagerTabsForConnection(WorkspaceTabViewModel connection)
     {
-        var index = FileManagerTabs.IndexOf(tab);
+        foreach (var fileTab in FileManagerTabs.Where(item => ReferenceEquals(item.Connection, connection)).ToArray())
+            RemoveFileManagerTab(fileTab);
+        UnsubscribeFileManagerTab(connection);
+    }
+
+    private void RemoveFileManagerTab(FileManagerTabViewModel fileTab)
+    {
+        var index = FileManagerTabs.IndexOf(fileTab);
         if (index < 0) return;
-        UnsubscribeFileManagerTab(tab);
-        FileManagerTabs.Remove(tab);
+        var wasSelected = ReferenceEquals(SelectedFileManagerTab, fileTab);
+        FileManagerTabs.Remove(fileTab);
+        fileTab.Dispose();
+        RenumberFileManagerTabs();
+
         if (FileManagerTabs.Count == 0)
         {
             SelectedFileManagerTab = null;
             CloseFileManagerWindow();
             return;
         }
-        if (ReferenceEquals(SelectedFileManagerTab, tab))
+        if (wasSelected || SelectedFileManagerTab is null)
             SelectedFileManagerTab = FileManagerTabs[Math.Clamp(index, 0, FileManagerTabs.Count - 1)];
         else if (_fileWindow is not null)
             _fileWindow.Title = WindowTitles.ApplyVersionToTitle(FileManagerWindowTitle);
+
+        if (!FileManagerTabs.Any(item => ReferenceEquals(item.Connection, fileTab.Connection)))
+            UnsubscribeFileManagerTab(fileTab.Connection);
+    }
+
+    private void RenumberFileManagerTabs()
+    {
+        foreach (var connection in FileManagerTabs.Select(item => item.Connection).Distinct())
+        {
+            var number = 1;
+            foreach (var fileTab in FileManagerTabs.Where(item => ReferenceEquals(item.Connection, connection)))
+                fileTab.SetNumber(number++);
+        }
     }
 
     private void CloseFileManagerWindow()
@@ -611,7 +672,11 @@ public partial class MainWindowViewModel : ObservableObject
     {
         _disposingFileManagerTabs = true;
         CloseFileManagerWindow();
-        foreach (var tab in FileManagerTabs.ToArray()) UnsubscribeFileManagerTab(tab);
+        foreach (var fileTab in FileManagerTabs.ToArray())
+        {
+            fileTab.Dispose();
+            UnsubscribeFileManagerTab(fileTab.Connection);
+        }
         FileManagerTabs.Clear();
         SelectedFileManagerTab = null;
         _disposingFileManagerTabs = false;
@@ -620,7 +685,7 @@ public partial class MainWindowViewModel : ObservableObject
     private async Task CloseTabAsync(WorkspaceTabViewModel tab)
     {
         if (tab.Files.HasActiveTransfers && !await _dialogs.ConfirmAsync("关闭连接", "当前连接仍有文件传输，关闭将取消这些任务。", true)) return;
-        RemoveFileManagerTab(tab);
+        RemoveFileManagerTabsForConnection(tab);
         await tab.DisposeAsync(); var index = Tabs.IndexOf(tab);
         var wasSelected = ReferenceEquals(SelectedTab, tab); Tabs.Remove(tab);
         if (wasSelected || SelectedTab == null) SelectedTab = Tabs.Count == 0 ? null : Tabs[Math.Clamp(index, 0, Tabs.Count - 1)];

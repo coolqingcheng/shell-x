@@ -65,6 +65,9 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty] private double _fontSize = 14;
     [ObservableProperty] private string _fontFamily = "Cascadia Mono,Consolas,monospace";
     [ObservableProperty] private IRemoteSession? _session;
+    public event Action<WorkspaceTabViewModel, IRemoteSession?>? SessionChanged;
+    public CancellationToken ConnectionToken => _connection?.Token ?? CancellationToken.None;
+    partial void OnSessionChanged(IRemoteSession? value) => SessionChanged?.Invoke(this, value);
     public bool ShowOverlay => !IsConnected && !_hasConnected;
     public string StatusColor => IsConnected ? "#73c991" : IsConnecting || IsReconnecting ? "#d7ba7d" : "#858585";
     public string TunnelStatusColor => Tunnels.Any(t => t.State == TunnelState.Failed) ? "#F48771"

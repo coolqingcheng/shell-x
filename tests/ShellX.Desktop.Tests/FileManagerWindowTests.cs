@@ -77,7 +77,7 @@ public sealed class FileManagerWindowTests
     }
 
     [AvaloniaFact]
-    public async Task OneFileManagerWindowUsesConnectionTabsForAAndB()
+    public async Task OneFileManagerWindowSupportsMultipleNumberedTabsPerConnectionAndAAndB()
     {
         var root = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "shellx-filetabs-" + Guid.NewGuid().ToString("N"))).FullName;
         var paths = new AppPaths(root);
@@ -105,22 +105,35 @@ public sealed class FileManagerWindowTests
             button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await Task.Delay(80);
             var fileWindow = owner.OwnedWindows.OfType<Window>().Single();
-            var title = fileWindow.Title ?? "";
-            var versionIndex = title.IndexOf(" v", StringComparison.Ordinal);
-            Assert.True(versionIndex > 0);
-            Assert.Equal("文件管理 · 连接 A", title[..versionIndex]);
+            Assert.Equal("文件管理 · 连接 A (1)", TitleWithoutVersion(fileWindow.Title));
             Assert.Single(main.FileManagerTabs);
-            Assert.Same(tabA, main.SelectedFileManagerTab);
+            Assert.Equal("连接 A (1)", main.SelectedFileManagerTab!.Title);
+
+            button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));       // 重复打开 A 只激活已有页签
+            await Task.Delay(40);
+            Assert.Single(main.FileManagerTabs);
+
+            var add = fileWindow.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "AddFileManagerTab");
+            add.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));          // “+”为 A 新建第二个页签
+            await Task.Delay(80);
+            Assert.Equal(2, main.FileManagerTabs.Count);
+            Assert.All(main.FileManagerTabs, item => Assert.Same(tabA, item.Connection));
+            Assert.Equal("连接 A (1)", main.FileManagerTabs[0].Title);
+            Assert.Equal("连接 A (2)", main.FileManagerTabs[1].Title);
+            Assert.Equal("连接 A (2)", main.SelectedFileManagerTab!.Title);
+            Assert.NotSame(main.FileManagerTabs[0].Files, main.FileManagerTabs[1].Files);   // 同连接两个页签状态独立
 
             view.DataContext = tabB;
-            button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));       // B 追加到同一个窗口
             await Task.Delay(80);
-            Assert.Single(owner.OwnedWindows);                       // B 追加到同一个窗口，不新建窗口
-            Assert.Equal(2, main.FileManagerTabs.Count);
-            Assert.Same(tabB, main.SelectedFileManagerTab);
-            Assert.Equal(2, fileWindow.GetVisualDescendants().OfType<ListBoxItem>().Count());
+            Assert.Single(owner.OwnedWindows);
+            Assert.Equal(3, main.FileManagerTabs.Count);
+            Assert.Equal("连接 B (1)", main.SelectedFileManagerTab!.Title);
+            Assert.Equal(3, fileWindow.GetVisualDescendants().OfType<ListBoxItem>().Count());
             var browser = fileWindow.GetVisualDescendants().OfType<FileBrowserView>().Single();
-            Assert.Same(tabB.Files, browser.DataContext);
+            Assert.Same(main.SelectedFileManagerTab.Files, browser.DataContext);
+            Assert.NotSame(tabB.Files, browser.DataContext);               // 文件页签使用独立浏览状态
+
             if (Environment.GetEnvironmentVariable("SHELLX_PREVIEW_PATH") is { Length: > 0 } tabsPreview)
             {
                 using var bitmap = new RenderTargetBitmap(new PixelSize((int)fileWindow.ClientSize.Width, (int)fileWindow.ClientSize.Height), new Vector(96, 96));
@@ -129,12 +142,13 @@ public sealed class FileManagerWindowTests
             }
 
             var closeB = fileWindow.GetVisualDescendants().OfType<Button>()
-                .Single(b => ReferenceEquals(b.DataContext, tabB) && Equals(Avalonia.Controls.ToolTip.GetTip(b), "关闭文件标签"));
+                .Single(b => ReferenceEquals(b.DataContext, main.SelectedFileManagerTab) && Equals(Avalonia.Controls.ToolTip.GetTip(b), "关闭文件标签"));
             closeB.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await Task.Delay(40);
-            Assert.Single(main.FileManagerTabs);
-            Assert.Same(tabA, main.SelectedFileManagerTab);
-            Assert.False(fileWindow.IsVisible == false);             // 关闭 A/B 中一个页签不会关闭窗口
+            Assert.Equal(2, main.FileManagerTabs.Count);
+            Assert.Same(tabA, main.SelectedFileManagerTab!.Connection);
+            Assert.Equal("连接 A (2)", main.SelectedFileManagerTab.Title);   // 关闭 B 后剩余 A 页签重新连续编号
+            Assert.True(fileWindow.IsVisible);
             Assert.Single(owner.OwnedWindows);
         }
         finally
@@ -144,6 +158,14 @@ public sealed class FileManagerWindowTests
             await main.ShutdownAsync();
             Directory.Delete(root, true);
         }
+    }
+
+    private static string TitleWithoutVersion(string? title)
+    {
+        var text = title ?? "";
+        var index = text.IndexOf(" v", StringComparison.Ordinal);
+        Assert.True(index > 0);
+        return text[..index];
     }
     private sealed class UnusedFactory : IRemoteSessionFactory
     {
