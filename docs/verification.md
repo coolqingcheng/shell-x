@@ -520,3 +520,12 @@ bash: -c: line 21: syntax error near unexpected token `$'do\r''
 - **显示方式**：复用现有确认对话框的换行文本与滚动容器，长更新说明可滚动查看；设置页说明同步改为“检查到新版本后会显示本次更新内容并下载安装包”。
 - **测试**：`UpdateManagerTests.UpdatePromptShowsReleaseNotesAndFallsBackWhenNotesAreEmpty` 验证包含“本次更新内容”、真实 Notes、版本号和确认文案，并验证空 Notes 回退；同时清理 UpdateManagerTests 既有 xUnit1051 警告。
 - **结果**：`dotnet build ShellX.slnx -c Release` 0 警告 0 错误；全量 Core 54 / Infra 55（18 跳过） / Desktop 96（12 跳过）全绿，共 205 通过、30 跳过、0 失败。
+## 传输任务列表、进度与伸缩托盘（2026-11-07）
+
+- **列表结构**：`FileBrowserView` 的传输区域改为固定表头 + 可滚动任务列表，列为方向、文件名、状态、进度、操作；每行显示方向图标、文件名、状态、`已传 / 总量 · 百分比`、进度条、详情和取消按钮。
+- **总体进度**：`FileBrowserViewModel.TransferSummary` 显示任务总数、进行中数量和进行中任务的平均百分比；新增/完成/取消/失败/清除任务都会刷新摘要。
+- **上下伸缩**：根布局改为 `*,5,180`，中间增加 `ResizeDirection=Rows` 的 `GridSplitter`；拖动完成后把面板高度写回 `TransferPanelHeight`，限制在 96–420px，同一次文件管理器窗口内保持收起前的高度。
+- **收起托盘**：面板头部使用向下图标收起；收起后文件管理器右下角显示 30px 托盘条和蓝色 `transfer` 双向箭头图标，点击即可恢复面板。图标放在右下角是为了不遮挡本地/远程文件列表、路径栏和筛选框。
+- **任务显示**：`TransferViewModel` 新增 `HasDetails`，有错误/跳过/取消说明时才占第二行，避免活动任务重复显示进度文本；进度条仅活动任务显示，结束后仍以文本显示 100%。
+- **测试**：`TransferTests.TransferPanelResizesAndCollapsesToTrayIcon` 验证 Rows 分隔条、180→260→420 高度调整、96–420 夹紧、收起后 30px 托盘、图标与展开命令、总体进度文案；既有文本/进度边界测试全部保持通过。
+- **结果**：`dotnet build ShellX.slnx -c Release` 0 警告 0 错误；全量 Core 54 / Infra 55（18 跳过） / Desktop 97（12 跳过）全绿，共 206 通过、30 跳过、0 失败。预览导出为 `artifacts/readme-shots/transfers-panel.png` 与 `transfers-tray.png`。

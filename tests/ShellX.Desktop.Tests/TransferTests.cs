@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.Media.Imaging;
 using Avalonia.VisualTree;
 using Microsoft.Extensions.Logging.Abstractions;
 using ShellX.Desktop.Features.FileBrowser;
@@ -94,6 +95,76 @@ public sealed class TransferTests
         }
     }
 
+    [AvaloniaFact]
+    public async Task TransferPanelResizesAndCollapsesToTrayIcon()
+    {
+        using var vm = new FileBrowserViewModel(null!, NullLogger<FileBrowserViewModel>.Instance, new LocalFileSystem())
+        { ShowTransfers = true };
+        var first = new TransferViewModel("first.bin", "↑ 上传", 1024);
+        var second = new TransferViewModel("second.bin", "↓ 下载", 1024);
+        first.Report(256);
+        second.Report(512);
+        vm.Transfers.Add(first);
+        vm.Transfers.Add(second);
+        vm.ShowTransfers = false;
+        vm.ShowTransfers = true;
+        Assert.Contains("进行中", vm.TransferSummary);
+        Assert.Contains("%", vm.TransferSummary);
+
+        var view = new FileBrowserView { DataContext = vm };
+        var window = new Window { Width = 900, Height = 520, Content = view };
+        window.Show();
+        try
+        {
+            await Task.Delay(30);
+            var root = view.FindControl<Grid>("RootLayout")!;
+            var splitter = view.FindControl<GridSplitter>("TransferSplitter")!;
+            var panel = view.FindControl<Border>("TransferPanel")!;
+            var tray = view.FindControl<Border>("TransferTray")!;
+            Assert.Equal("Rows", splitter.ResizeDirection.ToString());
+            Assert.True(splitter.IsVisible);
+            Assert.True(panel.IsVisible);
+            Assert.False(tray.IsVisible);
+            Assert.Equal(180, root.RowDefinitions[2].Height.Value);
+
+            vm.SetTransferPanelHeight(260);
+            await Task.Delay(10);
+            Assert.Equal(260, vm.TransferPanelHeight);
+            Assert.Equal(260, root.RowDefinitions[2].Height.Value);
+            if (Environment.GetEnvironmentVariable("SHELLX_PREVIEW_PATH") is { Length: > 0 } preview)
+                Capture(window, Path.Combine(Path.GetDirectoryName(preview)!, "transfers-panel.png"));
+
+            vm.SetTransferPanelHeight(999);
+            Assert.Equal(420, vm.TransferPanelHeight);
+
+            vm.ShowTransfers = false;
+            await Task.Delay(10);
+            Assert.False(splitter.IsVisible);
+            Assert.False(panel.IsVisible);
+            Assert.True(tray.IsVisible);
+            Assert.Equal(30, root.RowDefinitions[2].Height.Value);
+            if (Environment.GetEnvironmentVariable("SHELLX_PREVIEW_PATH") is { Length: > 0 } trayPreview)
+                Capture(window, Path.Combine(Path.GetDirectoryName(trayPreview)!, "transfers-tray.png"));
+
+            var expand = tray.GetVisualDescendants().OfType<Button>().Single();
+            Assert.Same(vm.ToggleTransfersCommand, expand.Command);
+            Assert.Equal("transfer", tray.GetVisualDescendants().OfType<Controls.StrokeIcon>().Single().Symbol);
+            Assert.NotNull(expand.Command);
+            expand.Command!.Execute(null);
+            await Task.Delay(10);
+            Assert.True(vm.ShowTransfers);
+            Assert.True(panel.IsVisible);
+            Assert.False(tray.IsVisible);
+            Assert.Equal(420, root.RowDefinitions[2].Height.Value);
+        }
+        finally { window.Close(); }
+    }
+    private static void Capture(Window window, string path)
+    {
+        using var bitmap = new RenderTargetBitmap(new PixelSize((int)window.ClientSize.Width, (int)window.ClientSize.Height), new Vector(96, 96));
+        bitmap.Render(window);
+        bitmap.Save(path, PngBitmapEncoderOptions.Default);
+    }
     private static Rect InView(Control control, Control view)
         => control.Bounds.WithX(0).WithY(0).TransformToAABB(control.TransformToVisual(view)!.Value);
 }

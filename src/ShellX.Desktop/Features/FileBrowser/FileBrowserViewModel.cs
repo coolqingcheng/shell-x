@@ -43,8 +43,21 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private bool _isAvailable;
     [ObservableProperty] private bool _showTransfers;
+    [ObservableProperty] private double _transferPanelHeight = 180;
     [ObservableProperty] private bool _showTree;
     public bool HasActiveTransfers => Transfers.Any(t => t.IsActive);
+    public bool ShowTransferTray => !ShowTransfers;
+    public string TransferSummary
+    {
+        get
+        {
+            if (Transfers.Count == 0) return "暂无传输任务";
+            var active = Transfers.Count(t => t.IsActive);
+            if (active == 0) return $"{Transfers.Count} 个任务 · 已结束";
+            var percent = Transfers.Where(t => t.IsActive).Average(t => t.Percent);
+            return $"{Transfers.Count} 个任务 · {active} 个进行中 · {percent:0}%";
+        }
+    }
     public bool HasError => !string.IsNullOrEmpty(Error);
     partial void OnErrorChanged(string value) => OnPropertyChanged(nameof(HasError));
     partial void OnIsAvailableChanged(bool value) { Local.IsRemoteAvailable = value; EditTextCommand.NotifyCanExecuteChanged(); }
@@ -97,6 +110,15 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
     [RelayCommand] private async Task BackAsync() { if (_historyIndex > 0) await NavigateAsync(_history[--_historyIndex], false); }
     [RelayCommand] private async Task ForwardAsync() { if (_historyIndex + 1 < _history.Count) await NavigateAsync(_history[++_historyIndex], false); }
     [RelayCommand] private void ToggleHidden() => ShowHidden = !ShowHidden;
+    partial void OnShowTransfersChanged(bool value) { OnPropertyChanged(nameof(ShowTransferTray)); OnPropertyChanged(nameof(TransferSummary)); }
+    public void SetTransferPanelHeight(double value) => TransferPanelHeight = Math.Clamp(value, 96, 420);
+    private void TrackTransfer(TransferViewModel transfer)
+    {
+        transfer.PropertyChanged += (_, _) => OnPropertyChanged(nameof(TransferSummary));
+        Transfers.Add(transfer);
+        OnPropertyChanged(nameof(TransferSummary));
+        OnPropertyChanged(nameof(HasActiveTransfers));
+    }
     [RelayCommand] private void ToggleTransfers() => ShowTransfers = !ShowTransfers;
     [RelayCommand] private void ToggleTree() => ShowTree = !ShowTree;
     [RelayCommand] private Task OpenAsync() => OpenEntryAsync(SelectedEntry);
@@ -186,7 +208,7 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
                 if ((attributes & FileAttributes.Directory) != 0)
                 {
                     var folder = new TransferViewModel(new DirectoryInfo(local).Name, "↑ 上传文件夹", 0) { Status = "扫描目录中", Details = "正在统计文件和子目录…" };
-                    Transfers.Add(folder); ShowTransfers = true;
+                    TrackTransfer(folder); ShowTransfers = true;
                     _transfers.Add(TransferAsync(folder, async ct =>
                     {
                         var plan = await _localFiles.PlanDirectoryUploadAsync(local, ct);
@@ -201,7 +223,7 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
                 }
                 var name = System.IO.Path.GetFileName(local); var target = RemotePath.Combine(targetDirectory, name);
                 if (await files.ExistsAsync(target, sessionToken) && !await dialogs.ConfirmAsync("覆盖文件", $"远程文件已存在：\n{target}\n\n是否覆盖？", true)) continue;
-                var transfer = new TransferViewModel(name, "↑ 上传", new FileInfo(local).Length); Transfers.Add(transfer); ShowTransfers = true;
+                var transfer = new TransferViewModel(name, "↑ 上传", new FileInfo(local).Length); TrackTransfer(transfer); ShowTransfers = true;
                 var task = TransferAsync(transfer, ct => files.UploadAsync(local, target, new Progress<long>(transfer.Report), ct), sessionToken, true);
                 _transfers.Add(task);
             }
@@ -245,7 +267,7 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
                     if (parent == null) continue;
                     sessionToken.ThrowIfCancellationRequested();
                     var folder = new TransferViewModel(entry.Name, "↓ 下载文件夹", 0) { Status = "扫描目录中", Details = "正在统计文件和子目录，符号链接会跳过…" };
-                    Transfers.Add(folder); ShowTransfers = true;
+                    TrackTransfer(folder); ShowTransfers = true;
                     _transfers.Add(TransferAsync(folder, async ct =>
                     {
                         var downloaded = await new DirectoryDownloader(files).DownloadAsync(entry, parent,
@@ -260,7 +282,7 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
                 DirectoryDownloader.EnsureFile(local);
                 if (directory != null && File.Exists(local) && !await dialogs.ConfirmAsync("覆盖本地文件", $"本地文件已存在：\n{local}\n\n是否覆盖？", true)) continue;
                 sessionToken.ThrowIfCancellationRequested();
-                var transfer = new TransferViewModel(entry.Name, "↓ 下载", entry.Size); Transfers.Add(transfer); ShowTransfers = true;
+                var transfer = new TransferViewModel(entry.Name, "↓ 下载", entry.Size); TrackTransfer(transfer); ShowTransfers = true;
                 _transfers.Add(TransferAsync(transfer, ct => files.DownloadAsync(entry.FullPath, local, new Progress<long>(transfer.Report), ct), sessionToken, false));
             }
             catch (OperationCanceledException) { break; }
@@ -285,7 +307,12 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
     public Task DrainTransfersAsync() => Task.WhenAll(_transfers);
     [RelayCommand]
     private void ClearTransfers()
-    { foreach (var item in Transfers.Where(t => !t.IsActive).ToArray()) { Transfers.Remove(item); item.Dispose(); } _transfers.RemoveAll(t => t.IsCompleted); }
+    {
+        foreach (var item in Transfers.Where(t => !t.IsActive).ToArray()) { Transfers.Remove(item); item.Dispose(); }
+        _transfers.RemoveAll(t => t.IsCompleted);
+        OnPropertyChanged(nameof(TransferSummary));
+        OnPropertyChanged(nameof(HasActiveTransfers));
+    }
     public void Dispose() { CancelTransfers(); foreach (var transfer in Transfers) transfer.Dispose(); Local.Dispose(); }
 }
 

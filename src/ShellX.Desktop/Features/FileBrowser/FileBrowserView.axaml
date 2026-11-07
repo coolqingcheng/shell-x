@@ -1,26 +1,61 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:ShellX.Desktop.Features.FileBrowser" x:DataType="vm:FileBrowserViewModel" xmlns:local="using:ShellX.Desktop.Features.FileBrowser"
              xmlns:transfers="using:ShellX.Desktop.Features.Transfers" xmlns:controls="using:ShellX.Desktop.Controls" x:Class="ShellX.Desktop.Features.FileBrowser.FileBrowserView">
-  <Grid RowDefinitions="*,Auto">
-    <Grid x:Name="FileLayout" ColumnDefinitions="*,5,*">
+  <Grid x:Name="RootLayout" RowDefinitions="*,5,180">
+    <Grid x:Name="FileLayout" Grid.Row="0" ColumnDefinitions="*,5,*">
       <local:LocalFileBrowserView x:Name="LocalPane" DataContext="{Binding Local}" />
       <GridSplitter x:Name="FileSplitter" Grid.Column="1" ResizeDirection="Columns" Background="{DynamicResource RaisedBackground}" DragCompleted="FileSplitterDragCompleted" />
       <local:RemoteFileBrowserView x:Name="RemotePane" Grid.Column="2" />
     </Grid>
-    <Border Grid.Row="1" IsVisible="{Binding ShowTransfers}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,1,0,0" MaxHeight="165" Background="{DynamicResource PanelBackground}">
+
+    <GridSplitter x:Name="TransferSplitter" Grid.Row="1" IsVisible="{Binding ShowTransfers}" ResizeDirection="Rows" Background="{DynamicResource RaisedBackground}" DragCompleted="TransferSplitterDragCompleted" />
+
+    <Border Name="TransferPanel" Grid.Row="2" IsVisible="{Binding ShowTransfers}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,1,0,0" Background="{DynamicResource PanelBackground}">
       <DockPanel>
-        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" Margin="12,3"><TextBlock Text="传输任务" FontSize="11" VerticalAlignment="Center" /><Button Grid.Column="1" Content="清除已完成" Classes="flat" FontSize="11" Command="{Binding ClearTransfersCommand}" /><Button Grid.Column="2" Classes="flat" Command="{Binding ToggleTransfersCommand}" ToolTip.Tip="收起传输任务"><controls:StrokeIcon Symbol="close" Width="14" Height="14" /></Button></Grid>
-        <ScrollViewer><ItemsControl ItemsSource="{Binding Transfers}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="transfers:TransferViewModel">
-          <Grid ColumnDefinitions="60,*,Auto,48" RowDefinitions="Auto,Auto,Auto" Margin="12,6" ColumnSpacing="10" RowSpacing="4" ClipToBounds="True">
-            <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center"><controls:StrokeIcon Symbol="{Binding DirectionIcon}" Width="14" Height="14" Foreground="{DynamicResource ForegroundBrush}" /><TextBlock Text="{Binding DirectionLabel}" FontSize="11" VerticalAlignment="Center" /></StackPanel>
-            <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding Name}" />
-            <TextBlock Grid.Column="2" Text="{Binding Status}" FontSize="11" Foreground="{DynamicResource SecondaryForeground}" VerticalAlignment="Center" />
-            <Button Grid.Column="3" Content="取消" Classes="flat" Command="{Binding CancelCommand}" IsVisible="{Binding IsActive}" FontSize="11" MinHeight="0" Padding="5,2" />
-            <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding DetailText}" FontSize="11" Foreground="{DynamicResource SecondaryForeground}" TextWrapping="Wrap" ToolTip.Tip="{Binding DetailText}" />
-            <ProgressBar Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Value="{Binding Percent}" IsVisible="{Binding IsActive}" MinWidth="0" MinHeight="0" Height="3" HorizontalAlignment="Stretch" />
-          </Grid>
-        </DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer>
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto,Auto" Margin="12,4,12,2" ColumnSpacing="8">
+          <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <TextBlock Text="传输任务" FontSize="12" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding TransferSummary}" FontSize="11" Foreground="{DynamicResource SecondaryForeground}" VerticalAlignment="Center" />
+          </StackPanel>
+          <Button Grid.Column="1" Content="清除已完成" Classes="flat" FontSize="11" Command="{Binding ClearTransfersCommand}" />
+          <Button Grid.Column="2" Classes="flat" Command="{Binding ToggleTransfersCommand}" ToolTip.Tip="收起传输任务"><controls:StrokeIcon Symbol="down" Width="14" Height="14" /></Button>
+        </Grid>
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="64,*,100,130,52" Margin="12,0,12,2" ColumnSpacing="10">
+          <TextBlock Text="方向" FontSize="10" Foreground="{DynamicResource MutedForeground}" />
+          <TextBlock Grid.Column="1" Text="文件名" FontSize="10" Foreground="{DynamicResource MutedForeground}" />
+          <TextBlock Grid.Column="2" Text="状态" FontSize="10" Foreground="{DynamicResource MutedForeground}" />
+          <TextBlock Grid.Column="3" Text="进度" FontSize="10" Foreground="{DynamicResource MutedForeground}" />
+          <TextBlock Grid.Column="4" Text="操作" FontSize="10" Foreground="{DynamicResource MutedForeground}" />
+        </Grid>
+        <ScrollViewer>
+          <ItemsControl ItemsSource="{Binding Transfers}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="transfers:TransferViewModel">
+                <Grid ColumnDefinitions="64,*,100,130,52" RowDefinitions="Auto,Auto,Auto" Margin="12,6" ColumnSpacing="10" RowSpacing="3" ClipToBounds="True">
+                  <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                    <controls:StrokeIcon Symbol="{Binding DirectionIcon}" Width="14" Height="14" Foreground="{DynamicResource ForegroundBrush}" />
+                    <TextBlock Text="{Binding DirectionLabel}" FontSize="11" VerticalAlignment="Center" />
+                  </StackPanel>
+                  <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding Name}" />
+                  <TextBlock Grid.Column="2" Text="{Binding Status}" FontSize="11" Foreground="{DynamicResource SecondaryForeground}" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="3" Text="{Binding ProgressText}" FontSize="11" Foreground="{DynamicResource SecondaryForeground}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                  <Button Grid.Column="4" Content="取消" Classes="flat" Command="{Binding CancelCommand}" IsVisible="{Binding IsActive}" FontSize="11" MinHeight="0" Padding="5,2" />
+                  <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" Text="{Binding Details}" IsVisible="{Binding HasDetails}" FontSize="11" Foreground="{DynamicResource SecondaryForeground}" TextWrapping="Wrap" ToolTip.Tip="{Binding Details}" />
+                  <ProgressBar Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="4" Value="{Binding Percent}" IsVisible="{Binding IsActive}" MinWidth="0" MinHeight="0" Height="4" HorizontalAlignment="Stretch" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
       </DockPanel>
     </Border>
 
+    <Border Name="TransferTray" Grid.Row="2" IsVisible="{Binding ShowTransferTray}" Height="30" Background="{DynamicResource PanelBackground}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,1,0,0">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Grid.Column="0" Text="" IsVisible="False" />
+        <Button Grid.Column="1" Classes="primary" Padding="8,5" Command="{Binding ToggleTransfersCommand}" ToolTip.Tip="展开传输任务">
+          <controls:StrokeIcon Symbol="transfer" Width="18" Height="18" Foreground="White" />
+        </Button>
+      </Grid>
+    </Border>
   </Grid>
 </UserControl>

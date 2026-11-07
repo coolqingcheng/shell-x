@@ -7,12 +7,13 @@ namespace ShellX.Desktop.Features.FileBrowser;
 public partial class FileBrowserView : UserControl
 {
     private MainWindowViewModel? _layoutVm;
+    private FileBrowserViewModel? _transferVm;
     public FileBrowserView()
     {
         InitializeComponent();
-        DataContextChanged += (_, _) => AttachLayout();
-        AttachedToVisualTree += (_, _) => AttachLayout();
-        DetachedFromVisualTree += (_, _) => DetachLayout();
+        DataContextChanged += (_, _) => { AttachLayout(); AttachTransfers(); };
+        AttachedToVisualTree += (_, _) => { AttachLayout(); AttachTransfers(); };
+        DetachedFromVisualTree += (_, _) => { DetachLayout(); DetachTransfers(); };
     }
     private void AttachLayout()
     {
@@ -23,6 +24,44 @@ public partial class FileBrowserView : UserControl
         if (_layoutVm == null) return;
         _layoutVm.LayoutChanged += ApplyLayout;
         ApplyLayout(_layoutVm.LayoutSettings);
+    }
+    private void AttachTransfers()
+    {
+        if (ReferenceEquals(_transferVm, DataContext as FileBrowserViewModel)) return;
+        DetachTransfers();
+        _transferVm = DataContext as FileBrowserViewModel;
+        if (_transferVm != null) _transferVm.PropertyChanged += TransferVmChanged;
+        ApplyTransferPanel();
+    }
+
+    private void DetachTransfers()
+    {
+        if (_transferVm != null) _transferVm.PropertyChanged -= TransferVmChanged;
+        _transferVm = null;
+    }
+
+    private void TransferVmChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(FileBrowserViewModel.ShowTransfers) or nameof(FileBrowserViewModel.TransferPanelHeight))
+            ApplyTransferPanel();
+    }
+
+    private void ApplyTransferPanel()
+    {
+        if (RootLayout is null || RootLayout.RowDefinitions.Count < 3) return;
+        var show = _transferVm?.ShowTransfers ?? false;
+        RootLayout.RowDefinitions[1].Height = show ? new(5, GridUnitType.Pixel) : new(0, GridUnitType.Pixel);
+        RootLayout.RowDefinitions[2].Height = show
+            ? new(_transferVm?.TransferPanelHeight ?? 180, GridUnitType.Pixel)
+            : new(30, GridUnitType.Pixel);
+    }
+
+    private void TransferSplitterDragCompleted(object? sender, Avalonia.Input.VectorEventArgs e)
+    {
+        if (_transferVm == null || RootLayout.RowDefinitions.Count < 3) return;
+        var height = RootLayout.RowDefinitions[2].Height;
+        if (height.IsAbsolute) _transferVm.SetTransferPanelHeight(height.Value);
+        ApplyTransferPanel();
     }
     private void DetachLayout()
     {

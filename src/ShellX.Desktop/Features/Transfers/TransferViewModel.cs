@@ -18,6 +18,7 @@ public partial class TransferViewModel(string name, string direction, long total
     [ObservableProperty] private string _status = "等待中";
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DetailText))]
+    [NotifyPropertyChangedFor(nameof(HasDetails))]
     private string _details = "";
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DetailText))]
@@ -31,6 +32,7 @@ public partial class TransferViewModel(string name, string direction, long total
     [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
     private bool _isCancelling;
     public bool CanCancel => IsActive && !IsCancelling;
+    public bool HasDetails => !string.IsNullOrEmpty(Details);
     public string DetailText => string.IsNullOrEmpty(Details) ? ProgressText : Details;
 
     public void Report(long bytes)
