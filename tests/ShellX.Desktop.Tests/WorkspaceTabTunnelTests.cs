@@ -68,6 +68,36 @@ public sealed class WorkspaceTabTunnelTests
         finally { await tab.DisposeAsync(); }
     }
 
+    [Fact]
+    public async Task StopAllStopsEveryRunningTunnelAndDisablesBulkButtonState()
+    {
+        var dialogs = new TestDialogs();
+        var tab = await NewTab(Profile(2), dialogs);
+        var service = new TestTunnelService(tab.Tunnels.Select(t => t.Definition));
+        try
+        {
+            tab.Session = new TestSession(service);
+            tab.IsConnected = true;
+            foreach (var tunnel in tab.Tunnels) tunnel.Apply(service.GetStatus(tunnel.Definition.Id));
+            Assert.True(tab.CanStopAllTunnels);
+
+            await tab.StopAllTunnelsCommand.ExecuteAsync(null);
+
+            Assert.Equal(2, service.Stopped.Count);
+            Assert.All(tab.Tunnels, tunnel =>
+            {
+                Assert.False(tunnel.Running);
+                Assert.Equal(TunnelState.Stopped, tunnel.State);
+            });
+            Assert.False(tab.CanStopAllTunnels);
+        }
+        finally
+        {
+            tab.IsConnected = false;
+            tab.Session = null;
+            await tab.DisposeAsync();
+        }
+    }
     [AvaloniaFact]
     public void TunnelPanelHasStartAllAndCornerDeleteButtons()
     {
@@ -80,6 +110,9 @@ public sealed class WorkspaceTabTunnelTests
         try
         {
             Assert.NotNull(view.FindControl<Button>("StartAllTunnelsButton"));
+            var stopAll = view.FindControl<Button>("StopAllTunnelsButton");
+            Assert.NotNull(stopAll);
+            Assert.False(stopAll!.IsEnabled);                                 // 未连接/无运行隧道时不可点
             var tunnel = Assert.Single(tab.Tunnels);
             // 行右上角是小叉，且不再有“删除规则”文字按钮
             var remove = view.GetVisualDescendants().OfType<Button>()
@@ -91,6 +124,64 @@ public sealed class WorkspaceTabTunnelTests
         finally { window.Close(); tab.DisposeAsync().GetAwaiter().GetResult(); }
     }
 
+
+    private sealed class TestTunnelService : ITunnelService
+    {
+        private readonly Dictionary<Guid, TunnelStatus> _statuses = new();
+        public List<Guid> Stopped { get; } = new();
+        public event EventHandler<TunnelStatus>? StatusChanged;
+
+        public TestTunnelService(IEnumerable<TunnelDefinition> definitions)
+        {
+            foreach (var definition in definitions)
+                _statuses[definition.Id] = new TunnelStatus(definition.Id, TunnelState.Connected, true, "已连接");
+        }
+
+        public bool IsRunning(Guid id) => _statuses.TryGetValue(id, out var status) && status.IsRunning;
+
+        public TunnelStatus GetStatus(Guid id) => _statuses.TryGetValue(id, out var status)
+            ? status
+            : new TunnelStatus(id, TunnelState.Stopped, false);
+
+        public Task StartAsync(TunnelDefinition definition, CancellationToken cancellationToken = default)
+        {
+            Set(definition.Id, new TunnelStatus(definition.Id, TunnelState.Connected, true, "已连接"));
+            return Task.CompletedTask;
+        }
+
+        public Task StopAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            Stopped.Add(id);
+            Set(id, new TunnelStatus(id, TunnelState.Stopped, false));
+            return Task.CompletedTask;
+        }
+
+        public Task CheckAsync(Guid id, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        private void Set(Guid id, TunnelStatus status)
+        {
+            _statuses[id] = status;
+            StatusChanged?.Invoke(this, status);
+        }
+    }
+
+    private sealed class TestSession : IRemoteSession
+    {
+        public TestSession(ITunnelService tunnels) => Tunnels = tunnels;
+        public ITerminalChannel Terminal { get; } = new TestTerminal();
+        public IRemoteFileSystem? Files => null;
+        public string? FileError => null;
+        public ITunnelService Tunnels { get; }
+        public event EventHandler<string>? Disconnected;
+        public void RaiseDisconnected(string reason) => Disconnected?.Invoke(this, reason);
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class TestTerminal : ITerminalChannel
+    {
+        public Stream Stream => Stream.Null;
+        public void Resize(int columns, int rows) { }
+    }
     private sealed class TestFactory : IRemoteSessionFactory
     {
         public Task<IRemoteSession> ConnectAsync(ConnectionProfile profile, ConnectionSecret secret,

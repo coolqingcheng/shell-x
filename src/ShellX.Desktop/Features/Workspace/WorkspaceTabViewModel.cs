@@ -70,6 +70,7 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
     partial void OnSessionChanged(IRemoteSession? value) => SessionChanged?.Invoke(this, value);
     public bool ShowOverlay => !IsConnected && !_hasConnected;
     public string StatusColor => IsConnected ? "#73c991" : IsConnecting || IsReconnecting ? "#d7ba7d" : "#858585";
+    public bool CanStopAllTunnels => IsConnected && Tunnels.Any(tunnel => tunnel.Running || tunnel.IsBusy);
     public string TunnelStatusColor => Tunnels.Any(t => t.State == TunnelState.Failed) ? "#F48771"
         : Tunnels.Any(t => t.State is TunnelState.Starting or TunnelState.Checking or TunnelState.Unverified) ? "#D7BA7D"
         : Tunnels.Any(t => t.State == TunnelState.Connected) ? "#73C991" : "#858585";
@@ -105,7 +106,12 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
         async path => await Files.NavigateAsync(path), _saveProcessSort);
     private void TunnelChanged(object? sender, PropertyChangedEventArgs e)
     { if (e.PropertyName is nameof(TunnelViewModel.State) or nameof(TunnelViewModel.Running) or nameof(TunnelViewModel.Reason)) NotifyTunnelStatus(); }
-    private void NotifyTunnelStatus() { OnPropertyChanged(nameof(TunnelStatusColor)); OnPropertyChanged(nameof(TunnelTooltip)); }
+    private void NotifyTunnelStatus()
+    {
+        OnPropertyChanged(nameof(TunnelStatusColor));
+        OnPropertyChanged(nameof(TunnelTooltip));
+        OnPropertyChanged(nameof(CanStopAllTunnels));
+    }
     public void UpdateProfile(ConnectionProfile profile) { Profile = profile; Commands.Load(profile.QuickCommands); RebuildTunnels(); OnPropertyChanged(nameof(Name)); OnPropertyChanged(nameof(Address)); OnPropertyChanged(nameof(AccentColor)); }
     public void ApplySettings(AppSettings settings)
     {
@@ -128,7 +134,7 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
         if (_autoReconnectEnabled) StartAutoReconnect();
         else { Status = "自动重连已关闭"; await Terminal.LogAsync(Status); }
     }
-    partial void OnIsConnectedChanged(bool value) { Commands.IsAvailable = value; OnPropertyChanged(nameof(ShowOverlay)); OnPropertyChanged(nameof(StatusColor)); }
+    partial void OnIsConnectedChanged(bool value) { Commands.IsAvailable = value; OnPropertyChanged(nameof(ShowOverlay)); OnPropertyChanged(nameof(StatusColor)); OnPropertyChanged(nameof(CanStopAllTunnels)); }
     partial void OnIsConnectingChanged(bool value) => OnPropertyChanged(nameof(StatusColor));
     partial void OnIsReconnectingChanged(bool value) => OnPropertyChanged(nameof(StatusColor));
 
@@ -378,6 +384,30 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
+    /// <summary>一键停止本连接所有正在运行或正在启动/检测的转发规则；单条失败不影响其余规则。</summary>
+    [RelayCommand]
+    private async Task StopAllTunnelsAsync()
+    {
+        var session = Session;
+        if (session == null || !IsConnected) return;
+        foreach (var tunnel in Tunnels.ToArray())
+        {
+            if (!tunnel.Running && !tunnel.IsBusy) continue;
+            try
+            {
+                await session.Tunnels.StopAsync(tunnel.Definition.Id, _connection?.Token ?? CancellationToken.None);
+                if (ReferenceEquals(Session, session)) tunnel.Apply(session.Tunnels.GetStatus(tunnel.Definition.Id));
+            }
+            catch (Exception ex)
+            {
+                if (!ReferenceEquals(Session, session)) continue;
+                var status = session.Tunnels.GetStatus(tunnel.Definition.Id);
+                tunnel.Apply(status.IsRunning
+                    ? status with { State = TunnelState.Failed, Reason = ex.Message }
+                    : status);
+            }
+        }
+    }
     private async Task RemoveTunnelAsync(TunnelViewModel tunnel)
     {
         if (!await _dialogs.ConfirmAsync("删除隧道规则", $"确认删除规则“{tunnel.Name}”？删除后该转发不再自动启动，正在运行的监听会立即停止。", true)) return;

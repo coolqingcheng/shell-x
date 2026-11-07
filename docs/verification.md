@@ -566,3 +566,11 @@ bash: -c: line 21: syntax error near unexpected token `$'do\r''
 - **效果**：权限、确认、提示和文件选择窗口都以当前文件管理器为 Owner；终端主窗口不被激活、不禁用，仍可直接点击。切回主窗口后，上下文自动恢复为主窗口。
 - **测试**：新增 `FileManagerWindowTests.PermissionDialogUsesFileManagerOwnerInsteadOfTerminalWindow`，验证权限窗口的 Owner 是文件管理器、不属于主窗口 OwnedWindows，且 `main.IsEnabled` 保持 true。
 - **结果**：`dotnet build ShellX.slnx -c Release` 0 警告 0 错误；全量 Core 54 / Infra 55（18 跳过） / Desktop 99（12 跳过）全绿，共 208 通过、30 跳过、0 失败。
+## 隧道支持全部停止（2026-11-08）
+
+- **需求**：端口转发面板此前只有“全部启动”，缺少对应的批量停止入口，无法一次性关掉本连接所有正在运行的转发规则。
+- **实现**：`WorkspaceTabViewModel` 新增 `StopAllTunnelsAsync`（生成 `StopAllTunnelsCommand`），按顺序停止本连接所有处于运行中或启动 / 检测中（`IsBusy`）的规则；单条规则停止异常不中断其余规则，异常规则按隧道服务返回的状态标记为失败并附带原因。每条处理完成后立即用 `ITunnelService.GetStatus` 刷新该行显示。
+- **按钮状态**：新增只读属性 `CanStopAllTunnels`（已连接且存在运行或进行中的规则），在隧道状态变化、隧道集合增删和连接状态变化时统一通知，未连接或没有运行中的规则时按钮置灰。
+- **界面**：端口转发面板顶部工具栏由 `*,Auto,Auto` 调整为三列，新增 `StopAllTunnelsButton`（文字“全部停止”），与“新建隧道”“全部启动”同排。
+- **测试**：新增 `WorkspaceTabTunnelTests.StopAllStopsEveryRunningTunnelAndDisablesBulkButtonState`，用 `TestTunnelService` / `TestSession` / `TestTerminal` 假实现覆盖批量停止与按钮状态；面板 UI 测试补充 `StopAllTunnelsButton` 存在性断言，未连接时不可点。
+- **结果**：`dotnet build ShellX.slnx -c Release` 0 警告 0 错误；全量 Core 54 / Infra 55（18 跳过） / Desktop 100（12 跳过）全绿，共 209 通过、30 跳过、0 失败。
