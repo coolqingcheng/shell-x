@@ -288,22 +288,47 @@ public partial class MainWindowViewModel : ObservableObject
             var group = SelectedGroup is { Path.Length: > 0, Children.Count: 0 } folder
                 ? folder.Path
                 : XshellSessionImporter.DefaultGroup;
-            var parsed = new List<ConnectionProfile>();
+            var parsed = new List<XshellImportResult>();
             var failures = new List<string>();
+            var warnings = new List<string>();
             var selectedDuplicates = 0;
             var seen = new HashSet<ConnectionEndpoint>();
+            string? credentialKey = null;
+            var promptedCredentialKey = false;
+
+            void AddImported(XshellImportResult imported)
+            {
+                var profile = imported.Profile with { Group = ConnectionFolders.Normalize(group) };
+                profile.Validate();
+                imported = imported with { Profile = profile };
+                if (seen.Add(ConnectionEndpoint.From(profile))) parsed.Add(imported);
+                else selectedDuplicates++;
+            }
+
             foreach (var path in paths.Distinct(StringComparer.OrdinalIgnoreCase))
             {
-                try
+                try { AddImported(XshellSessionImporter.ParseFile(path, credentialKey)); }
+                catch (XshellCredentialDecryptException ex) when (!promptedCredentialKey)
                 {
-                    var profile = XshellSessionImporter.ParseFile(path) with { Group = ConnectionFolders.Normalize(group) };
-                    profile.Validate();
-                    if (seen.Add(ConnectionEndpoint.From(profile))) parsed.Add(profile);
-                    else selectedDuplicates++;
+                    promptedCredentialKey = true;
+                    var masterKey = await _dialogs.PromptAsync("Xshell 主密码",
+                        "默认使用当前 Windows 账户解密；检测到会话使用了 Xshell 主密码，请输入主密码", "", true);
+                    if (masterKey == null || _applicationLock.IsLocked)
+                    {
+                        failures.Add($"{Path.GetFileName(path)}：{ex.Message}");
+                        continue;
+                    }
+                    if (masterKey.Length == 0)
+                    {
+                        failures.Add($"{Path.GetFileName(path)}：未输入 Xshell 主密码。");
+                        continue;
+                    }
+                    credentialKey = masterKey;
+                    try { AddImported(XshellSessionImporter.ParseFile(path, credentialKey)); }
+                    catch (Exception retryEx) { failures.Add($"{Path.GetFileName(path)}：{retryEx.Message}"); }
                 }
                 catch (Exception ex) { failures.Add($"{Path.GetFileName(path)}：{ex.Message}"); }
             }
-
             if (parsed.Count == 0)
             {
                 Status = "Xshell 导入失败";
@@ -314,26 +339,40 @@ public partial class MainWindowViewModel : ObservableObject
 
             var added = 0;
             var duplicates = selectedDuplicates;
+            var addedIds = new HashSet<Guid>();
             await CommitCatalogAsync(catalog =>
             {
                 var known = catalog.Connections.Select(ConnectionEndpoint.From).ToHashSet();
-                var additions = parsed.Where(profile => known.Add(ConnectionEndpoint.From(profile))).ToArray();
+                var additions = parsed.Where(item => known.Add(ConnectionEndpoint.From(item.Profile))).ToArray();
                 added = additions.Length;
                 duplicates += parsed.Count - additions.Length;
+                foreach (var item in additions) addedIds.Add(item.Profile.Id);
                 if (added == 0) return catalog;
                 return catalog with
                 {
-                    Connections = [.. catalog.Connections, .. additions],
+                    Connections = [.. catalog.Connections, .. additions.Select(item => item.Profile)],
                     Folders = [.. catalog.Folders, ConnectionFolders.Normalize(group)]
                 };
             });
 
+            var restoredSecrets = 0;
+            var credentialFailures = new List<string>();
+            foreach (var item in parsed.Where(item => addedIds.Contains(item.Profile.Id)))
+            {
+                if (item.Warning != null) warnings.Add($"{item.Profile.Name}：{item.Warning}");
+                if (item.Secret.Password.Length == 0 && item.Secret.Passphrase.Length == 0) continue;
+                try { await _credentials.SaveAsync(item.Profile.Id, item.Secret); restoredSecrets++; }
+                catch (Exception ex) { credentialFailures.Add($"{item.Profile.Name}：{ex.Message}"); }
+            }
+
             SelectedGroup = FindFolder(ConnectionFolders.Normalize(group));
             Search = "";
             Status = added > 0 ? $"已从 Xshell 导入 {added} 个连接" : "Xshell 会话均为重复连接";
-            var summary = $"新增 {added} 个连接，跳过重复 {duplicates} 个。";
+            var summary = $"新增 {added} 个连接，跳过重复 {duplicates} 个，已解密并保存凭据 {restoredSecrets} 条。";
+            if (warnings.Count > 0) summary += "\n注意：\n" + string.Join('\n', warnings);
+            if (credentialFailures.Count > 0) summary += "\n凭据未能写入本机安全存储：\n" + string.Join('\n', credentialFailures);
             if (failures.Count > 0) summary += $"\n未导入 {failures.Count} 个文件：\n" + string.Join('\n', failures);
-            summary += "\n\n已导入密码认证的会话仍会在首次连接时要求输入密码；不会解析或导入密码，Xshell 文件中的 Password / Passphrase 字段会被跳过。";
+            summary += "\n\nXshell 密码只在解密后写入本机安全存储，不会明文写入连接配置。";
             await _dialogs.ShowInformationAsync(added > 0 ? "Xshell 导入完成" : "Xshell 导入完成", summary);
         }
         catch (Exception ex) { await _dialogs.ShowErrorAsync("Xshell 导入失败：\n" + ex.Message); }

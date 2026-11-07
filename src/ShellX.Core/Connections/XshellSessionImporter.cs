@@ -3,24 +3,29 @@ using System.Text;
 
 namespace ShellX.Core.Connections;
 
+public sealed class XshellCredentialDecryptException(string label)
+    : Exception($"无法用当前 Windows 账户解密 Xshell 保存的{label}；如果 Xshell 设置了主密码，请输入主密码后重试。");
+
+public sealed record XshellImportResult(ConnectionProfile Profile, ConnectionSecret Secret, string? Warning = null);
+
 /// <summary>
 /// 读取 Xshell 的 .xsh 会话文件并转换为 ShellX 连接。
-/// 只导入 SSH 主机、账号、端口、初始目录和可解析的私钥路径；密码始终不读取、不导入。
+/// SSH 密码/私钥口令会用当前 Windows 账户密钥解密，由调用方立即写入本机安全存储。
 /// </summary>
 public static class XshellSessionImporter
 {
     public const string DefaultGroup = "Xshell";
 
-    public static ConnectionProfile ParseFile(string path)
+    public static XshellImportResult ParseFile(string path, string? credentialKey = null)
     {
         if (string.IsNullOrWhiteSpace(path)) throw new ArgumentException("请选择 Xshell 会话文件。", nameof(path));
         if (!File.Exists(path)) throw new FileNotFoundException("Xshell 会话文件不存在。", path);
         var content = Decode(File.ReadAllBytes(path));
         var name = Path.GetFileNameWithoutExtension(path).Trim();
-        return Parse(content, name, Path.GetDirectoryName(path));
+        return Parse(content, name, Path.GetDirectoryName(path), credentialKey);
     }
 
-    public static ConnectionProfile Parse(string content, string sourceName, string? sourceDirectory = null)
+    public static XshellImportResult Parse(string content, string sourceName, string? sourceDirectory = null, string? credentialKey = null)
     {
         if (string.IsNullOrWhiteSpace(content)) throw new InvalidDataException("文件内容为空，不是有效的 Xshell 会话。");
         var sections = ParseSections(content);
@@ -44,16 +49,43 @@ public static class XshellSessionImporter
         var username = GetValue(authentication, "UserName").Trim();
         if (username.Length == 0) username = "root";
         var userKey = GetValue(authentication, "UserKey").Trim();
-        var methods = GetValue(authentication, "AuthMethodList").Trim();
-        var keyPath = userKey.Length > 0 && (methods.Length == 0 || methods.Contains("11", StringComparison.Ordinal))
-            ? ResolvePrivateKey(userKey, sourceDirectory)
-            : null;
+        var methods = GetValue(authentication, "AuthMethodList")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var keyRequested = userKey.Length > 0 && (methods.Length == 0 || methods.Contains("11", StringComparer.Ordinal));
+        var keyPath = keyRequested ? ResolvePrivateKey(userKey, sourceDirectory) : null;
+        if (keyRequested && keyPath == null)
+            throw new FileNotFoundException($"Xshell 会话引用的私钥“{userKey}”在本机未找到，请先放置私钥文件。");
+
+        var secret = new ConnectionSecret();
+        string? warning = null;
+        if (keyRequested)
+        {
+            var encodedPassphrase = GetValue(authentication, "Passphrase").Trim();
+            if (encodedPassphrase.Length > 0)
+            {
+                var passphrase = DecryptCredential(encodedPassphrase, "私钥口令", credentialKey);
+                secret = new ConnectionSecret("", passphrase);
+            }
+        }
+        else
+        {
+            var encodedPassword = GetValue(authentication, "Password").Trim();
+            if (encodedPassword.Length == 0)
+            {
+                warning = "Xshell 会话本身没有保存登录密码，首次连接时仍需输入。";
+            }
+            else
+            {
+                var password = DecryptCredential(encodedPassword, "登录密码", credentialKey);
+                secret = new ConnectionSecret(password, "");
+            }
+        }
 
         var initialDirectory = GetValue(ssh, "InitRemoteDirectory").Trim();
         var name = sourceName.Trim();
         if (name.Length == 0) name = host;
-
-        return new ConnectionProfile
+        var hasSecret = secret.Password.Length > 0 || secret.Passphrase.Length > 0;
+        var profile = new ConnectionProfile
         {
             Name = name,
             Group = DefaultGroup,
@@ -62,12 +94,20 @@ public static class XshellSessionImporter
             Username = username,
             Authentication = keyPath == null ? AuthenticationKind.Password : AuthenticationKind.PrivateKey,
             PrivateKeyPath = keyPath ?? "",
-            RememberSecret = false,
+            RememberSecret = hasSecret,
             InitialDirectory = initialDirectory.Length == 0 ? "." : initialDirectory
         };
+        return new(profile, secret, warning);
     }
 
-    /// <summary>将 Xshell 里的 UserKey 名称解析为本机可读取的私钥文件；找不到时返回 null，由连接时再选择。</summary>
+    private static string DecryptCredential(string encrypted, string label, string? credentialKey)
+    {
+        var key = string.IsNullOrWhiteSpace(credentialKey) ? XshellPasswordCipher.BuildCurrentUserKey() : credentialKey;
+        if (key.Length == 0) throw new PlatformNotSupportedException("当前系统无法解密 Xshell 保存的密码。");
+        return XshellPasswordCipher.Decrypt(encrypted, key) ?? throw new XshellCredentialDecryptException(label);
+    }
+
+    /// <summary>将 Xshell 里的 UserKey 名称解析为本机可读取的私钥文件；找不到时返回 null。</summary>
     public static string? ResolvePrivateKey(string userKey, string? sourceDirectory = null)
     {
         var value = Environment.ExpandEnvironmentVariables(userKey.Trim());
@@ -124,7 +164,6 @@ public static class XshellSessionImporter
         if (bytes.Length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE) return Encoding.Unicode.GetString(bytes, 2, bytes.Length - 2);
         if (bytes.Length >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF) return Encoding.BigEndianUnicode.GetString(bytes, 2, bytes.Length - 2);
         if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF) return Encoding.UTF8.GetString(bytes, 3, bytes.Length - 3);
-        // 无 BOM 但按 UTF-16 保存的旧 Xshell 文件：偶数位多数为 0 时按 UTF-16 解码。
         if (bytes.Length >= 4 && bytes[1] == 0 && bytes[3] == 0)
         {
             var zeros = 0;
@@ -138,7 +177,7 @@ public static class XshellSessionImporter
         }
         catch (DecoderFallbackException)
         {
-            return Encoding.Latin1.GetString(bytes);   // 仅用于兼容旧 ANSI 文件中的 ASCII 主机与账号字段
+            return Encoding.Latin1.GetString(bytes);
         }
     }
 }

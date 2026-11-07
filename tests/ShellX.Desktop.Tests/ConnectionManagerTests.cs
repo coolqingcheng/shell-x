@@ -56,7 +56,7 @@ public sealed class ConnectionManagerTests
         finally { await vm.ShutdownAsync(); window.Close(); Directory.Delete(root, true); }
     }
     [AvaloniaFact]
-    public async Task ImportsXshellSessionsOnceSelectsXshellFolderAndNeverImportsPasswords()
+    public async Task ImportsXshellSessionsOnceSelectsXshellFolderAndDecryptsPassword()
     {
         var root = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "shellx-xsh-ui-" + Guid.NewGuid().ToString("N"))).FullName;
         var store = new JsonConnectionRepository(new(root));
@@ -64,7 +64,8 @@ public sealed class ConnectionManagerTests
         var content = string.Join('\n',
             "[SessionInfo]", "Version=8.1",
             "[CONNECTION]", "Host=iot99.xiaolab.cn", "Port=22", "Protocol=SSH",
-            "[CONNECTION:AUTHENTICATION]", "AuthMethodList=01", "UserKey=", "UserName=root", "Password=应被忽略");
+            "[CONNECTION:AUTHENTICATION]", "AuthMethodList=01", "UserKey=", "UserName=root",
+            $"Password={XshellPasswordCipher.Encrypt("xshell-direct-password", XshellPasswordCipher.BuildCurrentUserKey())}");
         File.WriteAllText(sessionPath, content, System.Text.Encoding.Unicode);
 
         var dialogs = new Dialogs { XshellPaths = [sessionPath] };
@@ -82,12 +83,14 @@ public sealed class ConnectionManagerTests
             Assert.Equal("iot99.xiaolab.cn", imported.Host);
             Assert.Equal(XshellSessionImporter.DefaultGroup, imported.Group);
             Assert.Equal(AuthenticationKind.Password, imported.Authentication);
-            Assert.False(imported.RememberSecret);
+            Assert.True(imported.RememberSecret);
+            Assert.Equal(new ConnectionSecret("xshell-direct-password", ""), await new WindowsCredentialStore(new(root)).ReadAsync(imported.Id));
             Assert.Equal("Xshell", vm.SelectedGroup!.Name);
             Assert.Equal(imported.Id, Assert.Single(vm.VisibleConnections).Id);
             Assert.Contains("已从 Xshell 导入 1 个连接", vm.Status);
             Capture(window, "connection-manager.png");
-            Assert.Contains("不会解析或导入密码", dialogs.Information.Single());
+            Assert.Contains("已解密并保存凭据 1 条", dialogs.Information.Single());
+            Assert.Contains("不会明文写入连接配置", dialogs.Information.Single());
 
             await vm.ImportXshellSessionsCommand.ExecuteAsync(null);
             await Until(() => dialogs.Information.Count == 2);
@@ -95,6 +98,38 @@ public sealed class ConnectionManagerTests
             Assert.Contains("跳过重复 1 个", dialogs.Information[1]);
         }
         finally { await vm.ShutdownAsync(); window.Close(); Directory.Delete(root, true); }
+    }
+    [AvaloniaFact]
+    public async Task XshellMasterPasswordPromptDecryptsSessionAndStoresPassword()
+    {
+        var root = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "shellx-xsh-master-" + Guid.NewGuid().ToString("N"))).FullName;
+        try
+        {
+            var path = Path.Combine(root, "master-session.xsh");
+            var encoded = XshellPasswordCipher.Encrypt("master-saved-password", "xshell-master-key");
+            var content = string.Join('\n',
+                "[SessionInfo]", "Version=8.1",
+                "[CONNECTION]", "Host=master.test", "Port=22", "Protocol=SSH",
+                "[CONNECTION:AUTHENTICATION]", "AuthMethodList=01", "UserKey=",
+                "UserName=root", $"Password={encoded}");
+            File.WriteAllText(path, content, System.Text.Encoding.Unicode);
+
+            var store = new JsonConnectionRepository(new(root));
+            var dialogs = new Dialogs { XshellPaths = [path] };
+            dialogs.Prompts.Enqueue("xshell-master-key");
+            var vm = Model(root, store, dialogs);
+            await vm.InitializeAsync();
+            await vm.ImportXshellSessionsCommand.ExecuteAsync(null);
+
+            Assert.Empty(dialogs.Errors);
+            Assert.Single(dialogs.Information);
+            var profile = Assert.Single(await store.LoadAsync());
+            Assert.True(profile.RememberSecret);
+            Assert.Equal(new ConnectionSecret("master-saved-password", ""), await new WindowsCredentialStore(new(root)).ReadAsync(profile.Id));
+            Assert.Contains("已解密并保存凭据 1 条", dialogs.Information.Single());
+            await vm.ShutdownAsync();
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
     }
     [AvaloniaFact]
     public async Task EncryptedConfigurationExportRestoresConnectionPasswordAndPortableSettingsOnFreshInstall()

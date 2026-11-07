@@ -493,13 +493,13 @@ bash: -c: line 21: syntax error near unexpected token `$'do\r''
 
 - **入口**：连接管理器底部新增 `从 Xshell 导入…`，与 `导出配置…` 并列；文件选择器支持一次多选 `*.xsh`，并优先打开本机 `Documents\NetSarang Computer\版本\Xshell\Sessions` 目录。
 - **解析**：新增 `ShellX.Core.Connections.XshellSessionImporter`。按节解析 `[CONNECTION]`、`[CONNECTION:SSH]`、`[CONNECTION:AUTHENTICATION]`，仅接受 `Protocol=SSH`，读取主机、端口、账号、`InitRemoteDirectory`；支持 UTF-16LE/BE、UTF-8 BOM、无 BOM UTF-16 与严格 UTF-8，旧 ANSI 至少保留 ASCII 主机/账号字段。
-- **私钥**：`UserKey` 且 `AuthMethodList` 包含 `11` 时，依次查找会话目录、`~/.ssh` 和 `Documents\NetSarang Computer\*\Xshell\Profiles\*\Keys`；找到才切换为私钥认证，找不到保持密码认证，等待用户在连接编辑器选择。
-- **安全**：解析时显式跳过 `.xsh` 的 `Password=`、`Passphrase=`，不写入 `ConnectionSecret`，导入结果 `RememberSecret=false`；导入摘要与按钮悬浮提示都明确说明不会导入密码。
+- **私钥**：`UserKey` 且 `AuthMethodList` 包含 `11` 时，依次查找会话目录、`~/.ssh` 和 `Documents\NetSarang Computer\*\Xshell\Profiles\*\Keys`；找到后切换为私钥认证并直接使用，找不到则按文件明确报错，不静默回退到密码认证。
+- **凭据直用**：`Password=` / `Passphrase=` 先按 Xshell 7/8 格式做 Base64 + RC4(SHA256(当前 Windows SID 反转 + 用户名)) 解密，并校验末尾 SHA-256；校验成功才转成 `ConnectionSecret`，随后立即写入 `ICredentialStore`，`RememberSecret=true`，连接配置本身不出现明文。默认密钥失败时弹出一次 Xshell 主密码输入，用主密码重试；取消或仍失败则按文件报告，不导入错误密码。
 - **分组与去重**：选中最底层文件夹时导入该文件夹，否则进入 `Xshell` 分组；按 `主机 + 端口 + 账号` 对现有连接和同批文件去重，重复项不重复创建。导入完成后自动选中目标文件夹并清空搜索。
 - **失败处理**：非 SSH、端口无效、缺少 `[CONNECTION]`、文件损坏等情况按文件单独报告，其余有效会话继续导入；全部失败时不修改配置。
-- **实机解析**：对本机 Xshell 8 的两个 UTF-16LE `.xsh` 样例实际执行解析：`183.66.27.19.xsh` → `183.66.27.19:30436/root/密码认证`，`iot99.xiaolab.cn.xsh` → `iot99.xiaolab.cn:22/root/私钥认证`，私钥正确解析到 `~/.ssh/id_ed25519`；未连接任何服务器，也未解析或输出密码字段。
-- **测试**：Core 新增 `XshellSessionImporterTests` 4 项（字段解析、私钥回退、UTF-16 文件、协议/端口拒绝与跨节键忽略）；Desktop 新增导入流程测试，覆盖入口绑定、首次导入、自动选中 `Xshell`、密码忽略、重复导入不新增。
-- **结果**：`dotnet build ShellX.slnx -c Release` 0 错误（仅既有 UpdateManagerTests xUnit1051 警告）；全量 Core 53 / Infra 54（18 跳过） / Desktop 93（12 跳过）全绿，共 200 通过、30 跳过、0 失败。连接管理器预览重新渲染到 `docs/images/connection-manager.png` 并核对了导入/导出按钮与 Xshell 分组。
+- **实机解析**：对本机 Xshell 8 的两个 UTF-16LE `.xsh` 样例实际执行解析：`iot99.xiaolab.cn.xsh` → `iot99.xiaolab.cn:22/root/私钥认证`，私钥正确解析到 `~/.ssh/id_ed25519`；`183.66.27.19.xsh` 的密码密文无法用当前账户密钥通过 HMAC，按设计进入一次 Xshell 主密码提示，未输出任何密码明文，也未连接服务器。
+- **测试**：Core `XshellSessionImporterTests` 覆盖字段解析、已保存密码解密、错误密文、主密码重试、私钥口令、私钥缺失报错、UTF-16 与协议/端口拒绝；Desktop 覆盖入口绑定、首次导入自动选中 `Xshell`、当前账户密码解密并写入 DPAPI、Xshell 主密码提示、重复导入不新增。
+- **结果**：`dotnet build ShellX.slnx -c Release` 0 错误（仅既有 UpdateManagerTests xUnit1051 警告）；全量 Core 54 / Infra 55（18 跳过） / Desktop 95（12 跳过）全绿，共 204 通过、30 跳过、0 失败。连接管理器预览重新渲染到 `docs/images/connection-manager.png` 并核对了导入/导出按钮与 Xshell 分组。
 ## 加密配置备份与直接恢复（2026-11-07）
 
 - **需求**：导出的配置需要包含已保存的登录密码/私钥口令，在另一份 ShellX 中还原后可以直接连接，不能把密码明文写进 JSON。
@@ -510,4 +510,4 @@ bash: -c: line 21: syntax error near unexpected token `$'do\r''
 - **合并策略**：相同连接 ID 更新原连接；不同 ID 但 `主机 + 端口 + 账号` 相同则跳过；其余新增。文件夹取并集。解密出的凭据只写入最终仍存在的连接，并保存到目标机的 `ICredentialStore`（Windows 为 DPAPI 当前用户），因此恢复后无需再次输入密码。
 - **设置白名单**：只恢复主题、终端/编辑器字体字号、隐藏文件、终端高亮、自动重连与进程排序；锁定密码、自动锁定、MCP、更新源、面板布局不被导入覆盖。配置格式 Version 1 与 2 均可读取，旧的无凭据备份仍能导入。
 - **测试**：`ConfigurationExportTests` 新增加密往返测试，验证错误密码拒绝、JSON 无明文密码/口令/锁定哈希/MCP Token、连接与设置恢复；Desktop 新增完整流程测试，从源实例导出含 DPAPI 凭据的备份，在空实例输入备份密码后恢复连接、密码和 Light 主题。
-- **结果**：`dotnet build ShellX.slnx -c Release` 0 警告 0 错误；全量 Core 53 / Infra 55（18 跳过） / Desktop 94（12 跳过）全绿，共 202 通过、30 跳过、0 失败。连接管理器预览重新渲染到 `docs/images/connection-manager.png`，核对 `导入配置 / 从 Xshell 导入 / 导出配置` 三个入口。
+- **结果**：`dotnet build ShellX.slnx -c Release` 0 警告 0 错误；全量 Core 54 / Infra 55（18 跳过） / Desktop 95（12 跳过）全绿，共 204 通过、30 跳过、0 失败。连接管理器预览重新渲染到 `docs/images/connection-manager.png`，核对 `导入配置 / 从 Xshell 导入 / 导出配置` 三个入口。
