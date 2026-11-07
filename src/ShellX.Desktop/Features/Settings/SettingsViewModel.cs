@@ -128,13 +128,13 @@ public partial class SettingsViewModel : ObservableObject
         if (!UpdateVersion.IsNewer(release.Tag, _updates.CurrentVersion)) { Error = _updates.Status; return; }
         if (await _updates.DownloadAsync(release) is null) { Error = _updates.Status; RefreshUpdateState(); return; }
         RefreshUpdateState();
-        await PromptUpdateAsync(release.Version);
+        await PromptUpdateAsync(release);
     }
 
-    private async Task PromptUpdateAsync(string version)
+    private async Task PromptUpdateAsync(UpdateRelease release)
     {
         if (_dialogs is null || _updates is null) return;
-        var apply = await _dialogs.ConfirmAsync("发现新版本", $"已下载新版本 {version}，是否立即更新并重启？");
+        var apply = await _dialogs.ConfirmAsync("发现新版本", _updates.BuildUpdatePrompt(release));
         if (!apply) { _updates.ClearPending(); RefreshUpdateState(); return; }
         _updates.ApplyAndRestart();
     }

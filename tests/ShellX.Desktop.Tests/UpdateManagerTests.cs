@@ -33,11 +33,11 @@ public sealed class UpdateManagerTests
         {
             var paths = new AppPaths(root);
             var manager = new UpdateManager(new FakeUpdateService(), paths, NullLogger<UpdateManager>.Instance);
-            var release = await manager.CheckAsync("owner", "repo");
+            var release = await manager.CheckAsync("owner", "repo", TestContext.Current.CancellationToken);
             Assert.NotNull(release);
             Assert.True(manager.UpdateAvailable);
 
-            var path = await manager.DownloadAsync(release!);
+            var path = await manager.DownloadAsync(release!, cancellationToken: TestContext.Current.CancellationToken);
             Assert.NotNull(path);
             Assert.True(File.Exists(path));
             var pending = manager.LoadPending();
@@ -47,6 +47,27 @@ public sealed class UpdateManagerTests
         finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
     }
 
+    [Fact]
+    public async Task UpdatePromptShowsReleaseNotesAndFallsBackWhenNotesAreEmpty()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "shellx-update-prompt-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var manager = new UpdateManager(new FakeUpdateService(), new AppPaths(root), NullLogger<UpdateManager>.Instance);
+            var release = await manager.CheckAsync("owner", "repo", TestContext.Current.CancellationToken);
+            Assert.NotNull(release);
+            var prompt = manager.BuildUpdatePrompt(release!);
+            Assert.Contains("本次更新内容", prompt);
+            Assert.Contains("说明", prompt);
+            Assert.Contains(release!.Version, prompt);
+            Assert.Contains("是否立即更新并重启", prompt);
+
+            var withoutNotes = release with { Notes = "   " };
+            var fallback = manager.BuildUpdatePrompt(withoutNotes);
+            Assert.Contains("本次发布没有提供更新说明", fallback);
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
     [Fact]
     public async Task UpdateSettingsArePersisted()
     {

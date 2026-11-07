@@ -94,7 +94,7 @@
           <Button Name="CheckUpdate" Content="检查更新" Command="{Binding CheckUpdateCommand}" Classes="primary" ToolTip.Tip="检查新版本并下载安装包，下载完成后可立即更新" />
         </StackPanel>
         <CheckBox Name="CheckUpdateOnStartup" Content="启动时自动检查更新" IsChecked="{Binding CheckUpdateOnStartup, Mode=TwoWay}" />
-        <TextBlock Text="检查到新版本后会直接下载安装包，下载完成再询问是否立即更新。" Foreground="{DynamicResource SecondaryForeground}" FontSize="12" TextWrapping="Wrap" />
+        <TextBlock Text="检查到新版本后会显示本次更新内容并下载安装包，下载完成再询问是否立即更新。" Foreground="{DynamicResource SecondaryForeground}" FontSize="12" TextWrapping="Wrap" />
       </StackPanel></ScrollViewer>
     </TabItem>
 </TabControl>

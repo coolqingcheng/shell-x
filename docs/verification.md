@@ -511,3 +511,12 @@ bash: -c: line 21: syntax error near unexpected token `$'do\r''
 - **设置白名单**：只恢复主题、终端/编辑器字体字号、隐藏文件、终端高亮、自动重连与进程排序；锁定密码、自动锁定、MCP、更新源、面板布局不被导入覆盖。配置格式 Version 1 与 2 均可读取，旧的无凭据备份仍能导入。
 - **测试**：`ConfigurationExportTests` 新增加密往返测试，验证错误密码拒绝、JSON 无明文密码/口令/锁定哈希/MCP Token、连接与设置恢复；Desktop 新增完整流程测试，从源实例导出含 DPAPI 凭据的备份，在空实例输入备份密码后恢复连接、密码和 Light 主题。
 - **结果**：`dotnet build ShellX.slnx -c Release` 0 警告 0 错误；全量 Core 54 / Infra 55（18 跳过） / Desktop 95（12 跳过）全绿，共 204 通过、30 跳过、0 失败。连接管理器预览重新渲染到 `docs/images/connection-manager.png`，核对 `导入配置 / 从 Xshell 导入 / 导出配置` 三个入口。
+## 更新弹窗显示本次更新内容（2026-11-07）
+
+- **需求**：点击“检查更新”下载完成后，不能只提示版本号，要在“发现新版本”弹窗中直接展示本次更新内容。
+- **数据来源**：`GitHubUpdateService` 已读取 Release API 的 `body` 字段并保存到 `UpdateRelease.Notes`，本次直接用于弹窗，不额外请求网页。
+- **Release 正文**：`release.yml` 的发布任务改为检出完整 Git 历史，自动列出上一个 `v*` 标签到当前提交的中文提交主题，生成 `release-notes.md`并通过 `body_path` 写入 GitHub Release；这样弹窗拿到的不是只有 Full Changelog 链接，而是实际更新条目。- **统一文案**：新增 `UpdateManager.BuildUpdatePrompt(UpdateRelease)`，包含新版本、当前版本、`本次更新内容：`、完整 Release Notes、发布页面链接和“是否立即更新并重启”。设置页手动检查与启动时自动检查调用同一方法，避免两处提示不一致。
+- **空内容回退**：Release 没有 `body` 或只有空白时显示“本次发布没有提供更新说明”，仍保留版本、链接和确认操作。
+- **显示方式**：复用现有确认对话框的换行文本与滚动容器，长更新说明可滚动查看；设置页说明同步改为“检查到新版本后会显示本次更新内容并下载安装包”。
+- **测试**：`UpdateManagerTests.UpdatePromptShowsReleaseNotesAndFallsBackWhenNotesAreEmpty` 验证包含“本次更新内容”、真实 Notes、版本号和确认文案，并验证空 Notes 回退；同时清理 UpdateManagerTests 既有 xUnit1051 警告。
+- **结果**：`dotnet build ShellX.slnx -c Release` 0 警告 0 错误；全量 Core 54 / Infra 55（18 跳过） / Desktop 96（12 跳过）全绿，共 205 通过、30 跳过、0 失败。

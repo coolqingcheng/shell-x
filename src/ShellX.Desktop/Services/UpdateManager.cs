@@ -41,6 +41,18 @@ public sealed partial class UpdateManager : ObservableObject
     public string UpdateSummary => Latest is null ? "" :
         UpdateAvailable ? $"发现新版本 {Latest.Version}" : $"当前已是最新版本 {CurrentVersion}";
 
+    /// <summary>生成下载完成后的更新确认文案，保证设置页与启动检查显示相同的本次更新内容。</summary>
+    public string BuildUpdatePrompt(UpdateRelease release)
+    {
+        ArgumentNullException.ThrowIfNull(release);
+        var notes = string.IsNullOrWhiteSpace(release.Notes)
+            ? "本次发布没有提供更新说明。"
+            : release.Notes.Trim();
+        var link = string.IsNullOrWhiteSpace(release.HtmlUrl) ? "" : $"\n\n发布页面：{release.HtmlUrl}";
+        return $"发现新版本 {release.Version}（当前版本 {CurrentVersion}）\n\n" +
+               $"本次更新内容：\n{notes}{link}\n\n下载已完成，是否立即更新并重启？";
+    }
+
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private double _progress;
     [ObservableProperty] private string _status = "尚未检查更新";

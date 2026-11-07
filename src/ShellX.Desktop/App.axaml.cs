@@ -64,7 +64,7 @@ public sealed partial class App : Application
             var release = await updates.CheckAsync(settings.UpdateRepositoryOwner, settings.UpdateRepositoryName);
             if (release is null || !updates.UpdateAvailable) return;
             if (await updates.DownloadAsync(release) is null) return;
-            var apply = await dialogs.ConfirmAsync("发现新版本", $"已下载新版本 {release.Version}，是否立即更新并重启？");
+            var apply = await dialogs.ConfirmAsync("发现新版本", updates.BuildUpdatePrompt(release));
             if (apply) updates.ApplyAndRestart(); else updates.ClearPending();
         }
         catch (Exception ex) { Serilog.Log.Warning(ex, "启动时检查更新失败"); }
