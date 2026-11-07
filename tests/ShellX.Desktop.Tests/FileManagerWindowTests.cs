@@ -163,6 +163,37 @@ public sealed class FileManagerWindowTests
         }
     }
 
+    [AvaloniaFact]
+    public async Task PermissionDialogUsesFileManagerOwnerInsteadOfTerminalWindow()
+    {
+        var main = new Window();
+        var file = new Window();
+        main.Show();
+        file.Show();
+        var dialogs = new DialogService(new TextCodec()) { Owner = main };
+        dialogs.SetDialogOwnerContext(file);
+        try
+        {
+            var entry = new RemoteEntry("test.txt", "/tmp/test.txt", false, false, 1024, DateTime.UtcNow, 420, 1000, 1000);
+            var pending = dialogs.PermissionsAsync(entry);
+            await Task.Delay(80);
+
+            var permission = file.OwnedWindows.OfType<Window>().Single(w => w.Title == "属性与权限");
+            Assert.Same(file, permission.Owner);
+            Assert.DoesNotContain(main.OwnedWindows.OfType<Window>(), w => ReferenceEquals(w, permission));
+            Assert.True(main.IsEnabled);                                      // 终端主窗口仍可点击
+
+            permission.Close();
+            Assert.Null(await pending);
+        }
+        finally
+        {
+            dialogs.ClearDialogOwnerContext(file);
+            foreach (var owned in file.OwnedWindows.ToArray()) owned.Close();
+            file.Close();
+            main.Close();
+        }
+    }
     private static string TitleWithoutVersion(string? title)
     {
         var text = title ?? "";

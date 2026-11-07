@@ -5,7 +5,7 @@
 使用 C#、.NET 10、Avalonia UI 开发桌面 SSH 工具。优先完成 Windows 版本，核心层保留跨平台能力。
 
 - 左侧：连接分组、连接搜索、新增、编辑、删除和连接状态。
-- 右侧：多标签工作区；每个标签为 SSH 终端并支持拖动调整面板比例。文件管理器通过 `Window.Show()` 作为非模态独立顶层窗口打开，不设置 Owner、不调用 `ShowDialog`，因此不会禁用主窗口；顶部按连接显示页签；同一连接可通过 ＋ 创建多个编号页签，每个 `FileManagerTabViewModel` 持有独立 `FileBrowserViewModel`，挂接到对应连接的同一 `IRemoteFileSystem` 会话。
+- 右侧：多标签工作区；每个标签为 SSH 终端并支持拖动调整面板比例。文件管理器通过 `Window.Show()` 作为非模态独立顶层窗口打开，不设置 Owner、不调用 `ShowDialog`，因此不会禁用主窗口；文件管理器激活时还会把自身设置为 `DialogService` 的窗口上下文，使权限、确认和文件选择弹窗归属于文件管理器而不是终端主窗口；顶部按连接显示页签；同一连接可通过 ＋ 创建多个编号页签，每个 `FileManagerTabViewModel` 持有独立 `FileBrowserViewModel`，挂接到对应连接的同一 `IRemoteFileSystem` 会话。
 - 风格：参考 VS Code 的暗色 / 亮色配色、活动栏、侧边栏、标签栏和底部状态栏。颜色、间距和控件样式集中管理。
 - 认证：账号密码、私钥文件以及带口令的私钥。
 - 隧道：本地端口转发、远程端口转发，支持保存规则、手动启停和错误状态。

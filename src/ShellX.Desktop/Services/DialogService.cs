@@ -30,11 +30,21 @@ public sealed class DialogService(ITextCodec codec, AppLockService? appLock = nu
     IConnectionTester? connectionTester = null, IHostKeyStore? knownHosts = null, UpdateManager? updates = null) : IDialogService
 {
     public Window Owner { get; set; } = null!;
+    private Window? _dialogOwnerContext;
+
+    /// <summary>非模态文件管理器激活时作为对话框上下文；避免权限等弹窗把主窗口/终端提到前面。</summary>
+    public void SetDialogOwnerContext(Window window) => _dialogOwnerContext = window;
+
+    public void ClearDialogOwnerContext(Window window)
+    {
+        if (ReferenceEquals(_dialogOwnerContext, window)) _dialogOwnerContext = null;
+    }
+
     private Window DialogOwner
     {
         get
         {
-            var current = Owner;
+            var current = _dialogOwnerContext ?? Owner;
             while (current.OwnedWindows.LastOrDefault(w => w.IsVisible && w.IsEnabled) is { } child) current = child;
             return current;
         }
@@ -42,7 +52,7 @@ public sealed class DialogService(ITextCodec codec, AppLockService? appLock = nu
     private Window Window(string title, double width = 510, double height = 600)
     {
         var window = new Window { Title = title, Width = width, Height = height, MinWidth = 400, MinHeight = 180,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner, Icon = Owner?.Icon };
+            WindowStartupLocation = WindowStartupLocation.CenterOwner, Icon = DialogOwner?.Icon };
         window.PropertyChanged += (_, change) =>
         { if (change.Property == ContentControl.ContentProperty && window.Content is Control) lockCoordinator?.Protect(window); };
         return window;
@@ -226,15 +236,15 @@ public sealed class DialogService(ITextCodec codec, AppLockService? appLock = nu
         Layout(window, body, Button("关闭", () => window.Close(), true)); await window.ShowDialog(DialogOwner);
     }
     public async Task<IReadOnlyList<string>> PickUploadAsync()
-        => (await Owner.StorageProvider.OpenFilePickerAsync(new() { Title = "选择上传的文件", AllowMultiple = true }))
+        => (await DialogOwner.StorageProvider.OpenFilePickerAsync(new() { Title = "选择上传的文件", AllowMultiple = true }))
             .Select(x => x.TryGetLocalPath()).OfType<string>().ToArray();
     public async Task<string?> PickDownloadFolderAsync()
     {
-        var folders = await Owner.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = "选择下载保存目录" });
+        var folders = await DialogOwner.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = "选择下载保存目录" });
         return folders.FirstOrDefault()?.TryGetLocalPath();
     }
     public async Task<string?> PickDownloadAsync(string name)
-        => (await Owner.StorageProvider.SaveFilePickerAsync(new() { Title = "下载文件", SuggestedFileName = name, ShowOverwritePrompt = true }))?.TryGetLocalPath();
+        => (await DialogOwner.StorageProvider.SaveFilePickerAsync(new() { Title = "下载文件", SuggestedFileName = name, ShowOverwritePrompt = true }))?.TryGetLocalPath();
     public async Task<IReadOnlyList<string>> PickXshellSessionsAsync()
     {
         var startFolder = FindXshellSessionsDirectory();

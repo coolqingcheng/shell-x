@@ -558,3 +558,11 @@ bash: -c: line 21: syntax error near unexpected token `$'do\r''
 - **保持能力**：文件页签、同一连接多编号页签、独立浏览状态、传输任务和关闭语义全部保留；窗口只是不再绑定 Owner，因此不会禁用主窗口。
 - **测试**：`FileManagerWindowTests` 增加 `Assert.Null(fileWindow.Owner)` 与 `Assert.True(owner.IsEnabled)`，同时保留 A/A(2)/B(1) 多页签、单窗口和独立 Files 状态断言；`WorkspaceTests` 中文件窗口改为通过 `MainWindowViewModel.FileManagerWindow` 获取，不再依赖 `owner.OwnedWindows`。
 - **结果**：`dotnet build ShellX.slnx -c Release` 0 警告 0 错误；全量测试沿用 Core 54 / Infra 55（18 跳过） / Desktop 98（12 跳过），共 207 通过、30 跳过、0 失败。
+## 文件管理器权限弹窗不再把终端提到前面（2026-11-07）
+
+- **现象**：在非模态文件管理器里点击“权限”，属性与权限窗口出现时，终端主窗口反而跑到文件管理器前面。
+- **根因**：`DialogService.DialogOwner` 原来只从全局 `Owner`（主窗口）向下遍历 `OwnedWindows`。文件管理器改成独立顶层窗口后不再属于主窗口的 `OwnedWindows`，权限窗口因此仍以主窗口为 `ShowDialog` Owner，激活 Owner 时把终端窗口带到了前面。
+- **修复**：`IDialogService` 增加 `SetDialogOwnerContext / ClearDialogOwnerContext`；`DialogService` 优先使用当前窗口上下文，再遍历其 OwnedWindows。文件管理器创建时设置上下文，`Activated` 重新设置，`Deactivated / Closed` 清除；上传、下载目录和保存文件等原生选择器也改用同一上下文。
+- **效果**：权限、确认、提示和文件选择窗口都以当前文件管理器为 Owner；终端主窗口不被激活、不禁用，仍可直接点击。切回主窗口后，上下文自动恢复为主窗口。
+- **测试**：新增 `FileManagerWindowTests.PermissionDialogUsesFileManagerOwnerInsteadOfTerminalWindow`，验证权限窗口的 Owner 是文件管理器、不属于主窗口 OwnedWindows，且 `main.IsEnabled` 保持 true。
+- **结果**：`dotnet build ShellX.slnx -c Release` 0 警告 0 错误；全量 Core 54 / Infra 55（18 跳过） / Desktop 99（12 跳过）全绿，共 208 通过、30 跳过、0 失败。

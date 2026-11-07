@@ -582,8 +582,12 @@ public partial class MainWindowViewModel : ObservableObject
             Content = new FileManagerWindowView { DataContext = this }
         };
         _fileWindow = window;
+        _dialogs.SetDialogOwnerContext(window);
+        window.Activated += (_, _) => _dialogs.SetDialogOwnerContext(window);
+        window.Deactivated += (_, _) => _dialogs.ClearDialogOwnerContext(window);
         window.Closed += (_, _) =>
         {
+            _dialogs.ClearDialogOwnerContext(window);
             if (ReferenceEquals(_fileWindow, window)) _fileWindow = null;
         };
         // 文件管理器必须是独立顶层窗口：不设置 Owner、不使用 ShowDialog，主窗口图标和终端始终可点击。
