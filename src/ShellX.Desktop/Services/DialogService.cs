@@ -266,14 +266,14 @@ public sealed class DialogService(ITextCodec codec, AppLockService? appLock = nu
         {
             Title = "导入 ShellX 配置",
             AllowMultiple = false,
-            FileTypeFilter = [new FilePickerFileType("ShellX 配置（JSON）") { Patterns = ["*.json"] }]
+            FileTypeFilter = [new FilePickerFileType("ShellX 配置（*.shx / *.json）") { Patterns = ["*.shx", "*.json"] }]
         })).FirstOrDefault()?.TryGetLocalPath();
     public async Task<string?> PickConfigurationExportAsync()
         => (await DialogOwner.StorageProvider.SaveFilePickerAsync(new()
         {
-            Title = "导出 ShellX 配置", SuggestedFileName = $"ShellX-config-{DateTime.Now:yyyyMMdd-HHmmss}.json",
-            DefaultExtension = "json", ShowOverwritePrompt = true,
-            FileTypeChoices = [new FilePickerFileType("ShellX 配置（JSON）") { Patterns = ["*.json"] }]
+            Title = "导出 ShellX 配置", SuggestedFileName = $"ShellX-config-{DateTime.Now:yyyyMMdd-HHmmss}.shx",
+            DefaultExtension = "shx", ShowOverwritePrompt = true,
+            FileTypeChoices = [new FilePickerFileType("ShellX 配置（*.shx）") { Patterns = ["*.shx"] }]
         }))?.TryGetLocalPath();
 
     private Window? _editorWindow;
