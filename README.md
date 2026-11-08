@@ -5,8 +5,8 @@
 <h1 align="center">ShellX</h1>
 
 <p align="center">
-  <b>SSH 桌面工作台 · 终端 / 文件传输 / 端口转发 / 服务器监控 / MCP</b><br />
-  <sub>A cross-platform SSH workbench for Windows, macOS and Linux, built with Avalonia UI and .NET 10.</sub>
+  <b>跨平台 SSH 运维工作台 · 终端 / 文件传输 / 端口转发 / 服务与进程监控 / MCP</b><br />
+  <sub>A cross-platform SSH operations workbench for Windows, macOS and Linux, built with Avalonia UI and .NET 10 and shipped as Native AOT single-file binaries.</sub>
 </p>
 
 <p align="center">
@@ -30,9 +30,9 @@
 
 ![ShellX 主界面](docs/images/workspace-dark.png)
 
-ShellX 使用 **Avalonia UI + .NET 10** 构建，界面布局参考 FinalShell：左侧是服务器状态监控，上方是多标签终端（命令输入、历史与常用命令在输入框旁弹出），**文件管理器为独立窗口**（终端工具栏一键打开，窗口顶部按连接分页签），各分区均可拖动调整。
+ShellX 是一款面向运维与开发的**跨平台 SSH 桌面工作台**，基于 **Avalonia UI + .NET 10** 构建。工作区左侧为服务器实时监控，上方为多标签终端（命令输入、历史与常用命令均在输入框旁弹出），**文件管理器为独立窗口**（终端工具栏一键打开，窗口顶部按连接分页签），各分区均可拖拽调整并记忆布局。连接、监控、文件、转发、服务与命令审计集中在同一个工作区，适合长期维护多台服务器的场景。
 
-ShellX 是**跨平台**应用：同一套代码同时支持 **Windows、macOS 与 Linux**，三个平台都提供原生安装包（Windows 安装程序、macOS 磁盘映像 DMG、Linux AppImage），全部为 **Native AOT 单文件**，目标机器无需安装 .NET 运行时。
+同一套代码同时支持 **Windows、macOS 与 Linux**，三个平台均提供原生安装包（Windows 安装程序、macOS 磁盘映像 DMG、Linux AppImage）；全部发行物为 **Native AOT 单文件**，目标机器无需安装 .NET 运行时。
 
 ## 平台支持
 

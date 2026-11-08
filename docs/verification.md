@@ -622,3 +622,9 @@ bash: -c: line 21: syntax error near unexpected token `$'do\r''
 - **实现**：新增 `ShellX.Desktop/Services/TrayIconService`——托盘图标挂在 `Application`（`TrayIcon.SetIcons`），提示 `ShellX v<版本>`，菜单为「显示 ShellX / 连接管理器 / 退出 ShellX」，单击图标恢复窗口。`ConnectionManagerWindow` 与 `MainWindow` 在 `Closing` 中判断 `WindowClosingEventArgs.IsProgrammatic`：平台发起的关闭（用户点标题栏 X）被取消并 `Hide()`，连接不断开；程序内部的 `Close()` 不受影响。`App.axaml.cs` 统一负责创建/恢复窗口与退出流程（退出时先 `ShutdownAsync()` 释放会话再 `desktop.Shutdown()`）。托盘图标创建失败时自动禁用该行为，避免出现没有入口的后台进程。
 - **测试**：新增 `TrayIconTests`（5 个用例）——默认开启、设置项可保存并回传、用户关闭工作区只隐藏不销毁（模拟平台关闭后仍可再次 `Show()`）、关闭托盘开关后连接管理器正常关闭、托盘初始化不抛异常。全量测试 **217 通过 / 30 跳过 / 0 失败**。
 - **实机验证**：AOT 产物运行后向连接管理器窗口发送 `WM_CLOSE`，窗口 `IsWindowVisible=false` 而进程仍在运行；UIAutomation 在通知区域（隐藏图标溢出区）枚举到按钮 `ShellX v1.0.31`，确认托盘图标已注册；日志中无「系统托盘图标创建失败」。
+## 仓库元信息专业化（2026-11-08）
+
+- **背景**：GitHub 仓库 About 的描述仍写「Windows SSH 桌面工具」，与已支持三平台的现状不符；Topics 为空，仓库在搜索中缺少曝光入口。
+- **About**：description 改为「跨平台 SSH 运维工作台，基于 Avalonia UI 与 .NET 10 Native AOT 构建，提供多标签终端、SFTP 双栏文件管理、端口转发、systemd 服务与进程监控、系统托盘常驻，以及带鉴权与逐条审计的 MCP 命令执行接口；Windows / macOS / Linux 均提供原生安装包。」；homepage 指向 `releases/latest`；Topics 增加 16 个：`ssh` `sftp` `ssh-client` `avalonia` `avaloniaui` `dotnet` `dotnet-10` `native-aot` `terminal` `port-forwarding` `service-manager` `system-monitor` `mcp` `model-context-protocol` `cross-platform` `desktop-app`。
+- **README**：副标题改为「跨平台 SSH 运维工作台 · 终端 / 文件传输 / 端口转发 / 服务与进程监控 / MCP」，英文副标题补充 Native AOT 单文件发行说明；开篇两段改为产品定位式表述（面向运维与开发、工作区结构、跨平台与单文件交付），去掉“界面布局参考 FinalShell”的口语化描述。
+- **架构文档**：`docs/architecture.md` 第 1 节首段改为产品定位表述，连接管理器品牌描述精简为一句并统一标题格式，新增「常驻与退出」条目描述系统托盘行为。
