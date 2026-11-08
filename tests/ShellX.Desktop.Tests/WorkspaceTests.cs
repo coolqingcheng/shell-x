@@ -147,6 +147,27 @@ public sealed class WorkspaceTests
         }
         finally { await monitor.StopAsync(); }
     }
+    [AvaloniaFact]
+    public async Task ProcessListShowsMemoryPercentAndAbsoluteUsage()
+    {
+        var monitor = new ServerMonitorViewModel("fixture", new Dialogs(), NullLogger.Instance, _ => Task.CompletedTask);
+        monitor.Start(new ProcessSource(), CancellationToken.None);
+        var view = new ServerMonitorView { DataContext = monitor };
+        var window = new Window { Content = view, Width = 260, Height = 760 };
+        window.Show();
+        try
+        {
+            await Until(() => monitor.Processes.Count > 0);
+            var row = monitor.Processes[0];                       // 默认按 CPU 降序，首行是 pid 10
+            Assert.Equal(10, row.Pid);
+            Assert.Equal("0.1%", row.MemoryPercent);
+            Assert.Equal("1 KiB", row.Memory);
+            var texts = view.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text).ToList();
+            Assert.Contains(row.MemoryPercent, texts);   // 内存占比
+            Assert.Contains(row.Memory, texts);           // 绝对占用
+        }
+        finally { window.Close(); await monitor.StopAsync(); }
+    }
     private sealed class ProcessSource : IServerMonitor
     {
         public Task<ServerSnapshot> ReadAsync(CancellationToken cancellationToken) => Task.FromResult(new ServerSnapshot(

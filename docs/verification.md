@@ -586,3 +586,11 @@ bash: -c: line 21: syntax error near unexpected token `$'do\r''
 - **文档**：`docs/architecture.md` 第 1 节改为三平台交付，新增“跨平台打包”小节（容器对照表、AppImage / DMG 的实现要点与 CI 复用策略），技术方案表补充跨平台发布一行，并修正过期的“当前 1.0.1”版本号描述。
 - **结果**：`dotnet build ShellX.slnx -c Release` 0 警告 0 错误；全量 Core 54 / Infra 55（18 跳过） / Desktop 100（12 跳过）全绿，共 209 通过、30 跳过、0 失败。
 - **打包缺陷修复**：首轮 `v1.0.27` 的 macOS 两个架构打包失败，CI 日志显示 `iconutil` 报 `Icon resource not found in asset catalog with name '.../ShellX.icns'`——原因是 `iconutil` 的第二个位置参数不是输出文件，而是资源目录名。改为 `iconutil -c icns <iconset> -o <输出.icns>`，并把图标生成包成容错块：icns 生成失败时只告警、不带图标继续打包，避免外观问题阻断发版。Linux AppImage 与 Windows 安装包在同一次运行中已验证成功。
+
+## 进程列表显示内存绝对占用（2026-11-08）
+
+- **需求**：左侧服务器监控的进程列表原本只显示内存占比，看不出进程实际吃了多少内存。
+- **实现**：`ServerMonitorView.axaml` 的进程行内存列由单个 `TextBlock` 改为竖排两层——上层沿用 `ProcessRow.MemoryPercent`（占系统总内存的比例，强调色），下层新增 `ProcessRow.Memory`（绝对占用，按 KiB/MiB/GiB 自适应，弱化色）。表头列宽由 42 调整为 50 保持对齐，进程名列相应让位；命令列改为垂直居中以适配变高的行高。悬停提示原本就已包含两者，保持不变。
+- **影响范围**：该视图同时用于左侧监控面板与独立的监控面板窗口，两处都会同步显示。
+- **测试**：新增 `WorkspaceTests.ProcessListShowsMemoryPercentAndAbsoluteUsage`，用 `ProcessSource` 构造 10 个进程，断言首行（pid 10）内存占比为 `0.1%`、绝对占用为 `1 KiB`，并验证这两个文本都出现在渲染后的进程列表中。
+- **结果**：`dotnet build ShellX.slnx -c Release` 0 警告 0 错误；全量 Core 54 / Infra 55（18 跳过） / Desktop 101（12 跳过）全绿，共 210 通过、30 跳过、0 失败。

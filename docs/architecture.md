@@ -255,7 +255,7 @@ ShellX/
 
 后续按用户提供的 FinalShell 截图调整布局，增加 `Core/Monitoring` 指标模型与计算、`Infrastructure/Monitoring` Linux SSH exec 采样、`Desktop/Features/Monitoring` 监控面板和曲线。命令栏、会话内历史和持久化快捷命令放在 `Desktop/Features/Commands`，快捷命令模型放在 Core。目录树按需加载，不改变 SFTP 客户端的工作目录。终端普通文本高亮在 Desktop 的读流适配中处理，不修改远端配置、不改变发送的数据；ANSI 前景色、控制字符串及全屏缓冲区保留。
 
-进程采样读取账号可见的全部进程，由 Monitor ViewModel 按 CPU 或 RSS 数值排序后显示前 8 项，避免内存排序仅作用于 CPU 前 8 项。排序列与方向写入 AppSettings，经主窗口保存并同步到所有标签，刷新和重新连接不会重置。
+进程采样读取账号可见的全部进程，由 Monitor ViewModel 按 CPU 或 RSS 数值排序后显示前 8 项，避免内存排序仅作用于 CPU 前 8 项。进程的内存列同时给出占系统总内存的比例和绝对占用（按 KiB/MiB/GiB 自适应），两行显示以适配左侧窄面板。排序列与方向写入 AppSettings，经主窗口保存并同步到所有标签，刷新和重新连接不会重置。
 
 Native AOT 适配使用 Avalonia 编译绑定和 System.Text.Json 源生成。Infrastructure 的可变持久化 DTO 与 Core 的不可变记录分离，保留旧配置中缺失字段的默认值，避免 .NET 10 源生成对 init 属性默认值的差异。DataGrid 使用显式列，保留本地/远程文件模型的公共属性以支持按列排序。终端控件还会反射调用已编译主题的 XAML 入口，因此在 TerminalHost 上显式保留该入口的公共方法，避免打开连接标签时因裁剪崩溃。
 
