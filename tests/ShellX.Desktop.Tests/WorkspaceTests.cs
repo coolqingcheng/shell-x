@@ -485,10 +485,22 @@ public sealed class WorkspaceTests
             var brand = window.FindControl<TextBlock>("BrandName");
             Assert.NotNull(brand);
             Assert.Equal("ShellX", brand!.Text);
+            // 品牌右侧显示版本号
+            var version = window.FindControl<TextBlock>("BrandVersion");
+            Assert.NotNull(version);
+            Assert.Equal(vm.VersionText, version!.Text);
+            Assert.StartsWith("v", version.Text);
             // 分区标题仍在品牌标识右侧
             Assert.Contains("服务器状态", window.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text));
+            Capture(window, "workspace-header.png");
         }
         finally { window.Close(); }
+    }
+    private static void Capture(Window window, string name)
+    {
+        if (Environment.GetEnvironmentVariable("SHELLX_PREVIEW_PATH") is not { Length: > 0 } preview) return;
+        using var bitmap = new RenderTargetBitmap(new PixelSize((int)window.ClientSize.Width, (int)window.ClientSize.Height), new Vector(96, 96));
+        bitmap.Render(window); bitmap.Save(Path.Combine(Path.GetDirectoryName(preview)!, name), PngBitmapEncoderOptions.Default);
     }
     private sealed class Connections(ConnectionProfile profile) : IConnectionRepository
     {

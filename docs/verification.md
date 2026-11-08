@@ -610,3 +610,8 @@ bash: -c: line 21: syntax error near unexpected token `$'do\r''
 - **实现**：`MainWindow.axaml` 左侧分区标题由 `[图标][服务器状态]` 改为 `[图标][ShellX][·][服务器状态]`——图标保持 18px，`ShellX` 用 12px 半粗强调色，`服务器状态` 改为弱化色以让品牌在前、分区名在后。`ShellX` 文本块命名 `BrandName`，悬停提示显示 `ShellX v<版本>`，版本号取自 `MainWindowViewModel.VersionText`，与连接管理器、窗口标题、设置页同源。顶栏高度仍是 36px，未占用额外纵向空间。
 - **测试**：新增 `WorkspaceTests.WorkspaceHeaderShowsShellXBrandNextToPanelTitle`，断言工作区窗口存在名为 `BrandName` 的文本块且内容为 `ShellX`，并确认分区标题 `服务器状态` 仍在渲染树中。
 - **结果**：`dotnet build ShellX.slnx -c Release` 0 警告 0 错误；全量 Core 54 / Infra 55（18 跳过） / Desktop 103（12 跳过）全绿，共 212 通过、30 跳过、0 失败。
+## 工作区顶栏显示版本号（2026-11-08）
+
+- **需求**：工作区顶栏已有 ShellX 标识，但版本号只在连接管理器、窗口标题和设置页可见，顶栏缺版本信息。
+- **实现**：`MainWindow.axaml` 顶栏品牌块在 `ShellX`（`BrandName`）之后新增版本号文本块 `BrandVersion`，绑定 `MainWindowViewModel.VersionText`（`v<版本>`，取自 `Core.AppVersion.Value`），11px 弱化色；分隔点与 `服务器状态` 同步降为 11px 保持基线一致。整体仍为 `[图标][ShellX][v1.0.30][·][服务器状态]`，实测渲染宽度约 185px，未超出 220px 固定左栏，不会截断。
+- **测试**：扩展 `WorkspaceTests.WorkspaceHeaderShowsShellXBrandNextToPanelTitle`，断言 `BrandVersion` 存在、文本等于 `vm.VersionText` 且以 `v` 开头，同时保留品牌名与分区名断言；新增 `Capture` 辅助用于 `SHELLX_PREVIEW_PATH` 预览渲染。
