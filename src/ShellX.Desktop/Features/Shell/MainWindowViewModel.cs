@@ -45,6 +45,8 @@ public partial class MainWindowViewModel : ObservableObject
     [ObservableProperty] private ConnectionGroupViewModel? _selectedGroup;
     public bool CanManageFolder => SelectedGroup is { Path.Length: > 0 };
     public string FolderCaption => SelectedGroup?.Name ?? "全部连接";
+    /// <summary>品牌区展示的版本号，与窗口标题、设置页保持一致。</summary>
+    public string VersionText => $"v{Core.AppVersion.Value}";
     private AppSettings _settings = new();
     public AppSettings LayoutSettings => _settings;
     public event Action<AppSettings>? LayoutChanged;

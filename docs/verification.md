@@ -594,3 +594,12 @@ bash: -c: line 21: syntax error near unexpected token `$'do\r''
 - **影响范围**：该视图同时用于左侧监控面板与独立的监控面板窗口，两处都会同步显示。
 - **测试**：新增 `WorkspaceTests.ProcessListShowsMemoryPercentAndAbsoluteUsage`，用 `ProcessSource` 构造 10 个进程，断言首行（pid 10）内存占比为 `0.1%`、绝对占用为 `1 KiB`，并验证这两个文本都出现在渲染后的进程列表中。
 - **结果**：`dotnet build ShellX.slnx -c Release` 0 警告 0 错误；全量 Core 54 / Infra 55（18 跳过） / Desktop 101（12 跳过）全绿，共 210 通过、30 跳过、0 失败。
+
+## 连接管理器显示 ShellX 品牌标识（2026-11-08）
+
+- **需求**：连接管理器是应用启动后的第一个窗口，但界面里完全没有产品标识，窗口标题也只有“连接管理器”，任务栏和 Alt+Tab 里无法区分是哪个程序。
+- **实现**：`ConnectionManagerView` 工具栏行最左侧新增品牌块 `BrandBlock`——24px 应用图标 + “ShellX”（16px 半粗）+ 版本号（11px 弱化色），版本号由 `MainWindowViewModel.VersionText` 提供，取自 `Core.AppVersion.Value`，与窗口标题和设置页同源。原操作按钮整体右移一列（PID/按钮/搜索框/设置按钮的列号顺延），控件 `Name` 不变，功能与键盘快捷键不受影响。
+- **窗口标题**：`ConnectionManagerWindow` 的标题由 `连接管理器` 改为 `ShellX · 连接管理器`，版本号仍由 `WindowTitles.ApplyVersion` 统一追加，最终显示为 `ShellX · 连接管理器 v1.0.28`。产品名进入任务栏、Alt+Tab 和系统窗口菜单。
+- **取值校验**：依赖本机 SSH 夹具的用例原先按标题全等匹配 `连接管理器`，改为包含匹配，避免标题变化后失效。
+- **测试**：新增 `ConnectionManagerTests.ConnectionManagerShowsShellXBrandAndVersion`，断言品牌块存在、同时包含 `ShellX` 与当前版本号文本，并验证“新建连接”按钮仍位于品牌标识右侧。
+- **结果**：`dotnet build ShellX.slnx -c Release` 0 警告 0 错误；全量 Core 54 / Infra 55（18 跳过） / Desktop 102（12 跳过）全绿，共 211 通过、30 跳过、0 失败。

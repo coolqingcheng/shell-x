@@ -56,6 +56,29 @@ public sealed class ConnectionManagerTests
         finally { await vm.ShutdownAsync(); window.Close(); Directory.Delete(root, true); }
     }
     [AvaloniaFact]
+    public async Task ConnectionManagerShowsShellXBrandAndVersion()
+    {
+        var root = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "shellx-brand-" + Guid.NewGuid().ToString("N"))).FullName;
+        var store = new JsonConnectionRepository(new(root));
+        await store.SaveCatalogAsync(new([new() { Name = "one", Host = "one.test" }], []));
+        var vm = Model(root, store, new Dialogs());
+        var view = new ConnectionManagerView { DataContext = vm };
+        var window = new Window { Content = view, Width = 900, Height = 620 }; window.Show();
+        try
+        {
+            await vm.InitializeAsync(); await Task.Delay(60);
+            var brand = view.FindControl<StackPanel>("BrandBlock");
+            Assert.NotNull(brand);
+            var brandTexts = brand!.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text).ToList();
+            Assert.Contains("ShellX", brandTexts);
+            Assert.Contains(vm.VersionText, brandTexts);
+            // 品牌标识在最左侧，主操作按钮仍排在它右边。
+            var create = view.FindControl<Button>("NewManagedConnection")!;
+            Assert.True(create.Bounds.X > brand.Bounds.X + brand.Bounds.Width);
+        }
+        finally { await vm.ShutdownAsync(); window.Close(); Directory.Delete(root, true); }
+    }
+    [AvaloniaFact]
     public async Task ImportsXshellSessionsOnceSelectsXshellFolderAndDecryptsPassword()
     {
         var root = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "shellx-xsh-ui-" + Guid.NewGuid().ToString("N"))).FullName;
@@ -288,8 +311,8 @@ public sealed class ConnectionManagerTests
             await Until(() => first.Monitor.Hostname == "fixture-linux");
             await first.Files.NavigateAsync("/folder");
             Click(window, window.FindControl<Button>("OpenConnectionManager")!);
-            await Until(() => window.OwnedWindows.Any(w => w.Title == "连接管理器"));
-            manager = window.OwnedWindows.Single(w => w.Title == "连接管理器"); await Task.Delay(40); Pick(manager, profile);
+            await Until(() => window.OwnedWindows.Any(w => w.Title!.Contains("连接管理器")));
+            manager = window.OwnedWindows.Single(w => w.Title!.Contains("连接管理器")); await Task.Delay(40); Pick(manager, profile);
             await AcceptHostAndConnect(window, vm, 2);
             var second = vm.SelectedTab!;
             Assert.Same(first.Monitor, second.Monitor); Assert.NotSame(first.Session, second.Session);
