@@ -53,6 +53,8 @@
         <TextBlock Text="界面主题" />
         <ComboBox Name="ThemeSelector" ItemsSource="{Binding Themes}" SelectedIndex="{Binding ThemeIndex, Mode=TwoWay}" Width="200" />
         <CheckBox Content="默认显示隐藏文件" IsChecked="{Binding ShowHidden, Mode=TwoWay}" />
+        <CheckBox Name="CloseToTrayToggle" Content="点击关闭按钮时最小化到系统托盘" IsChecked="{Binding CloseToTray, Mode=TwoWay}" />
+        <TextBlock Text="开启后，连接管理器与工作区的关闭按钮只会隐藏窗口，程序继续在右下角托盘运行，SSH 连接不会断开；可从托盘图标恢复窗口或退出程序。" Foreground="{DynamicResource SecondaryForeground}" FontSize="12" TextWrapping="Wrap" />
         <CheckBox Content="终端普通文本高亮（路径、IP、错误和成功提示）" IsChecked="{Binding HighlightText, Mode=TwoWay}" />
         <CheckBox Name="AutoReconnectToggle" Content="断线自动重连" IsChecked="{Binding AutoReconnect, Mode=TwoWay}" />
         <StackPanel Orientation="Horizontal" Spacing="10" IsEnabled="{Binding AutoReconnect}">

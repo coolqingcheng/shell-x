@@ -32,6 +32,8 @@ public sealed record AppSettings
     public string UpdateRepositoryOwner { get; init; } = "coolqingcheng";
     public string UpdateRepositoryName { get; init; } = "shell-x";
     public bool CheckUpdateOnStartup { get; init; } = true;
+    /// <summary>点击窗口关闭按钮时最小化到系统托盘，而不是退出程序。</summary>
+    public bool CloseToTray { get; init; } = true;
 }
 
 public interface ISettingsStore

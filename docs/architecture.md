@@ -190,6 +190,16 @@ SSH.NET 的 SSH 与 SFTP 客户端按独立连接管理，不假设它们共享�
 
 重连创建新的会话资源，不自动重放终端命令。文件写入和传输失败不盲目重试，避免重复或覆盖操作。
 
+### 系统托盘与窗口关闭
+
+`ShellX.Desktop/Services/TrayIconService` 负责托盘图标与关闭行为，依赖 `AppLockService`（当前生效的 `AppSettings`）判断是否启用：
+
+- 设置项 `AppSettings.CloseToTray`（默认开启）在 `设置 → 常规` 暴露为「点击关闭按钮时最小化到系统托盘」，经 `StoredSettings` 持久化。
+- 托盘图标挂在 `Application` 上（`TrayIcon.SetIcons`），提示文本为 `ShellX v<版本>`；右键菜单为「显示 ShellX / 连接管理器 / 退出 ShellX」，单击图标等同于「显示 ShellX」。
+- 连接管理器窗口与工作区窗口在 `Closing` 事件里判断 `WindowClosingEventArgs.IsProgrammatic`：**平台发起的关闭**（用户点击标题栏关闭按钮）被取消并改为 `Hide()`，程序继续在托盘运行且 SSH 连接不断开；程序内部的 `Close()`（例如退出流程、连接管理器选中连接后的收起）照常执行。
+- 托盘图标创建失败时自动关闭该行为（`CloseToTrayEnabled` 返回 false），避免出现既没有窗口也没有托盘入口的后台僵尸进程。
+- 退出统一走托盘菜单的「退出 ShellX」：先 `MainWindowViewModel.ShutdownAsync()` 释放会话，再 `IClassicDesktopStyleApplicationLifetime.Shutdown()`。
+
 ## 6. 文件管理规则
 
 - 使用 Unix 远程路径工具处理服务器路径，禁止用 Windows 的 `Path.Combine` 拼接远程路径。

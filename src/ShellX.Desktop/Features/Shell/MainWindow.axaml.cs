@@ -13,16 +13,21 @@ public partial class MainWindow : Window
     private bool _closing;
     private MainWindowViewModel? _layoutVm;
     private McpLogWindow? _mcpLogWindow;
-    public MainWindow()
+    private readonly TrayIconService? _tray;
+    public MainWindow() : this(null) { }
+    public MainWindow(TrayIconService? tray)
     {
         InitializeComponent();
         
 ShellX.Desktop.Services.WindowTitles.ApplyVersion(this);
+        _tray = tray;
         DataContextChanged += (_, _) => AttachLayout();
         Opened += (_, _) => AttachLayout();
         Closing += async (_, e) =>
         {
             if (_shutdown) return; e.Cancel = true;
+            // 开启“关闭到托盘”时，点击关闭按钮只隐藏窗口，SSH 连接保持不断开。
+            if (_tray is { CloseToTrayEnabled: true } && !e.IsProgrammatic) { Hide(); return; }
             if (_closing || DataContext is not MainWindowViewModel vm) return;
             _closing = true;
             _mcpLogWindow?.Close();

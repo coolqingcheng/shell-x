@@ -615,3 +615,10 @@ bash: -c: line 21: syntax error near unexpected token `$'do\r''
 - **需求**：工作区顶栏已有 ShellX 标识，但版本号只在连接管理器、窗口标题和设置页可见，顶栏缺版本信息。
 - **实现**：`MainWindow.axaml` 顶栏品牌块在 `ShellX`（`BrandName`）之后新增版本号文本块 `BrandVersion`，绑定 `MainWindowViewModel.VersionText`（`v<版本>`，取自 `Core.AppVersion.Value`），11px 弱化色；分隔点与 `服务器状态` 同步降为 11px 保持基线一致。整体仍为 `[图标][ShellX][v1.0.30][·][服务器状态]`，实测渲染宽度约 185px，未超出 220px 固定左栏，不会截断。
 - **测试**：扩展 `WorkspaceTests.WorkspaceHeaderShowsShellXBrandNextToPanelTitle`，断言 `BrandVersion` 存在、文本等于 `vm.VersionText` 且以 `v` 开头，同时保留品牌名与分区名断言；新增 `Capture` 辅助用于 `SHELLX_PREVIEW_PATH` 预览渲染。
+## 关闭窗口最小化到系统托盘（2026-11-08）
+
+- **需求**：点击窗口关闭按钮就退出程序不够方便，希望可以配置为最小化到右下角系统托盘。
+- **配置**：`AppSettings.CloseToTray`（默认 `true`），在 `设置 → 常规` 以「点击关闭按钮时最小化到系统托盘」复选框暴露，`StoredSettings` 增加同名字段持久化，`SettingsViewModel` 负责读写。
+- **实现**：新增 `ShellX.Desktop/Services/TrayIconService`——托盘图标挂在 `Application`（`TrayIcon.SetIcons`），提示 `ShellX v<版本>`，菜单为「显示 ShellX / 连接管理器 / 退出 ShellX」，单击图标恢复窗口。`ConnectionManagerWindow` 与 `MainWindow` 在 `Closing` 中判断 `WindowClosingEventArgs.IsProgrammatic`：平台发起的关闭（用户点标题栏 X）被取消并 `Hide()`，连接不断开；程序内部的 `Close()` 不受影响。`App.axaml.cs` 统一负责创建/恢复窗口与退出流程（退出时先 `ShutdownAsync()` 释放会话再 `desktop.Shutdown()`）。托盘图标创建失败时自动禁用该行为，避免出现没有入口的后台进程。
+- **测试**：新增 `TrayIconTests`（5 个用例）——默认开启、设置项可保存并回传、用户关闭工作区只隐藏不销毁（模拟平台关闭后仍可再次 `Show()`）、关闭托盘开关后连接管理器正常关闭、托盘初始化不抛异常。全量测试 **217 通过 / 30 跳过 / 0 失败**。
+- **实机验证**：AOT 产物运行后向连接管理器窗口发送 `WM_CLOSE`，窗口 `IsWindowVisible=false` 而进程仍在运行；UIAutomation 在通知区域（隐藏图标溢出区）枚举到按钮 `ShellX v1.0.31`，确认托盘图标已注册；日志中无「系统托盘图标创建失败」。

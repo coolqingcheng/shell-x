@@ -215,6 +215,10 @@ public sealed class AppLockTests
                 await Task.Delay(40);
                 using var security = new RenderTargetBitmap(new PixelSize(700, 620), new Vector(96, 96));
                 security.Render(window); security.Save(Path.Combine(Path.GetDirectoryName(preview)!, "settings-security.png"), PngBitmapEncoderOptions.Default);
+                window.GetVisualDescendants().OfType<TabControl>().Single().SelectedIndex = 2;
+                await Task.Delay(40);
+                using var general = new RenderTargetBitmap(new PixelSize(700, 620), new Vector(96, 96));
+                general.Render(window); general.Save(Path.Combine(Path.GetDirectoryName(preview)!, "settings-general.png"), PngBitmapEncoderOptions.Default);
             }
             await vm.SaveCommand.ExecuteAsync(null);
             Assert.Equal("", vm.Error);

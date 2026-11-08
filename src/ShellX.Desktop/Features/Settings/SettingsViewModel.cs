@@ -47,6 +47,7 @@ public partial class SettingsViewModel : ObservableObject
         McpAddress = original.McpAddress;
         McpToken = string.IsNullOrWhiteSpace(original.McpToken) ? Convert.ToHexString(RandomNumberGenerator.GetBytes(32)) : original.McpToken;
         CheckUpdateOnStartup = original.CheckUpdateOnStartup;
+        CloseToTray = original.CloseToTray;
         if (updates is not null) updates.PropertyChanged += (_, _) => RefreshUpdateState();
         RefreshUpdateState();
     }
@@ -96,6 +97,7 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty, NotifyPropertyChangedFor(nameof(McpJson))] private string _mcpAddress = "";
     [ObservableProperty, NotifyPropertyChangedFor(nameof(McpJson))] private string _mcpToken = "";
     [ObservableProperty] private bool _checkUpdateOnStartup;
+    [ObservableProperty] private bool _closeToTray;
     partial void OnChangePasswordChanged(bool value) { OnPropertyChanged(nameof(ShowPasswordFields)); OnPropertyChanged(nameof(ShowNewPassword)); }
     partial void OnRemovePasswordChanged(bool value) { OnPropertyChanged(nameof(ShowPasswordFields)); OnPropertyChanged(nameof(ShowNewPassword)); }
     public string McpJson => JsonSerializer.Serialize(new McpClientConfiguration(new Dictionary<string, McpServerConfiguration>
@@ -173,7 +175,7 @@ public partial class SettingsViewModel : ObservableObject
                 AutoReconnectEnabled = AutoReconnect, ReconnectIntervalSeconds = (int)ReconnectIntervalSeconds,
                 LockPasswordHash = hash, AutoLockEnabled = AutoLock && !string.IsNullOrEmpty(hash), AutoLockOnlyWhenSystemLocked = AutoLockOnlyWhenSystemLocked, AutoLockMinutes = (int)minutes, McpEnabled = McpEnabled, McpAddress = McpAddress.TrimEnd('/' ), McpToken = McpToken.Trim(),
                 UpdateRepositoryOwner = _original.UpdateRepositoryOwner, UpdateRepositoryName = _original.UpdateRepositoryName,
-                CheckUpdateOnStartup = CheckUpdateOnStartup };
+                CheckUpdateOnStartup = CheckUpdateOnStartup, CloseToTray = CloseToTray };
             ClearPasswords(); Saved?.Invoke(result);
         }
         catch (Exception ex) { Error = ex.Message; CurrentPassword = ""; }

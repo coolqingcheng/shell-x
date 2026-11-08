@@ -27,31 +27,73 @@ public sealed partial class App : Application
             var mcpServer = _services.GetRequiredService<McpHttpServer>();
             var updates = _services.GetRequiredService<UpdateManager>();
             var lockState = _services.GetRequiredService<ShellX.Desktop.Features.Security.AppLockService>();
-            var manager = new ConnectionManagerWindow(vm, profile =>
+            var tray = new TrayIconService(lockState);
+            ConnectionManagerWindow? manager = null;
+            var started = false;
+            MainWindow? workspace = null;
+
+            ConnectionManagerWindow CreateManager(bool takeDialogOwner)
             {
-                var window = new MainWindow { DataContext = vm };
+                var window = new ConnectionManagerWindow(vm, profile =>
+                {
+                    var main = new MainWindow(tray) { DataContext = vm };
+                    lockCoordinator.Protect(main);
+                    dialogs.Owner = main;
+                    desktop.MainWindow = main;
+                    workspace = main;
+                    main.Show();
+                    _ = vm.ConnectCommand.ExecuteAsync(profile);
+                }, tray);
                 lockCoordinator.Protect(window);
-                dialogs.Owner = window;
-                desktop.MainWindow = window;
-                window.Show();
-                _ = vm.ConnectCommand.ExecuteAsync(profile);
-            });
-            lockCoordinator.Protect(manager);
-            dialogs.Owner = manager;
+                if (takeDialogOwner) dialogs.Owner = window;
+                window.Closed += (_, _) => { if (ReferenceEquals(manager, window)) manager = null; };
+                window.Opened += async (_, _) =>
+                {
+                    if (started) return;
+                    started = true;
+                    try { await mcpServer.StartAsync(); }
+                    catch (Exception ex) { Serilog.Log.Error(ex, "MCP HTTP 启动失败"); }
+                    await vm.InitializeAsync();
+                    await CheckUpdateOnStartupAsync(updates, vm.LayoutSettings, dialogs);
+                };
+                manager = window;
+                return window;
+            }
+
+            void Restore()
+            {
+                if (workspace is { } main)
+                {
+                    if (!main.IsVisible) main.Show();
+                    main.Activate();
+                    return;
+                }
+                ShowManager();
+            }
+
+            void ShowManager()
+            {
+                var window = manager ?? CreateManager(false);
+                if (!window.IsVisible) window.Show();
+                window.Activate();
+            }
+
+            async void ExitApplication()
+            {
+                try { await vm.ShutdownAsync(); }
+                catch (Exception ex) { Serilog.Log.Error(ex, "退出前清理失败"); }
+                desktop.Shutdown();
+            }
+
+            manager = CreateManager(true);
             desktop.MainWindow = manager;
             lockState.SettingsChanged += () =>
             {
                 try { mcpServer.ApplySettings(lockState.Settings); mcpServer.Restart(); }
                 catch (Exception ex) { Serilog.Log.Error(ex, "MCP HTTP 配置更新失败"); }
             };
-            manager.Opened += async (_, _) =>
-            {
-                try { await mcpServer.StartAsync(); }
-                catch (Exception ex) { Serilog.Log.Error(ex, "MCP HTTP 启动失败"); }
-                await vm.InitializeAsync();
-                await CheckUpdateOnStartupAsync(updates, vm.LayoutSettings, dialogs);
-            };
-            desktop.Exit += (_, _) => { updates.ApplyOnExit(); mcpServer.Dispose(); _services.Dispose(); Log.CloseAndFlush(); };
+            tray.Initialize(Restore, ShowManager, ExitApplication);
+            desktop.Exit += (_, _) => { updates.ApplyOnExit(); mcpServer.Dispose(); tray.Dispose(); _services.Dispose(); Log.CloseAndFlush(); };
         }
         base.OnFrameworkInitializationCompleted();
     }
