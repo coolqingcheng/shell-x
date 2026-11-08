@@ -20,6 +20,7 @@ cp "$PUBLISH_DIR/ShellX" "$APP/Contents/MacOS/ShellX"
 chmod +x "$APP/Contents/MacOS/ShellX"
 
 # 由 512×512 的应用图标生成多尺寸 icns。
+# 由 512×512 的应用图标生成多尺寸 icns；图标只影响外观，失败不阻断打包。
 ICONSET="$OUTPUT_DIR/ShellX.iconset"
 rm -rf "$ICONSET"
 mkdir -p "$ICONSET"
@@ -28,7 +29,11 @@ for size in 16 32 128 256 512; do
   sips -z "$size" "$size" "$SRC" --out "$ICONSET/icon_${size}x${size}.png" >/dev/null
   sips -z "$((size * 2))" "$((size * 2))" "$SRC" --out "$ICONSET/icon_${size}x${size}@2x.png" >/dev/null
 done
-iconutil -c icns "$ICONSET" "$APP/Contents/Resources/ShellX.icns"
+# iconutil 的输出必须用 -o 指定，直接跟第二个位置参数会被当成资源目录名。
+if ! iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/ShellX.icns"; then
+  echo "警告：icns 生成失败，本次不带图标继续打包。" >&2
+  rm -f "$APP/Contents/Resources/ShellX.icns"
+fi
 rm -rf "$ICONSET"
 
 cat > "$APP/Contents/Info.plist" <<PLIST

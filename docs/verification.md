@@ -585,3 +585,4 @@ bash: -c: line 21: syntax error near unexpected token `$'do\r''
 - **本地校验**：用 Git Bash 以桩程序替换 `mksquashfs` 实跑 `build-appimage.sh`，确认 AppDir 内容（`AppRun` / `shellx.desktop` / `shellx.png` / 可执行文件）生成正确；两个脚本均通过 `bash -n` 语法检查；两份工作流均通过 YAML 解析。
 - **文档**：`docs/architecture.md` 第 1 节改为三平台交付，新增“跨平台打包”小节（容器对照表、AppImage / DMG 的实现要点与 CI 复用策略），技术方案表补充跨平台发布一行，并修正过期的“当前 1.0.1”版本号描述。
 - **结果**：`dotnet build ShellX.slnx -c Release` 0 警告 0 错误；全量 Core 54 / Infra 55（18 跳过） / Desktop 100（12 跳过）全绿，共 209 通过、30 跳过、0 失败。
+- **打包缺陷修复**：首轮 `v1.0.27` 的 macOS 两个架构打包失败，CI 日志显示 `iconutil` 报 `Icon resource not found in asset catalog with name '.../ShellX.icns'`——原因是 `iconutil` 的第二个位置参数不是输出文件，而是资源目录名。改为 `iconutil -c icns <iconset> -o <输出.icns>`，并把图标生成包成容错块：icns 生成失败时只告警、不带图标继续打包，避免外观问题阻断发版。Linux AppImage 与 Windows 安装包在同一次运行中已验证成功。
