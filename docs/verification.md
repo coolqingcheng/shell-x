@@ -603,3 +603,10 @@ bash: -c: line 21: syntax error near unexpected token `$'do\r''
 - **取值校验**：依赖本机 SSH 夹具的用例原先按标题全等匹配 `连接管理器`，改为包含匹配，避免标题变化后失效。
 - **测试**：新增 `ConnectionManagerTests.ConnectionManagerShowsShellXBrandAndVersion`，断言品牌块存在、同时包含 `ShellX` 与当前版本号文本，并验证“新建连接”按钮仍位于品牌标识右侧。
 - **结果**：`dotnet build ShellX.slnx -c Release` 0 警告 0 错误；全量 Core 54 / Infra 55（18 跳过） / Desktop 102（12 跳过）全绿，共 211 通过、30 跳过、0 失败。
+
+## 工作区顶栏显示 ShellX 品牌（2026-11-08）
+
+- **需求**：连接管理器加上品牌标识后，工作区窗口顶栏仍只有「服务器状态」，产品名只在空状态页出现，标签打开后就看不到品牌。
+- **实现**：`MainWindow.axaml` 左侧分区标题由 `[图标][服务器状态]` 改为 `[图标][ShellX][·][服务器状态]`——图标保持 18px，`ShellX` 用 12px 半粗强调色，`服务器状态` 改为弱化色以让品牌在前、分区名在后。`ShellX` 文本块命名 `BrandName`，悬停提示显示 `ShellX v<版本>`，版本号取自 `MainWindowViewModel.VersionText`，与连接管理器、窗口标题、设置页同源。顶栏高度仍是 36px，未占用额外纵向空间。
+- **测试**：新增 `WorkspaceTests.WorkspaceHeaderShowsShellXBrandNextToPanelTitle`，断言工作区窗口存在名为 `BrandName` 的文本块且内容为 `ShellX`，并确认分区标题 `服务器状态` 仍在渲染树中。
+- **结果**：`dotnet build ShellX.slnx -c Release` 0 警告 0 错误；全量 Core 54 / Infra 55（18 跳过） / Desktop 103（12 跳过）全绿，共 212 通过、30 跳过、0 失败。

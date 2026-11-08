@@ -469,6 +469,27 @@ public sealed class WorkspaceTests
         var deadline = DateTime.UtcNow.AddSeconds(8);
         while (!condition()) { if (DateTime.UtcNow > deadline) throw new TimeoutException("等待终端状态超时。"); await Task.Delay(30); }
     }
+    [AvaloniaFact]
+    public async Task WorkspaceHeaderShowsShellXBrandNextToPanelTitle()
+    {
+        var profile = new ConnectionProfile { Name = "测试", Host = "127.0.0.1", Port = 22, Username = "root" };
+        var root = Path.Combine(Path.GetTempPath(), "shellx-brand-ws-" + Guid.NewGuid().ToString("N"));
+        var vm = new MainWindowViewModel(new Connections(profile), new Credentials(), new Hosts(), new Settings(),
+            new SshSessionFactory(NullLoggerFactory.Instance), new Dialogs(), NullLoggerFactory.Instance,
+            new LocalFileSystem(root), new AppLockService(new LockPasswordHasher()), new JsonConfigurationExporter(new(root)));
+        var window = new MainWindow { DataContext = vm, Width = 1380, Height = 900 };
+        window.Show();
+        try
+        {
+            await Task.Delay(80);
+            var brand = window.FindControl<TextBlock>("BrandName");
+            Assert.NotNull(brand);
+            Assert.Equal("ShellX", brand!.Text);
+            // 分区标题仍在品牌标识右侧
+            Assert.Contains("服务器状态", window.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text));
+        }
+        finally { window.Close(); }
+    }
     private sealed class Connections(ConnectionProfile profile) : IConnectionRepository
     {
         public Task<IReadOnlyList<ConnectionProfile>> LoadAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ConnectionProfile>>([profile]);
