@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>SSH 桌面工作台 · 终端 / 文件传输 / 端口转发 / 服务器监控 / MCP</b><br />
-  <sub>A Windows-first SSH workbench built with Avalonia UI and .NET 10.</sub>
+  <sub>A cross-platform SSH workbench for Windows, macOS and Linux, built with Avalonia UI and .NET 10.</sub>
 </p>
 
 <p align="center">
@@ -20,6 +20,7 @@
 
 <p align="center">
   <a href="#特性">特性</a> ·
+  <a href="#平台支持">平台</a> ·
   <a href="#下载与安装">下载</a> ·
   <a href="#快速开始">快速开始</a> ·
   <a href="#从源码构建">构建</a> ·
@@ -29,7 +30,25 @@
 
 ![ShellX 主界面](docs/images/workspace-dark.png)
 
-ShellX 使用 **Avalonia UI + .NET 10** 构建，界面布局参考 FinalShell：左侧是服务器状态监控，上方是多标签终端（命令输入、历史与常用命令在输入框旁弹出），**文件管理器为独立窗口**（终端工具栏一键打开，窗口顶部按连接分页签），各分区均可拖动调整。发布形态为 **Native AOT 单文件**，目标机器无需安装 .NET。
+ShellX 使用 **Avalonia UI + .NET 10** 构建，界面布局参考 FinalShell：左侧是服务器状态监控，上方是多标签终端（命令输入、历史与常用命令在输入框旁弹出），**文件管理器为独立窗口**（终端工具栏一键打开，窗口顶部按连接分页签），各分区均可拖动调整。
+
+ShellX 是**跨平台**应用：同一套代码同时支持 **Windows、macOS 与 Linux**，三个平台都提供原生安装包（Windows 安装程序、macOS 磁盘映像 DMG、Linux AppImage），全部为 **Native AOT 单文件**，目标机器无需安装 .NET 运行时。
+
+## 平台支持
+
+ShellX 在三大主流桌面系统上提供一致的体验，全部发行物为 Native AOT 单文件：
+
+| 平台 | 架构 | 安装包 | 免安装版本 | 运行时要求 |
+| --- | --- | --- | --- | --- |
+| **Windows 10 / 11** | x64 | `ShellX-Setup-<版本>.exe`（Inno Setup，安装到用户目录，免管理员） | `ShellX-<版本>-win-x64.zip` | 无需 .NET 运行时 |
+| **macOS 11+** | Apple Silicon (arm64) | `ShellX-<版本>-osx-arm64.dmg` | `ShellX-<版本>-osx-arm64.zip`（`.app`） | 无需 .NET 运行时 |
+| **macOS 11+** | Intel (x64) | `ShellX-<版本>-osx-x64.dmg` | `ShellX-<版本>-osx-x64.zip`（`.app`） | 无需 .NET 运行时 |
+| **Linux** | x64 | `ShellX-<版本>-linux-x86_64.AppImage` | `ShellX-<版本>-linux-x64.tar.gz` | 无需 .NET 运行时 |
+
+- **Windows**：安装程序写入 `%LOCALAPPDATA%\Programs\ShellX`，带开始菜单与卸载入口；便携 zip 解压即用。
+- **macOS**：DMG 拖拽安装到 `/Applications`。未做 Apple 公证与开发者签名，首次打开若提示“无法验证开发者”，请在“系统设置 → 隐私与安全性”中放行，或执行 `xattr -dr com.apple.quarantine /Applications/ShellX.app`。
+- **Linux**：AppImage 为单文件可执行程序，先 `chmod +x` 再运行；部分精简发行版需安装 `libfuse2`（AppImage 运行所需），也可改用 tar.gz 免安装包。
+- 三平台的界面、终端、文件管理、端口转发、监控与服务管理功能一致；差异仅在凭据存储与锁屏检测（见 [已知限制](#已知限制)）。
 
 ## 特性
 
@@ -44,7 +63,7 @@ ShellX 使用 **Avalonia UI + .NET 10** 构建，界面布局参考 FinalShell�
 | 服务器监控 | CPU、内存、负载、进程列表、网络速率、磁盘挂载与容量（Linux `/proc`） |
 | MCP 服务 | HTTP JSON-RPC 暴露本机命令执行，Bearer 鉴权、一键复制客户端配置、逐条审计日志与实时日志窗口 |
 | 安全 | 服务器指纹校验（SHA-256）、Windows DPAPI 凭据保护、应用锁与超时自动锁定 |
-| 发布 | Native AOT 单文件、Inno Setup 安装包、应用内自动更新（GitHub Releases） |
+| 发布 | Native AOT 单文件、Windows / macOS / Linux 三平台原生安装包（exe / dmg / AppImage）、应用内自动更新（GitHub Releases） |
 
 ### 连接与终端
 
@@ -139,11 +158,17 @@ GET  http://127.0.0.1:8765/healthz
 | --- | --- | --- |
 | Windows x64 | `ShellX-Setup-<版本>.exe` | Inno Setup 安装包，安装到 `%LOCALAPPDATA%\Programs\ShellX`（免管理员），含开始菜单与卸载入口 |
 | Windows x64 | `ShellX-<版本>-win-x64.zip` | 免安装便携包，解压即可运行 |
-| Linux x64 | `ShellX-<版本>-linux-x64.tar.gz` | Releases 附件，`tar -xzf` 解压后运行 `./ShellX` |
-| macOS（Apple Silicon） | `ShellX-<版本>-osx-arm64.tar.gz` | Releases 附件，解压后运行 `./ShellX` |
+| macOS（Apple Silicon） | `ShellX-<版本>-osx-arm64.dmg` | 磁盘映像，拖拽 `ShellX.app` 到“应用程序”即可安装 |
+| macOS（Apple Silicon） | `ShellX-<版本>-osx-arm64.zip` | 免安装包，解压后直接运行 `ShellX.app` |
+| macOS（Intel） | `ShellX-<版本>-osx-x64.dmg` | Intel 芯片用磁盘映像 |
+| macOS（Intel） | `ShellX-<版本>-osx-x64.zip` | Intel 芯片免安装包 |
+| Linux x64 | `ShellX-<版本>-linux-x86_64.AppImage` | 单文件可执行程序，`chmod +x` 后直接运行，无需安装 |
+| Linux x64 | `ShellX-<版本>-linux-x64.tar.gz` | 免安装包，`tar -xzf` 解压后运行 `./ShellX` |
 
-- 系统要求：Windows 版**无需安装 .NET 运行时**；Linux / macOS 版同样为 Native AOT 单文件。
-- **Linux / macOS 构建为实验性**：CI 仅验证编译与发布，尚未在真实系统完成运行验收；非 Windows 平台暂不支持保存密码（提示后仅本次连接生效），锁屏自动锁定在非 Windows 上不可用，服务器监控依赖 Linux `/proc`。
+- 系统要求：三个平台的产物**均为 Native AOT 单文件，无需安装 .NET 运行时**。
+- **macOS 首次打开提示无法验证开发者**：未做 Apple 公证，在“系统设置 → 隐私与安全性”中点“仍要打开”，或执行 `xattr -dr com.apple.quarantine /Applications/ShellX.app`。
+- **Linux AppImage 提示缺少 libfuse2**：部分精简发行版需 `sudo apt install libfuse2`；或改用 tar.gz 免安装包。
+- **macOS / Linux 仍属实验性**：CI 已验证编译、打包与发布链路，但尚未在真实系统完成长时间运行验收；非 Windows 平台暂不支持保存密码（提示后仅本次连接生效），锁屏自动锁定在非 Windows 上不可用，服务器监控依赖 Linux `/proc`。
 - 应用内更新：`设置 → 更新` → 检查更新 → 显示本次更新内容并下载安装包 → 确认后立即更新并重启；可开启“启动时自动检查更新”。
 
 ## 快速开始
@@ -226,7 +251,20 @@ dotnet publish src/ShellX.Desktop/ShellX.Desktop.csproj \
   -o artifacts/publish/linux-x64
 
 # macOS Apple Silicon：把 -r 改为 osx-arm64
+# macOS Intel：把 -r 改为 osx-x64
 ```
+
+三个平台的安装包由脚本统一生成，CI 与本地使用同一套：
+
+```bash
+# Linux：AppImage（需要 squashfs-tools）
+bash scripts/build-appimage.sh 1.0.0 artifacts/publish/linux-x64 release-files
+
+# macOS：DMG + .app 压缩包（只能在 macOS 上执行）
+bash scripts/build-dmg.sh 1.0.0 artifacts/publish/osx-arm64 release-files arm64
+```
+
+`build-appimage.sh` 会下载 `appimagetool` 并把产物整理成标准 AppDir（含 `AppRun`、`.desktop` 与图标）后封装为 AppImage；`build-dmg.sh` 会组装 `ShellX.app`（含 `Info.plist` 与多尺寸 `.icns`）并用 `hdiutil` 生成磁盘映像，同时导出 `.app` 压缩包。
 
 AOT 产物只分发一个可执行文件；Windows 版首次启动会把内嵌的原生组件释放到 `%LOCALAPPDATA%\ShellX\native\win-x64\<内容版本>\` 并在后续启动复用。XAML 与代码使用编译绑定，JSON 使用源生成，以保证 AOT 兼容。
 
@@ -268,8 +306,8 @@ dotnet test tests/ShellX.Desktop.Tests -c Release
 
 渲染结果输出到 `artifacts\preview\`。若开发版正占用默认输出目录，可用 `--artifacts-path artifacts\isolated-build` 使用独立构建目录。
 
-持续集成见 [ci.yml](.github/workflows/ci.yml)：Windows runner 负责编译与全量测试，Ubuntu / macOS runner 负责 Native AOT 发布并上传构建产物（便于在合并前拿到预览版）。
-发布见 [release.yml](.github/workflows/release.yml)：打 `v*` 标签时并行产出 Windows 安装包 / 便携 zip、Linux 与 macOS 的 `tar.gz`，最后统一挂到同一个 Release。
+持续集成见 [ci.yml](.github/workflows/ci.yml)：Windows runner 负责编译与全量测试，Ubuntu / macOS runner 负责 Native AOT 发布并打包 AppImage / DMG，把产物上传为构建产物（便于在合并前拿到预览版，同时提前暴露打包脚本的问题）。
+发布见 [release.yml](.github/workflows/release.yml)：打 `v*` 标签时并行产出 **Windows 安装包与便携 zip、Linux AppImage 与 tar.gz、macOS（Apple Silicon / Intel）DMG 与 zip**，最后统一挂到同一个 Release。
 
 ### 项目结构
 
@@ -298,7 +336,7 @@ dotnet test tests/ShellX.Desktop.Tests -c Release
 
 ## 已知限制
 
-- Windows x64 为已验收平台；Linux x64 与 macOS（Apple Silicon）由 CI 产出，属实验性构建，尚未完成运行时验收。
+- Windows x64 为已完整验收的平台；macOS（Apple Silicon / Intel）与 Linux x64 提供原生安装包并由 CI 持续构建，属实验性构建，尚未完成长时间运行时验收。
 - 非 Windows 平台暂不支持凭据持久化（保存时明确提示，仅本次连接生效），锁屏自动锁定依赖 Windows 会话事件。
 - 内置编辑器面向中小配置文件，超出字节 / 字符 / 行数 / 单行长度限制时提示改用外部编辑器。
 - 单次目录下载上限为 100000 个项目、128 层；传输目录内的符号链接会跳过，下载不写入本地符号链接。
@@ -323,7 +361,7 @@ dotnet test tests/ShellX.Desktop.Tests -c Release
 - [SSH.NET](https://github.com/sshnet/SSH.NET) —— SSH / SFTP / 端口转发实现
 - [AvaloniaEdit](https://github.com/AvaloniaUI/Avalonia.AvaloniaEdit) —— 内置文本编辑器
 - [Iciclecreek.Avalonia.Terminal](https://github.com/AvaloniaCommunity/Iciclecreek.Avalonia.Terminal) —— 终端控件
-- [CommunityToolkit.Mvvm](https://learn.microsoft.com/dotnet/communitytoolkit/mvvm)、[xUnit](https://xunit.net/)、[Inno Setup](https://jrsoftware.org/isinfo.php)
+- [CommunityToolkit.Mvvm](https://learn.microsoft.com/dotnet/communitytoolkit/mvvm)、[xUnit](https://xunit.net/)、[Inno Setup](https://jrsoftware.org/isinfo.php)、[AppImageKit](https://github.com/AppImage/AppImageKit)
 
 ## 文档
 

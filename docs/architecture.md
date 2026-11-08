@@ -2,7 +2,7 @@
 
 ## 1. 产品范围
 
-使用 C#、.NET 10、Avalonia UI 开发桌面 SSH 工具。优先完成 Windows 版本，核心层保留跨平台能力。
+使用 C#、.NET 10、Avalonia UI 开发桌面 SSH 工具。同一套代码交付 Windows、macOS 与 Linux 三大主流桌面系统：核心层与界面层不依赖任何平台专有 API，平台差异集中在凭据存储、锁屏检测与安装包形态三处，并以适配器方式隔离。Windows 为完整验收平台，macOS 与 Linux 提供原生安装包并由 CI 持续构建。
 
 - 左侧：连接分组、连接搜索、新增、编辑、删除和连接状态。
 - 右侧：多标签工作区；每个标签为 SSH 终端并支持拖动调整面板比例。文件管理器通过 `Window.Show()` 作为非模态独立顶层窗口打开，不设置 Owner、不调用 `ShowDialog`，因此不会禁用主窗口；文件管理器激活时还会把自身设置为 `DialogService` 的窗口上下文，使权限、确认和文件选择弹窗归属于文件管理器而不是终端主窗口；顶部按连接显示页签；同一连接可通过 ＋ 创建多个编号页签，每个 `FileManagerTabViewModel` 持有独立 `FileBrowserViewModel`，挂接到对应连接的同一 `IRemoteFileSystem` 会话。
@@ -28,6 +28,7 @@
 | 本地配置 | System.Text.Json，版本化结构和原子替换写入 |
 | Windows 凭据保护 | 当前 Windows 用户范围的 DPAPI；通过独立接口访问 |
 | 测试 | xUnit；真实 SSH 集成测试使用显式提供的测试环境 |
+| 跨平台发布 | Native AOT 单文件；Windows 用 Inno Setup，macOS 用 DMG + `.app`，Linux 用 AppImage |
 
 Avalonia 采用经过兼容性验证的稳定版本，不单独升级与终端控件存在版本耦合的包。
 
@@ -250,7 +251,7 @@ ShellX/
 
 ## 10. 当前状态
 
-用户已确认首版支持 Windows，其他系统后续适配。已建立三个运行项目和 Core、Infrastructure、Desktop 三个测试项目，并实现首版界面及 SSH/SFTP/端口转发。上面的目录是架构职责示意；当前实际文件按功能合并部分模型、接口和仓储实现，尚未需要的独立应用服务文件没有创建。
+首版以 Windows 为验收平台，现已把交付面扩展到 Windows、macOS 与 Linux：同一套代码经 Native AOT 产出三个平台的单文件可执行程序，并由 CI 打包为 exe / dmg / AppImage。已建立三个运行项目和 Core、Infrastructure、Desktop 三个测试项目，并实现首版界面及 SSH/SFTP/端口转发。上面的目录是架构职责示意；当前实际文件按功能合并部分模型、接口和仓储实现，尚未需要的独立应用服务文件没有创建。
 
 后续按用户提供的 FinalShell 截图调整布局，增加 `Core/Monitoring` 指标模型与计算、`Infrastructure/Monitoring` Linux SSH exec 采样、`Desktop/Features/Monitoring` 监控面板和曲线。命令栏、会话内历史和持久化快捷命令放在 `Desktop/Features/Commands`，快捷命令模型放在 Core。目录树按需加载，不改变 SFTP 客户端的工作目录。终端普通文本高亮在 Desktop 的读流适配中处理，不修改远端配置、不改变发送的数据；ANSI 前景色、控制字符串及全屏缓冲区保留。
 
@@ -318,8 +319,24 @@ Desktop 的 ConnectionAccentChoice 提供柔和预设和自定义输入；Connec
 SessionTerminalChannel 是 Desktop 的终端适配层，把 SSH 输出和本地带时间的连接日志合并到有容量限制的队列；终端控件始终连接此稳定通道，SSH 源可替换，因此重连不会替换终端缓冲区。源读取结束也报告断线；关闭源先取消读取，再释放 SSH，最后等待读取结束，避免旧源与新源混写。终端输入仅转发给当前源，日志仅进入本地显示通道，不作为命令发送。断线后取消文件传输，成功重连重新接入 SFTP、共享监控和隧道生命周期；已经终止的远程 Shell 进程不会恢复。
 ## 11. 安装包与自动更新
 
-安装包由 Inno Setup 6 描述（`scripts/installer/ShellX.iss`），只打包 AOT 单文件产物，安装到当前用户的 `%LOCALAPPDATA%/Programs/ShellX`，免管理员，含开始菜单、可选桌面快捷方式和卸载项。版本号的唯一来源是仓库根目录的 `VERSION` 文件（当前 `1.0.1`），`Directory.Build.props` 通过 `ShellXVersionFile`/`ShellXVersion` 读取它并写入 `Version`/`AssemblyVersion`/`FileVersion`；`scripts/build-installer.ps1` 优先读取同一文件，`scripts/publish.ps1` 以 `-p:ShellXVersion=` 覆盖，保证 EXE、安装包与发布标签三者版本一致。版本号不再硬编码，因此产物版本会随 `VERSION` 文件变化。
+安装包由 Inno Setup 6 描述（`scripts/installer/ShellX.iss`），只打包 AOT 单文件产物，安装到当前用户的 `%LOCALAPPDATA%/Programs/ShellX`，免管理员，含开始菜单、可选桌面快捷方式和卸载项。版本号的唯一来源是仓库根目录的 `VERSION` 文件（发布时由 `scripts/release.ps1` 自动递增），`Directory.Build.props` 通过 `ShellXVersionFile`/`ShellXVersion` 读取它并写入 `Version`/`AssemblyVersion`/`FileVersion`；`scripts/build-installer.ps1` 优先读取同一文件，`scripts/publish.ps1` 以 `-p:ShellXVersion=` 覆盖，保证 EXE、安装包与发布标签三者版本一致。版本号不再硬编码，因此产物版本会随 `VERSION` 文件变化。
 
 更新走 GitHub 公开仓库的 Releases。Core 定义 `IUpdateService`、`UpdateRelease`、`UpdateAsset` 和版本比较 `UpdateVersion`（兼容 `v1.2.3`、`1.2.3`、`1.2.3-beta`）；Infrastructure 的 `GitHubUpdateService` 用源生成 JSON 解析 `releases/latest`，优先选择名称含 `Setup` 的 `.exe` 资产，并提供带进度的流式下载。Desktop 的 `UpdateManager` 负责检查、下载、待安装记录（`%LOCALAPPDATA%/ShellX/updates/pending.json`）以及拉起更新引导进程；`UpdateBootstrapper` 在 `Program.Main` 最前面拦截 `--apply-update` 参数，等待主进程退出后静默运行安装包并按需重启，主程序退出时同样检查待安装更新，实现“关闭即更新”。设置页“更新”页签只保留一个“检查更新”按钮和“启动时自动检查更新”开关：检查到新版本就下载安装包，下载完成后弹出“发现新版本”确认框；确认框由 `UpdateManager.BuildUpdatePrompt` 统一生成，展示当前版本、新版本、GitHub Release 的 `body` 更新说明与发布链接，确认即立即更新并重启，取消则清除待安装登记、退出时不再自动安装。仓库地址固定取内置默认值 `coolqingcheng/shell-x` 并保留原配置值。
 
 发布流程：`.github/workflows/release.yml` 在推送 `v*` 标签时编译 AOT 产物、安装包和免安装压缩包并发布 Release，`ci.yml` 负责提交与 PR 的构建测试。敏感信息不入库：连接配置、凭据、设置与日志都存放在 `%LOCALAPPDATA%/ShellX`，仓库内只有源码、脚本和文档。
+
+### 跨平台打包
+
+三个平台共用同一条 `dotnet publish -p:PublishAot=true` 产线，差异只在“把可执行文件装进什么容器”：
+
+| 平台 | 容器 | 脚本 | 依赖 |
+| --- | --- | --- | --- |
+| Windows x64 | Inno Setup 安装程序 + 便携 zip | `scripts/build-installer.ps1` | Inno Setup 6 |
+| Linux x64 | AppImage（主）+ tar.gz（免安装） | `scripts/build-appimage.sh` | `squashfs-tools`、`desktop-file-utils`、AppImageKit `appimagetool` |
+| macOS arm64 / x64 | DMG（主）+ `.app` zip（免安装） | `scripts/build-dmg.sh` | `hdiutil`、`iconutil`、`sips`（macOS 自带） |
+
+`build-appimage.sh` 把发布目录整理成标准 AppDir：`AppRun` 用 `readlink -f` 定位自身所在目录再 `exec` 可执行文件，根目录放 `shellx.desktop` 与 `shellx.png`（`.desktop` 的 `Icon=` 必须与图标文件名一致），最后交给 `appimagetool` 封装。CI 通常没有 FUSE，因此运行 `appimagetool` 时设置 `APPIMAGE_EXTRACT_AND_RUN=1` 让其自解压执行；工具下载到临时目录并在退出时清理，避免打包失败时残留在发布产物里。
+
+`build-dmg.sh` 组装标准 `ShellX.app`：`Contents/MacOS/ShellX` 为可执行文件，`Contents/Info.plist` 写明 `CFBundleIdentifier`、`CFBundleExecutable`、`CFBundleShortVersionString` 与 `LSMinimumSystemVersion`，`Contents/Resources/ShellX.icns` 由 512×512 应用图标经 `sips` 多尺寸化后用 `iconutil` 生成。打包前做一次 ad-hoc 签名（`codesign --force --deep --sign -`）以减少“已损坏”提示，但未做 Apple 公证与开发者签名，用户首次打开仍需手动放行或清除隔离属性。DMG 用 `hdiutil create -format UDZO` 生成，卷内含 `/Applications` 符号链接以便拖拽安装；`.app` 另用 `ditto` 导出 zip 作为免安装版本。
+
+CI 与本地使用同一套脚本：`ci.yml` 在 Ubuntu / macOS runner 上除 AOT 发布外还执行打包步骤，使打包脚本的破坏能在合并前暴露，而不是等到打标签才失败。

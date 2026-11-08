@@ -30,10 +30,10 @@ jobs:
           }
           exit 1
 
-  # 与 Windows 发布一致的 Native AOT 产物；测试暂不在 Unix runner 上运行，
+  # 与正式发布一致的 Native AOT 产物与安装包；测试暂不在 Unix runner 上运行，
   # Windows 专属的 DPAPI/凭据用例在 Linux/macOS 上会失败。
-  publish-unix:
-    name: 构建 ${{ matrix.rid }}
+  package-unix:
+    name: 打包 ${{ matrix.rid }}
     strategy:
       fail-fast: false
       matrix:
@@ -49,6 +49,11 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      - name: 安装打包依赖（Linux）
+        if: matrix.rid == 'linux-x64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y squashfs-tools desktop-file-utils
       - name: Native AOT 发布
         run: >
           dotnet publish src/ShellX.Desktop/ShellX.Desktop.csproj
@@ -60,11 +65,21 @@ jobs:
         shell: bash
         run: |
           mv "artifacts/publish/${{ matrix.rid }}/ShellX.Desktop" "artifacts/publish/${{ matrix.rid }}/ShellX"
-          ls -lh "artifacts/publish/${{ matrix.rid }}"
+          chmod +x "artifacts/publish/${{ matrix.rid }}/ShellX"
+      - name: 打包 AppImage
+        if: matrix.rid == 'linux-x64'
+        shell: bash
+        run: bash scripts/build-appimage.sh "0.0.0-ci" "artifacts/publish/${{ matrix.rid }}" release-files
+      - name: 打包 DMG
+        if: matrix.rid == 'osx-arm64'
+        shell: bash
+        run: bash scripts/build-dmg.sh "0.0.0-ci" "artifacts/publish/${{ matrix.rid }}" release-files arm64
       - name: 上传产物
         uses: actions/upload-artifact@v4
         with:
           name: ShellX-${{ matrix.rid }}
-          path: artifacts/publish/${{ matrix.rid }}/
+          path: |
+            artifacts/publish/${{ matrix.rid }}/
+            release-files/
           if-no-files-found: error
           retention-days: 14

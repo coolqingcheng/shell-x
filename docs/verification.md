@@ -574,3 +574,14 @@ bash: -c: line 21: syntax error near unexpected token `$'do\r''
 - **界面**：端口转发面板顶部工具栏由 `*,Auto,Auto` 调整为三列，新增 `StopAllTunnelsButton`（文字“全部停止”），与“新建隧道”“全部启动”同排。
 - **测试**：新增 `WorkspaceTabTunnelTests.StopAllStopsEveryRunningTunnelAndDisablesBulkButtonState`，用 `TestTunnelService` / `TestSession` / `TestTerminal` 假实现覆盖批量停止与按钮状态；面板 UI 测试补充 `StopAllTunnelsButton` 存在性断言，未连接时不可点。
 - **结果**：`dotnet build ShellX.slnx -c Release` 0 警告 0 错误；全量 Core 54 / Infra 55（18 跳过） / Desktop 100（12 跳过）全绿，共 209 通过、30 跳过、0 失败。
+
+## 跨平台打包与项目说明（2026-11-08）
+
+- **需求**：README 与项目说明强调支持主流操作系统；macOS / Linux 需要原生安装包而非仅 tar.gz。
+- **平台交付**：明确 Windows 10/11、macOS 11+（Apple Silicon 与 Intel）、Linux x64 四个交付目标，README 新增“平台支持”章节（架构、安装包、免安装版本、运行时要求对照表），副标题由 “A Windows-first SSH workbench” 改为 “A cross-platform SSH workbench for Windows, macOS and Linux”；“已知限制”把 macOS / Linux 表述为“提供原生安装包并由 CI 持续构建，属实验性构建”。
+- **Linux AppImage**：新增 `scripts/build-appimage.sh`，把发布目录整理成标准 AppDir（`AppRun` 用 `readlink -f` 定位自身目录后 `exec` 可执行文件、根目录 `shellx.desktop` 与 `shellx.png`，`.desktop` 的 `Icon=` 与图标文件名一致），再交给 AppImageKit `appimagetool` 封装。CI 无 FUSE 时以 `APPIMAGE_EXTRACT_AND_RUN=1` 让工具自解压执行；`appimagetool` 下载到临时目录并在退出时清理，避免打包失败时残留在发布产物里。依赖 `squashfs-tools` 与 `desktop-file-utils`。
+- **macOS DMG**：新增 `scripts/build-dmg.sh`，组装标准 `ShellX.app`（`Contents/MacOS/ShellX`、`Contents/Info.plist` 含 `CFBundleIdentifier` / `CFBundleExecutable` / `CFBundleShortVersionString` / `LSMinimumSystemVersion`、`Contents/Resources/ShellX.icns`）。图标由 512×512 应用图标经 `sips` 多尺寸化后用 `iconutil` 生成；打包前做 ad-hoc 签名（`codesign --force --deep --sign -`）减少“已损坏”提示，但未做 Apple 公证，README 说明首次打开需手动放行或 `xattr -dr com.apple.quarantine`。DMG 用 `hdiutil create -format UDZO` 生成并带 `/Applications` 符号链接，另用 `ditto` 导出 `.app` zip 作为免安装版本。
+- **CI 调整**：`release.yml` 拆为 `windows` / `linux` / `macos` 三个 job，`macos` 用矩阵覆盖 `osx-arm64`（`macos-latest`）与 `osx-x64`（`macos-26-intel`），`publish` job 依赖三者并统一上传。`ci.yml` 同步在 Ubuntu / macOS runner 上执行打包步骤，使打包脚本的破坏能在合并前暴露。
+- **本地校验**：用 Git Bash 以桩程序替换 `mksquashfs` 实跑 `build-appimage.sh`，确认 AppDir 内容（`AppRun` / `shellx.desktop` / `shellx.png` / 可执行文件）生成正确；两个脚本均通过 `bash -n` 语法检查；两份工作流均通过 YAML 解析。
+- **文档**：`docs/architecture.md` 第 1 节改为三平台交付，新增“跨平台打包”小节（容器对照表、AppImage / DMG 的实现要点与 CI 复用策略），技术方案表补充跨平台发布一行，并修正过期的“当前 1.0.1”版本号描述。
+- **结果**：`dotnet build ShellX.slnx -c Release` 0 警告 0 错误；全量 Core 54 / Infra 55（18 跳过） / Desktop 100（12 跳过）全绿，共 209 通过、30 跳过、0 失败。
