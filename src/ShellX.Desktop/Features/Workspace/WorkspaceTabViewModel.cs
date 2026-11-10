@@ -55,6 +55,12 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
     public ServerMonitorViewModel Monitor => _monitorLease.Monitor;
     public CommandPanelViewModel Commands { get; }
     public ObservableCollection<TunnelViewModel> Tunnels { get; } = [];
+    public IReadOnlyList<TunnelViewModel> FilteredTunnels => string.IsNullOrWhiteSpace(TunnelSearch)
+        ? Tunnels.ToArray()
+        : Tunnels.Where(t => t.Name.Contains(TunnelSearch.Trim(), StringComparison.OrdinalIgnoreCase)
+            || t.Description.Contains(TunnelSearch.Trim(), StringComparison.OrdinalIgnoreCase)).ToArray();
+    [ObservableProperty] private string _tunnelSearch = "";
+    partial void OnTunnelSearchChanged(string value) => OnPropertyChanged(nameof(FilteredTunnels));
     [ObservableProperty] private bool _isSelected;
     [ObservableProperty] private bool _isConnecting;
     [ObservableProperty] private bool _isConnected;
@@ -98,6 +104,7 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
         {
             if (e.OldItems != null) foreach (TunnelViewModel tunnel in e.OldItems) tunnel.PropertyChanged -= TunnelChanged;
             if (e.NewItems != null) foreach (TunnelViewModel tunnel in e.NewItems) tunnel.PropertyChanged += TunnelChanged;
+            OnPropertyChanged(nameof(FilteredTunnels));
             NotifyTunnelStatus();
         };
         ApplySettings(settings); RebuildTunnels();

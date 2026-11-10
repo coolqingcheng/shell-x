@@ -35,6 +35,32 @@ public sealed class WorkspaceTabTunnelTests
     }
 
     [Fact]
+    public async Task SearchFiltersImmediatelyAndTracksRuleChanges()
+    {
+        var profile = Profile(2);
+        profile.Tunnels[0] = profile.Tunnels[0] with { Name = "MongoDB", TargetHost = "db.example.com", TargetPort = 27017 };
+        var tab = await NewTab(profile, new TestDialogs());
+        try
+        {
+            Assert.Equal(2, tab.FilteredTunnels.Count);
+            tab.TunnelSearch = " mongodb ";
+            Assert.Equal("MongoDB", Assert.Single(tab.FilteredTunnels).Name);
+            tab.TunnelSearch = "27017";
+            Assert.Equal("MongoDB", Assert.Single(tab.FilteredTunnels).Name);
+            tab.TunnelSearch = "DB.EXAMPLE";
+            Assert.Equal("MongoDB", Assert.Single(tab.FilteredTunnels).Name);
+            tab.TunnelSearch = "不存在";
+            Assert.Empty(tab.FilteredTunnels);
+            tab.TunnelSearch = "缓存";
+            await tab.Tunnels[1].RemoveCommand.ExecuteAsync(null);
+            Assert.Empty(tab.FilteredTunnels);
+            tab.TunnelSearch = "";
+            Assert.Single(tab.FilteredTunnels);
+        }
+        finally { await tab.DisposeAsync(); }
+    }
+
+    [Fact]
     public async Task RemovingTunnelRequiresConfirmation()
     {
         var dialogs = new TestDialogs { Confirmation = false };
@@ -80,6 +106,8 @@ public sealed class WorkspaceTabTunnelTests
             tab.IsConnected = true;
             foreach (var tunnel in tab.Tunnels) tunnel.Apply(service.GetStatus(tunnel.Definition.Id));
             Assert.True(tab.CanStopAllTunnels);
+            tab.TunnelSearch = "数据库";
+            Assert.Single(tab.FilteredTunnels);
 
             await tab.StopAllTunnelsCommand.ExecuteAsync(null);
 
@@ -110,6 +138,7 @@ public sealed class WorkspaceTabTunnelTests
         try
         {
             Assert.NotNull(view.FindControl<Button>("StartAllTunnelsButton"));
+            Assert.NotNull(view.FindControl<TextBox>("TunnelSearchBox"));
             var stopAll = view.FindControl<Button>("StopAllTunnelsButton");
             Assert.NotNull(stopAll);
             Assert.False(stopAll!.IsEnabled);                                 // 未连接/无运行隧道时不可点

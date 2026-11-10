@@ -94,8 +94,9 @@
             <Button Grid.Column="1" Name="StartAllTunnelsButton" Content="全部启动" Command="{Binding StartAllTunnelsCommand}" IsEnabled="{Binding IsConnected}" ToolTip.Tip="启动本连接所有未运行的转发规则" />
             <Button Grid.Column="2" Name="StopAllTunnelsButton" Content="全部停止" Command="{Binding StopAllTunnelsCommand}" IsEnabled="{Binding CanStopAllTunnels}" ToolTip.Tip="停止本连接所有正在运行的转发规则" />
           </Grid>
+        <TextBox DockPanel.Dock="Top" Name="TunnelSearchBox" Text="{Binding TunnelSearch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="搜索名称、地址或端口" Margin="10,0,10,10" />
         <TextBlock DockPanel.Dock="Bottom" Text="同一主机、SSH 端口和账号的标签共享隧道状态，可在任一标签启停；最后一个连接断开时释放。每 10 秒检测 TCP 可达性：绿色连通，红色失败，灰色停止。" TextWrapping="Wrap" FontSize="10" Foreground="{DynamicResource MutedForeground}" Margin="14" />
-        <ScrollViewer><ItemsControl ItemsSource="{Binding Tunnels}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="tunnels:TunnelViewModel">
+        <ScrollViewer><ItemsControl ItemsSource="{Binding FilteredTunnels}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="tunnels:TunnelViewModel">
           <Border Padding="12" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1"><StackPanel Spacing="8">
             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8"><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding Name}" /><StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center"><Ellipse Width="8" Height="8" Fill="{Binding StatusColor}" VerticalAlignment="Center" /><TextBlock Text="{Binding Status}" Foreground="{Binding StatusColor}" FontSize="11" /></StackPanel><Button Grid.Column="2" Classes="flat" Padding="2" Command="{Binding RemoveCommand}" ToolTip.Tip="删除规则"><controls:StrokeIcon Symbol="close" Width="12" Height="12" /></Button></Grid>
             <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryForeground}" FontSize="11" />
