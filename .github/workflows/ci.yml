@@ -52,8 +52,10 @@ jobs:
       - name: 安装打包依赖（Linux）
         if: matrix.rid == 'linux-x64'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y squashfs-tools desktop-file-utils
+          sudo apt-get update -o Acquire::Retries=5
+          sudo apt-get install -y squashfs-tools
+          # desktop-file-utils 只用于校验 desktop 文件，装不上也不影响打包。
+          sudo apt-get install -y desktop-file-utils || echo "desktop-file-utils 安装失败，跳过校验。"
       - name: Native AOT 发布
         run: >
           dotnet publish src/ShellX.Desktop/ShellX.Desktop.csproj
