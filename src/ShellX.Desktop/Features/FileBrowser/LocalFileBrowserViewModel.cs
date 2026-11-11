@@ -28,7 +28,7 @@ public partial class LocalFileBrowserViewModel(ILocalFileSystem files, IDialogSe
     [ObservableProperty] private string _summary = "本地文件";
     [ObservableProperty] private bool _showHidden;
     /// <summary>是否显示本地目录树。</summary>
-    [ObservableProperty] private bool _showTree;
+    [ObservableProperty] private bool _showTree = true;
     [ObservableProperty] private bool _isBusy;
     /// <summary>删除进行中：期间禁止重复触发删除。</summary>
     [ObservableProperty] private bool _isDeleting;

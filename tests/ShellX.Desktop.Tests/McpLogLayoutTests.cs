@@ -65,10 +65,14 @@ public sealed class McpLogLayoutTests
             {
                 await Dispatcher.UIThread.InvokeAsync(() => { });
                 var list = window.FindControl<ListBox>("LogRows")!;
+                // 列表是虚拟化的，等一次布局后再取行，保证换行后的高度已经算出来。
+                window.UpdateLayout();
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Render);
+                window.UpdateLayout();
                 var row = list.GetVisualDescendants().OfType<McpLogRowView>().Single();
                 var command = row.GetVisualDescendants().OfType<TextBlock>().First(x => x.Text?.Contains("very-long-command") == true);
                 Assert.Equal(TextWrapping.Wrap, command.TextWrapping);
-                Assert.True(command.Bounds.Height > 24);
+                Assert.True(command.Bounds.Height > 24, $"h={command.Bounds.Height} w={command.Bounds.Width} row={row.Bounds.Width} win={window.Bounds.Width}");
                 Assert.True(command.Bounds.Width < row.Bounds.Width);
             }
             finally { window.Close(); }
