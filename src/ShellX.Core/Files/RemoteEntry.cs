@@ -1,8 +1,31 @@
+using System.ComponentModel;
+
 namespace ShellX.Core.Files;
 
 public sealed record RemoteEntry(string Name, string FullPath, bool IsDirectory, bool IsSymbolicLink,
-    long Size, DateTime ModifiedUtc, int Permissions, int UserId, int GroupId)
+    long Size, DateTime ModifiedUtc, int Permissions, int UserId, int GroupId) : INotifyPropertyChanged
 {
+    private bool _isDeleting;
+    private PropertyChangedEventHandler? _propertyChanged;
+
+    /// <summary>删除中：删除完成前条目保持可见，并显示加载指示。</summary>
+    public bool IsDeleting
+    {
+        get => _isDeleting;
+        set
+        {
+            if (_isDeleting == value) return;
+            _isDeleting = value;
+            _propertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsDeleting)));
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged
+    {
+        add => _propertyChanged += value;
+        remove => _propertyChanged -= value;
+    }
+
     public string Category => FileTypes.Category(Name, IsDirectory, IsSymbolicLink);
     public string Icon => Category;
     public string Kind => IsSymbolicLink ? "符号链接" : FileTypes.Label(Category);

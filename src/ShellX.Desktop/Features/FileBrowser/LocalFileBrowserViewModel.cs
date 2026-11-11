@@ -26,6 +26,8 @@ public partial class LocalFileBrowserViewModel(ILocalFileSystem files, IDialogSe
     [ObservableProperty] private string _summary = "本地文件";
     [ObservableProperty] private bool _showHidden;
     [ObservableProperty] private bool _isBusy;
+    /// <summary>删除进行中：期间禁止重复触发删除。</summary>
+    [ObservableProperty] private bool _isDeleting;
     [ObservableProperty] private bool _isRemoteAvailable;
     public bool HasError => !string.IsNullOrEmpty(Error);
     public bool CanEditText => !IsEditingText && SelectedEntries.Count <= 1 && SelectedEntry is { IsDirectory: false, IsSymbolicLink: false };
@@ -113,13 +115,33 @@ public partial class LocalFileBrowserViewModel(ILocalFileSystem files, IDialogSe
     private async Task DeleteAsync()
     {
         var entries = SelectedEntries.Count > 0 ? SelectedEntries.ToArray() : SelectedEntry == null ? [] : new[] { SelectedEntry };
-        if (entries.Length == 0) return;
+        if (entries.Length == 0 || IsDeleting) return;
         if (!await dialogs.ConfirmAsync("删除本地项目", $"永久删除以下 {entries.Length} 个项目？目录会递归删除，符号链接只删除链接本身。\n\n" + string.Join("\n", entries.Take(8).Select(e => e.FullPath)) + "\n\n此操作不会进入回收站。", true)) return;
-        await RunAsync(async () =>
+        IsDeleting = true;
+        try
         {
-            foreach (var entry in entries) await files.DeleteAsync(entry.FullPath, _lifetime.Token);
-            await RefreshAsync();
-        });
+            // 删除过程中条目保持可见并显示加载指示，只有这一项删完才从列表里消失。
+            await RunAsync(async () =>
+            {
+                foreach (var entry in entries)
+                {
+                    entry.IsDeleting = true;
+                    try { await files.DeleteAsync(entry.FullPath, _lifetime.Token); }
+                    finally { entry.IsDeleting = false; }
+                    RemoveEntry(entry.FullPath);
+                }
+                await RefreshAsync();
+            });
+        }
+        finally { IsDeleting = false; }
+    }
+
+    /// <summary>删除完成后把条目从列表里移除。</summary>
+    private void RemoveEntry(string fullPath)
+    {
+        var item = Entries.FirstOrDefault(e => e.FullPath == fullPath);
+        if (item != null) Entries.Remove(item);
+        _all = _all.Where(e => e.FullPath != fullPath).ToArray();
     }
 
     [RelayCommand]

@@ -45,6 +45,8 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _summary = "连接后浏览远程文件";
     [ObservableProperty] private bool _showHidden;
     [ObservableProperty] private bool _isBusy;
+    /// <summary>删除进行中：期间禁止重复触发删除。</summary>
+    [ObservableProperty] private bool _isDeleting;
     [ObservableProperty] private bool _isAvailable;
     [ObservableProperty] private bool _showTransfers;
     [ObservableProperty] private double _transferPanelHeight = 180;
@@ -200,9 +202,33 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
     private async Task DeleteAsync()
     {
         var entries = SelectedEntries.Count > 0 ? SelectedEntries.ToArray() : SelectedEntry == null ? [] : new[] { SelectedEntry };
-        if (entries.Length == 0 || _files == null) return;
+        if (entries.Length == 0 || _files == null || IsDeleting) return;
         if (!await dialogs.ConfirmAsync("删除远程项目", $"永久删除以下 {entries.Length} 个项目？目录会递归删除，符号链接只删除链接本身。\n\n" + string.Join("\n", entries.Take(8).Select(e => e.FullPath)) + "\n\n此操作不会进入回收站。", true)) return;
-        await RunAsync(async () => { foreach (var entry in entries) await _files.DeleteAsync(entry.FullPath, _sessionToken); await RefreshAsync(); });
+        IsDeleting = true;
+        try
+        {
+            // 删除过程中条目保持可见并显示加载指示，只有这一项删完才从列表里消失。
+            await RunAsync(async () =>
+            {
+                foreach (var entry in entries)
+                {
+                    entry.IsDeleting = true;
+                    try { await _files.DeleteAsync(entry.FullPath, _sessionToken); }
+                    finally { entry.IsDeleting = false; }
+                    RemoveEntry(entry.FullPath);
+                }
+                await RefreshAsync();
+            });
+        }
+        finally { IsDeleting = false; }
+    }
+
+    /// <summary>删除完成后把条目从列表里移除。</summary>
+    private void RemoveEntry(string fullPath)
+    {
+        var item = Entries.FirstOrDefault(e => e.FullPath == fullPath);
+        if (item != null) Entries.Remove(item);
+        _all = _all.Where(e => e.FullPath != fullPath).ToArray();
     }
     [RelayCommand]
     private async Task PermissionsAsync()
