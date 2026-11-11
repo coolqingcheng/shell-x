@@ -11,6 +11,8 @@ public partial class TunnelWindowViewModel : ObservableObject, IDisposable
 {
     private readonly WorkspaceTabViewModel _tab;
     private readonly SemaphoreSlim _saveGate = new(1, 1);
+    private const int MinRetrySeconds = 3;
+    private const int MaxRetrySeconds = 600;
 
     public TunnelWindowViewModel(WorkspaceTabViewModel tab, string target)
     {
@@ -18,6 +20,7 @@ public partial class TunnelWindowViewModel : ObservableObject, IDisposable
         Target = target;
         _autoRetry = tab.Profile.TunnelAutoRetry;
         _retrySeconds = Math.Clamp(tab.Profile.TunnelRetrySeconds, 3, 600);
+        _retrySecondsText = _retrySeconds.ToString();
         _tab.PropertyChanged += TabChanged;
     }
 
@@ -35,9 +38,41 @@ public partial class TunnelWindowViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _autoRetry;
     /// <summary>自动重试的间隔秒数。</summary>
     [ObservableProperty] private int _retrySeconds;
+    /// <summary>间隔秒数的文本形式：只接受数字，不带上下调节按钮。</summary>
+    [ObservableProperty] private string _retrySecondsText = string.Empty;
+
+    /// <summary>由文本框改动驱动，避免用户输入过程中被回写打断。</summary>
+    private bool _editingFromText;
 
     partial void OnAutoRetryChanged(bool value) => QueueSave();
-    partial void OnRetrySecondsChanged(int value) => QueueSave();
+
+    partial void OnRetrySecondsChanged(int value)
+    {
+        // 文本框正在编辑时不要回写文本，否则输入 "1" 会被立刻改写成 "3"。
+        if (!_editingFromText) RetrySecondsText = value.ToString();
+        QueueSave();
+    }
+
+    partial void OnRetrySecondsTextChanged(string value)
+    {
+        var digits = SanitizeDigits(value);
+        if (!string.Equals(digits, value, StringComparison.Ordinal))
+        {
+            RetrySecondsText = digits;
+            return;
+        }
+        if (digits.Length == 0) return;
+        if (!int.TryParse(digits, out var seconds)) return;
+        var clamped = Math.Clamp(seconds, MinRetrySeconds, MaxRetrySeconds);
+        if (clamped == _retrySeconds) return;
+        _editingFromText = true;
+        try { RetrySeconds = clamped; }
+        finally { _editingFromText = false; }
+    }
+
+    /// <summary>去掉非数字字符。</summary>
+    private static string SanitizeDigits(string? value) =>
+        string.IsNullOrEmpty(value) ? string.Empty : new string(value.Where(char.IsAsciiDigit).ToArray());
 
     private void QueueSave() => _ = SaveAsync();
     private async Task SaveAsync()

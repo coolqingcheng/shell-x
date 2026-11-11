@@ -27,8 +27,9 @@
                   VerticalAlignment="Center" ToolTip.Tip="隧道失败后按设定间隔自动重试；关闭后仍可手动启动或检测" />
         <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" IsEnabled="{Binding AutoRetry}">
           <TextBlock Text="间隔" FontSize="11" Foreground="{DynamicResource MutedForeground}" VerticalAlignment="Center" />
-          <NumericUpDown Name="RetrySeconds" Width="92" Minimum="3" Maximum="600" Increment="1"
-                         Value="{Binding RetrySeconds, Mode=TwoWay}" FormatString="0" />
+          <TextBox Name="RetrySeconds" Width="64" MaxLength="4" VerticalAlignment="Center" Padding="8,5"
+                   PlaceholderText="3-600"
+                   Text="{Binding RetrySecondsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
           <TextBlock Text="秒" FontSize="11" Foreground="{DynamicResource MutedForeground}" VerticalAlignment="Center" />
         </StackPanel>
       </Grid>

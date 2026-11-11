@@ -153,6 +153,37 @@ public sealed class WorkspaceTabTunnelTests
     }
 
     [AvaloniaFact]
+    public void RetrySecondsUsesPlainNumericTextBox()
+    {
+        var dialogs = new TestDialogs();
+        var tab = NewTab(Profile(), dialogs).GetAwaiter().GetResult();
+        var viewModel = new TunnelWindowViewModel(tab, "隧道测试");
+        var window = new TunnelWindow(viewModel);
+        window.Show();
+        try
+        {
+            // 间隔只保留输入框，不要上下调节按钮。
+            var box = window.FindControl<TextBox>("RetrySeconds");
+            Assert.NotNull(box);
+            Assert.DoesNotContain(window.GetVisualDescendants().OfType<NumericUpDown>(), _ => true);
+            Assert.Equal(viewModel.RetrySeconds.ToString(), box!.Text);
+
+            box.Text = "1a2b";
+            Assert.Equal("12", viewModel.RetrySecondsText);        // 非数字字符被过滤
+            Assert.Equal(12, viewModel.RetrySeconds);
+
+            box.Text = "9999";
+            Assert.Equal("9999", viewModel.RetrySecondsText);      // 文本保持用户输入
+            Assert.Equal(600, viewModel.RetrySeconds);             // 实际取值限制在范围内
+
+            box.Text = "";
+            Assert.Equal("", viewModel.RetrySecondsText);
+            Assert.Equal(600, viewModel.RetrySeconds);             // 空输入不影响已保存的值
+        }
+        finally { window.Close(); viewModel.Dispose(); tab.DisposeAsync().GetAwaiter().GetResult(); }
+    }
+
+    [AvaloniaFact]
     public async Task AutoRetrySwitchPersistsIntoTheConnectionProfile()
     {
         var dialogs = new TestDialogs();
