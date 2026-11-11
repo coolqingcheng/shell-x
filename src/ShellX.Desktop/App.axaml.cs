@@ -26,6 +26,8 @@ public sealed partial class App : Application
             var lockCoordinator = _services.GetRequiredService<AppLockCoordinator>();
             var mcpServer = _services.GetRequiredService<McpHttpServer>();
             var updates = _services.GetRequiredService<UpdateManager>();
+            // 更新目录里可能堆着旧安装包，也可能有上次没装成的待安装包（比现在还旧）：先收拾干净。
+            updates.PruneDownloads();
             var lockState = _services.GetRequiredService<ShellX.Desktop.Features.Security.AppLockService>();
             var tray = new TrayIconService(lockState);
             ConnectionManagerWindow? manager = null;

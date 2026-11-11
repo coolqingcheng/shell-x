@@ -122,7 +122,10 @@ public sealed partial class UpdateManager : ObservableObject
         {
             if (!File.Exists(PendingFile)) return null;
             var pending = JsonSerializer.Deserialize(File.ReadAllText(PendingFile), UpdateJsonContext.Default.PendingUpdate);
-            return pending is not null && File.Exists(pending.InstallerPath) ? pending : null;
+            if (pending is null || !File.Exists(pending.InstallerPath)) { RemovePending(); return null; }
+            // 待安装包不比现在新就是降级：多半是上一次下载之后一直没装，留到退出时会把程序装回旧版。
+            if (!UpdateVersion.IsNewer(pending.Version, CurrentVersion)) { RemovePending(); return null; }
+            return pending;
         }
         catch (Exception ex)
         {
@@ -131,10 +134,39 @@ public sealed partial class UpdateManager : ObservableObject
         }
     }
 
-    /// <summary>放弃已下载的更新：删除待安装登记，退出时不再自动安装。</summary>
-    public void ClearPending()
+    /// <summary>整理更新目录：作废比当前版本旧的待安装包，删掉多余的安装包，只留真正要装的那一份。</summary>
+    public void PruneDownloads()
+    {
+        var pending = LoadPending();
+        CleanupInstallers(pending?.InstallerPath);
+    }
+
+    /// <summary>删除待安装登记。</summary>
+    private void RemovePending()
     {
         try { if (File.Exists(PendingFile)) File.Delete(PendingFile); }
+        catch (Exception ex) { _logs.LogWarning(ex, "删除待安装登记失败"); }
+    }
+
+    /// <summary>删除多余的安装包，只保留 keepPath 指向的那一份。更新目录会越攒越大，不能一直堆着。</summary>
+    private void CleanupInstallers(string? keepPath)
+    {
+        try
+        {
+            if (!Directory.Exists(UpdatesFolder)) return;
+            foreach (var file in Directory.EnumerateFiles(UpdatesFolder, "ShellX-Setup-*.exe*"))
+            {
+                if (keepPath is not null && string.Equals(Path.GetFullPath(file), Path.GetFullPath(keepPath), StringComparison.OrdinalIgnoreCase)) continue;
+                try { File.Delete(file); } catch (Exception) { }
+            }
+        }
+        catch (Exception ex) { _logs.LogWarning(ex, "清理旧更新包失败"); }
+    }
+
+    /// <summary>放弃已下载的更新：删除待安装登记和安装包，退出时不再自动安装。</summary>
+    public void ClearPending()
+    {
+        try { if (File.Exists(PendingFile)) File.Delete(PendingFile); CleanupInstallers(null); }
         catch (Exception ex) { _logs.LogWarning(ex, "清除待安装更新失败"); }
     }
     private async Task SavePendingAsync(PendingUpdate pending)
@@ -143,6 +175,8 @@ public sealed partial class UpdateManager : ObservableObject
         {
             Directory.CreateDirectory(UpdatesFolder);
             await File.WriteAllTextAsync(PendingFile, JsonSerializer.Serialize(pending, UpdateJsonContext.Default.PendingUpdate)).ConfigureAwait(false);
+            // 只留这一次要装的安装包，之前下载的都清掉。
+            CleanupInstallers(pending.InstallerPath);
         }
         catch (Exception ex)
         {

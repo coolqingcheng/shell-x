@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using ShellX.Core.Settings;
 using ShellX.Core.Updates;
@@ -43,6 +44,51 @@ public sealed class UpdateManagerTests
             var pending = manager.LoadPending();
             Assert.NotNull(pending);
             Assert.Equal("99.0.0", pending!.Version);
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public void PendingUpdateOlderThanCurrentIsDroppedInsteadOfDowngrading()
+    {
+        // 待安装包比现在还旧时不能在退出时自动安装：那会把程序装回旧版。
+        var root = Path.Combine(Path.GetTempPath(), "shellx-update-stale-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var manager = new UpdateManager(new FakeUpdateService(), new AppPaths(root), NullLogger<UpdateManager>.Instance);
+            Directory.CreateDirectory(manager.UpdatesFolder);
+            var installer = Path.Combine(manager.UpdatesFolder, "ShellX-Setup-0.0.1.exe");
+            File.WriteAllText(installer, "installer");
+            File.WriteAllText(manager.PendingFile, JsonSerializer.Serialize(new PendingUpdate(installer, "0.0.1", "https://example.invalid/release")));
+
+            Assert.Null(manager.LoadPending());
+            Assert.False(File.Exists(manager.PendingFile));
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public void PruneDownloadsKeepsOnlyTheInstallerThatIsGoingToBeApplied()
+    {
+        // 更新目录会越攒越大：旧安装包要清掉，只留真正要装的那一份。
+        var root = Path.Combine(Path.GetTempPath(), "shellx-update-prune-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var manager = new UpdateManager(new FakeUpdateService(), new AppPaths(root), NullLogger<UpdateManager>.Instance);
+            Directory.CreateDirectory(manager.UpdatesFolder);
+            var keep = Path.Combine(manager.UpdatesFolder, "ShellX-Setup-999.0.0.exe");
+            var old = Path.Combine(manager.UpdatesFolder, "ShellX-Setup-0.0.2.exe");
+            var partial = Path.Combine(manager.UpdatesFolder, "ShellX-Setup-0.0.3.exe.part");
+            File.WriteAllText(keep, "installer");
+            File.WriteAllText(old, "installer");
+            File.WriteAllText(partial, "partial");
+            File.WriteAllText(manager.PendingFile, JsonSerializer.Serialize(new PendingUpdate(keep, "999.0.0", "https://example.invalid/release")));
+
+            manager.PruneDownloads();
+
+            Assert.True(File.Exists(keep));
+            Assert.False(File.Exists(old));
+            Assert.False(File.Exists(partial));
         }
         finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
     }
