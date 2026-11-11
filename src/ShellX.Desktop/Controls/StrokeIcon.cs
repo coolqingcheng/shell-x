@@ -55,6 +55,13 @@ public class StrokeIcon : Control
 
     static StrokeIcon() { AffectsRender<StrokeIcon>(SymbolProperty, ForegroundProperty, StrokeThicknessProperty); }
 
+    public StrokeIcon()
+    {
+        // 图标放在正方形的按钮里时保持居中
+        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center;
+        VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center;
+    }
+
     public static string SymbolPath(string? symbol)
         => !string.IsNullOrWhiteSpace(symbol) && Paths.TryGetValue(symbol!, out var path) ? path : "";
 

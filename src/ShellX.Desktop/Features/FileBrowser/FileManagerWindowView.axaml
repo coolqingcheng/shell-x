@@ -26,7 +26,7 @@
                   <Ellipse Width="7" Height="7" Fill="{Binding StatusColor}" VerticalAlignment="Center" />
                   <TextBlock Text="{Binding Title}" VerticalAlignment="Center" MaxWidth="190" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Title}" />
                 </StackPanel>
-                <Button Grid.Column="1" Classes="flat" Padding="4,2" Click="CloseFileManagerTab" ToolTip.Tip="关闭文件标签">
+                <Button Grid.Column="1" Classes="flat icon" Click="CloseFileManagerTab" ToolTip.Tip="关闭文件标签" Width="20" Height="20">
                   <controls:StrokeIcon Symbol="close" Width="12" Height="12" />
                 </Button>
               </Grid>
@@ -34,8 +34,8 @@
           </DataTemplate>
         </ListBox.ItemTemplate>
       </ListBox>
-      <Button Grid.Column="1" Name="AddFileManagerTab" Classes="flat" Padding="7,4" Click="AddFileManagerTabClicked"
-              IsEnabled="{Binding HasSelectedFileManagerTab}" ToolTip.Tip="为当前连接新建文件标签">
+      <Button Grid.Column="1" Name="AddFileManagerTab" Classes="flat icon" Click="AddFileManagerTabClicked"
+              IsEnabled="{Binding HasSelectedFileManagerTab}" ToolTip.Tip="为当前连接新建文件标签" Width="24" Height="24">
         <controls:StrokeIcon Symbol="plus" Width="16" Height="16" />
       </Button>
     </Grid>

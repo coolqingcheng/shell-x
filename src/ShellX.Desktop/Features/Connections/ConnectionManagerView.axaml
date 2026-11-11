@@ -14,7 +14,7 @@
       <Button Name="NewConnectionFolder" Grid.Column="2" Content="新建文件夹" Command="{Binding NewFolderCommand}" ToolTip.Tip="在选中文件夹内创建 · Ctrl+Shift+N" />
       <Button Grid.Column="3" Content="重命名" Command="{Binding RenameFolderCommand}" IsEnabled="{Binding CanManageFolder}" />
       <Button Grid.Column="4" Content="删除空文件夹" Command="{Binding DeleteFolderCommand}" IsEnabled="{Binding CanManageFolder}" />
-      <TextBox Name="ConnectionSearch" Grid.Column="6" Text="{Binding Search, Mode=TwoWay}" PlaceholderText="搜索名称、地址、账号…" /><Button Name="ManagerSettings" Grid.Column="7" Classes="flat" Command="{Binding SettingsCommand}" ToolTip.Tip="设置" Padding="6,4"><controls:StrokeIcon Symbol="settings" Width="18" Height="18" /></Button>
+      <TextBox Name="ConnectionSearch" Grid.Column="6" Text="{Binding Search, Mode=TwoWay}" PlaceholderText="搜索名称、地址、账号…" /><Button Name="ManagerSettings" Grid.Column="7" Classes="flat icon" Command="{Binding SettingsCommand}" ToolTip.Tip="设置" Width="28" Height="28"><controls:StrokeIcon Symbol="settings" Width="18" Height="18" /></Button>
     </Grid>
     <Grid Grid.Row="1" ColumnDefinitions="200,5,*">
       <Border BorderBrush="{DynamicResource BorderColor}" BorderThickness="1" Background="{DynamicResource PanelBackground}">

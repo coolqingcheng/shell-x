@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -79,7 +80,66 @@ public sealed class MainWindowHeaderTests
                 using var bitmap = new RenderTargetBitmap(new PixelSize((int)window.ClientSize.Width, 120), new Vector(96, 96));
                 bitmap.Render(window);
                 bitmap.Save(Path.Combine(Path.GetDirectoryName(preview)!, "main-header.png"), PngBitmapEncoderOptions.Default);
+
+                // 悬浮背景是不是正方形：强制一下悬浮状态再截图。
+                var presenter = manager.GetVisualDescendants().OfType<ContentPresenter>().First();
+                presenter.Background = new Avalonia.Media.Immutable.ImmutableSolidColorBrush(Color.Parse("#FF00AA"));
+                window.UpdateLayout();
+                using var hover = new RenderTargetBitmap(new PixelSize((int)window.ClientSize.Width, 48), new Vector(96, 96));
+                hover.Render(window);
+                hover.Save(Path.Combine(Path.GetDirectoryName(preview)!, "main-header-hover.png"), PngBitmapEncoderOptions.Default);
             }
+        }
+        finally { if (vm != null) await vm.ShutdownAsync(); window?.Close(); Directory.Delete(root, true); }
+    }
+
+    [AvaloniaFact]
+    public async Task IconButtonsAreSquareAndInputTextIsVerticallyCentered()
+    {
+        var root = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "shellx-icon-" + Guid.NewGuid().ToString("N"))).FullName;
+        MainWindowViewModel? vm = null;
+        Window? window = null;
+        try
+        {
+            var profile = new ConnectionProfile { Name = "短名字", Host = "127.0.0.1", Port = 22, Username = "root" };
+            var dialogs = new Dialogs();
+            vm = new MainWindowViewModel(new Connections(profile), new Credentials(), new Hosts(), new Settings(), new SshSessionFactory(NullLoggerFactory.Instance),
+                dialogs, NullLoggerFactory.Instance, new LocalFileSystem(root), new AppLockService(new LockPasswordHasher()), new JsonConfigurationExporter(new(root)));
+            window = new MainWindow { DataContext = vm, Width = 1380, Height = 900 };
+            window.Show();
+            var tab = new WorkspaceTabViewModel(profile, new SshSessionFactory(NullLoggerFactory.Instance), dialogs, NullLoggerFactory.Instance,
+                () => Task.FromResult<ConnectionSecret?>(null), _ => Task.FromResult(true), _ => Task.CompletedTask, _ => Task.CompletedTask,
+                new AppSettings(), new LocalFileSystem(root));
+            vm.Tabs.Add(tab);
+            vm.SelectedTab = tab;
+            await Task.Delay(250);
+
+            // 纯图标按钮都是正方形，悬浮背景铺满整个按钮。
+            var icons = window.GetVisualDescendants().OfType<Button>().Where(button => button.Classes.Contains("icon")).ToList();
+            Assert.NotEmpty(icons);
+            foreach (var button in icons)
+            {
+                Assert.True(button.Bounds.Width > 0 && button.Bounds.Height > 0, $"图标按钮没有布局：{button.Name}");
+                Assert.True(button.Bounds.Width == button.Bounds.Height, $"图标按钮不是正方形：{button.Name} {button.Bounds} | {string.Join(", ", icons.Select(b => (b.Name ?? "?") + "=" + b.Bounds))}");
+                Assert.Equal(new Thickness(0), button.Padding);
+                Assert.Equal(Avalonia.Layout.HorizontalAlignment.Stretch, button.HorizontalContentAlignment);
+                Assert.Equal(Avalonia.Layout.VerticalAlignment.Stretch, button.VerticalContentAlignment);
+                // 模板里的内容呈现器就是悬浮背景的画布区。
+                Assert.NotNull(button.GetVisualDescendants().OfType<ContentPresenter>().FirstOrDefault());
+            }
+
+            // 输入框文字垂直居中。
+            var input = window.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(box => box.Name == "CommandInput");
+            Assert.NotNull(input);
+            Assert.Equal(Avalonia.Layout.VerticalAlignment.Center, input!.VerticalContentAlignment);
+            var search = new TextBox();
+            var combo = new ComboBox();
+            var probe = new Window { Content = new StackPanel { Children = { search, combo } } };
+            probe.Show();
+            await Task.Delay(60);
+            Assert.Equal(Avalonia.Layout.VerticalAlignment.Center, search.VerticalContentAlignment);
+            Assert.Equal(Avalonia.Layout.VerticalAlignment.Center, combo.VerticalContentAlignment);
+            probe.Close();
         }
         finally { if (vm != null) await vm.ShutdownAsync(); window?.Close(); Directory.Delete(root, true); }
     }

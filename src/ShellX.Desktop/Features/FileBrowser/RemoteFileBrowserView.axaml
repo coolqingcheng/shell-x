@@ -17,7 +17,7 @@
             <Button Content="权限" Classes="flat" Command="{Binding PermissionsCommand}" FontSize="11" />
           </StackPanel>
         </ScrollViewer>
-        <Button Grid.Column="2" Classes="flat" Padding="6,5" ToolTip.Tip="更多操作"><controls:StrokeIcon Symbol="more" Width="20" Height="20" />
+        <Button Grid.Column="2" Classes="flat icon" ToolTip.Tip="更多操作" Width="28" Height="28"><controls:StrokeIcon Symbol="more" Width="20" Height="20" />
           <Button.Flyout><MenuFlyout>
             <MenuItem Header="选择文件上传…" Command="{Binding ChooseUploadCommand}" /><MenuItem Header="另存为…" Command="{Binding DownloadAsCommand}" /><Separator />
             <MenuItem Header="重命名    F2" Command="{Binding RenameCommand}" />
@@ -30,7 +30,7 @@
     </Border>
     <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6" Margin="8,5" IsEnabled="{Binding IsAvailable}">
       <StackPanel Orientation="Horizontal" Spacing="2">
-        <Button Classes="flat" Padding="6,5" Command="{Binding BackCommand}" ToolTip.Tip="后退"><controls:StrokeIcon Symbol="back" Width="24" Height="24" /></Button><Button Classes="flat" Padding="6,5" Command="{Binding ForwardCommand}" ToolTip.Tip="前进"><controls:StrokeIcon Symbol="forward" Width="24" Height="24" /></Button><Button Classes="flat" Padding="6,5" Command="{Binding UpCommand}" ToolTip.Tip="上一级"><controls:StrokeIcon Symbol="up" Width="24" Height="24" /></Button><Button Classes="flat" Padding="6,5" Command="{Binding HomeCommand}" ToolTip.Tip="登录目录"><controls:StrokeIcon Symbol="home" Width="24" Height="24" /></Button><Button Classes="flat" Padding="6,5" Command="{Binding RefreshCommand}" ToolTip.Tip="刷新 F5"><controls:StrokeIcon Symbol="refresh" Width="24" Height="24" /></Button>
+        <Button Classes="flat icon" Command="{Binding BackCommand}" ToolTip.Tip="后退" Width="32" Height="32"><controls:StrokeIcon Symbol="back" Width="24" Height="24" /></Button><Button Classes="flat icon" Command="{Binding ForwardCommand}" ToolTip.Tip="前进" Width="32" Height="32"><controls:StrokeIcon Symbol="forward" Width="24" Height="24" /></Button><Button Classes="flat icon" Command="{Binding UpCommand}" ToolTip.Tip="上一级" Width="32" Height="32"><controls:StrokeIcon Symbol="up" Width="24" Height="24" /></Button><Button Classes="flat icon" Command="{Binding HomeCommand}" ToolTip.Tip="登录目录" Width="32" Height="32"><controls:StrokeIcon Symbol="home" Width="24" Height="24" /></Button><Button Classes="flat icon" Command="{Binding RefreshCommand}" ToolTip.Tip="刷新 F5" Width="32" Height="32"><controls:StrokeIcon Symbol="refresh" Width="24" Height="24" /></Button>
       </StackPanel>
       <controls:PathBar Grid.Column="1" Name="PathBar" Text="{Binding Path}" PlaceholderText="远程路径" VerticalAlignment="Center" NavigateRequested="PathNavigate" />
       <Button Grid.Column="2" x:Name="PathHistoryButton" Content="历史" Classes="flat" FontSize="11"><Button.Flyout><Flyout><ScrollViewer Width="350" MaxHeight="260"><ItemsControl ItemsSource="{Binding RecentPaths}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="x:String"><Button Content="{Binding}" Tag="{Binding}" Click="UsePathHistory" Classes="flat" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer></Flyout></Button.Flyout></Button>

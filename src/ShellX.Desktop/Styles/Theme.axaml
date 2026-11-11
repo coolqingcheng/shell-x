@@ -26,6 +26,18 @@
   <Style Selector="Button.flat:pointerover /template/ ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource HoverBackground}" />
   </Style>
+  <!-- 图标按钮：整体是正方形，悬浮背景铺满整个按钮，不会和相邻元素挤在一起 -->
+  <Style Selector="Button.icon">
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Stretch" />
+    <Setter Property="CornerRadius" Value="0" />
+  </Style>
+  <Style Selector="Button.icon:pointerover /template/ Border#PART_RootBorder">
+    <Setter Property="Background" Value="{DynamicResource HoverBackground}" />
+  </Style>
   <Style Selector="Button.activity">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Padding" Value="12" />
@@ -48,6 +60,8 @@
   </Style>
   <Style Selector="TextBox">
     <Setter Property="CornerRadius" Value="2" />
+    <!-- 输入框文字垂直居中 -->
+    <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="Background" Value="{DynamicResource InputBackground}" />
     <Setter Property="BorderBrush" Value="{DynamicResource RaisedBackground}" />
     <Setter Property="BorderThickness" Value="1" />
@@ -68,6 +82,8 @@
   <Style Selector="ComboBox">
     <Setter Property="Background" Value="{DynamicResource InputBackground}" />
     <Setter Property="CornerRadius" Value="2" />
+    <!-- 下拉框文字垂直居中 -->
+    <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
   <Style Selector="Expander.connectionGroup">
     <Setter Property="Padding" Value="0" />

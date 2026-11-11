@@ -2,7 +2,7 @@
              x:Class="ShellX.Desktop.Features.FileBrowser.DirectoryNodeView">
   <StackPanel>
     <Grid ColumnDefinitions="22,*">
-      <Button Command="{Binding ToggleCommand}" Classes="flat" MinWidth="0" Padding="3,5"><Panel Width="16" Height="16"><controls:StrokeIcon Symbol="forward" Width="14" Height="14" IsVisible="{Binding ShowCollapsedIcon}" /><controls:StrokeIcon Symbol="chevron-down" Width="14" Height="14" IsVisible="{Binding ShowExpandedIcon}" /><TextBlock Text="…" FontSize="11" IsVisible="{Binding ShowLoadingText}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Panel></Button>
+      <Button Command="{Binding ToggleCommand}" Classes="flat icon" MinWidth="0" Width="24" Height="24"><Panel Width="16" Height="16"><controls:StrokeIcon Symbol="forward" Width="14" Height="14" IsVisible="{Binding ShowCollapsedIcon}" /><controls:StrokeIcon Symbol="chevron-down" Width="14" Height="14" IsVisible="{Binding ShowExpandedIcon}" /><TextBlock Text="…" FontSize="11" IsVisible="{Binding ShowLoadingText}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Panel></Button>
       <Button Grid.Column="1" Command="{Binding OpenCommand}" Classes="flat" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="2,5" ToolTip.Tip="{Binding Path}">
         <StackPanel Orientation="Horizontal" Spacing="7"><controls:StrokeIcon Symbol="folder" Width="24" Height="24" Foreground="{DynamicResource FolderForeground}" /><TextBlock Text="{Binding Name}" FontSize="11" VerticalAlignment="Center" /></StackPanel>
       </Button>

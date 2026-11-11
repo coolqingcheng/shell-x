@@ -14,9 +14,9 @@
               <Ellipse Width="7" Height="7" Fill="{Binding StatusColor}" VerticalAlignment="Center" />
               <TextBlock Text="{Binding Status}" Foreground="{DynamicResource SecondaryForeground}" FontSize="10" VerticalAlignment="Center" MaxWidth="180" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Status}" />
               <TextBlock Text="{Binding Latency}" Foreground="{DynamicResource MutedForeground}" FontSize="10" VerticalAlignment="Center" IsVisible="{Binding HasLatency}" ToolTip.Tip="SSH 往返延迟" />
-              <Button x:Name="TunnelButton" Classes="flat" Foreground="{Binding TunnelStatusColor}" Click="OpenTunnels" ToolTip.Tip="{Binding TunnelTooltip}" Padding="6,3"><controls:StrokeIcon Symbol="tunnel" Width="18" Height="18" Foreground="{Binding TunnelStatusColor}" /></Button><Button Name="ToolbarServicesButton" Classes="flat" Padding="6,3" Click="OpenServices" IsEnabled="{Binding IsConnected}" ToolTip.Tip="查看服务器服务（systemctl）"><controls:StrokeIcon Symbol="service" Width="18" Height="18" /></Button><Button Name="ToolbarPortsButton" Classes="flat" Padding="6,3" Click="OpenPorts" IsEnabled="{Binding IsConnected}" ToolTip.Tip="查看端口占用（ss / netstat）"><controls:StrokeIcon Symbol="ports" Width="18" Height="18" /></Button><Button Name="OpenFileManagerButton" Classes="flat" Padding="6,3" Click="OpenFileManager" ToolTip.Tip="打开文件管理器（独立窗口）"><controls:StrokeIcon Symbol="folder" Width="18" Height="18" /></Button>
-              <Button Classes="flat" Command="{Binding ReconnectCommand}" ToolTip.Tip="重新连接" IsEnabled="{Binding !IsConnecting}" Padding="6,3"><controls:StrokeIcon Symbol="refresh" Width="18" Height="18" /></Button>
-              <Button Classes="flat" Command="{Binding DisconnectCommand}" ToolTip.Tip="断开连接" Padding="6,3"><controls:StrokeIcon Symbol="power" Width="18" Height="18" /></Button>
+              <Button x:Name="TunnelButton" Classes="flat icon" Foreground="{Binding TunnelStatusColor}" Click="OpenTunnels" ToolTip.Tip="{Binding TunnelTooltip}" Width="28" Height="28"><controls:StrokeIcon Symbol="tunnel" Width="18" Height="18" Foreground="{Binding TunnelStatusColor}" /></Button><Button Name="ToolbarServicesButton" Classes="flat icon" Click="OpenServices" IsEnabled="{Binding IsConnected}" ToolTip.Tip="查看服务器服务（systemctl）" Width="28" Height="28"><controls:StrokeIcon Symbol="service" Width="18" Height="18" /></Button><Button Name="ToolbarPortsButton" Classes="flat icon" Click="OpenPorts" IsEnabled="{Binding IsConnected}" ToolTip.Tip="查看端口占用（ss / netstat）" Width="28" Height="28"><controls:StrokeIcon Symbol="ports" Width="18" Height="18" /></Button><Button Name="OpenFileManagerButton" Classes="flat icon" Click="OpenFileManager" ToolTip.Tip="打开文件管理器（独立窗口）" Width="28" Height="28"><controls:StrokeIcon Symbol="folder" Width="18" Height="18" /></Button>
+              <Button Classes="flat icon" Command="{Binding ReconnectCommand}" ToolTip.Tip="重新连接" IsEnabled="{Binding !IsConnecting}" Width="28" Height="28"><controls:StrokeIcon Symbol="refresh" Width="18" Height="18" /></Button>
+              <Button Classes="flat icon" Command="{Binding DisconnectCommand}" ToolTip.Tip="断开连接" Width="28" Height="28"><controls:StrokeIcon Symbol="power" Width="18" Height="18" /></Button>
             </StackPanel>
           </Grid>
         </Border>
@@ -53,7 +53,7 @@
                       <StackPanel Spacing="1"><TextBlock Text="{Binding Name}" FontSize="11" /><TextBlock Text="{Binding Text}" FontFamily="Consolas" FontSize="10" Foreground="{DynamicResource CommandForeground}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Text}" /></StackPanel>
                       <Button Grid.Column="1" Content="填入" Classes="flat" FontSize="11" Command="{Binding $parent[ItemsControl].((vm:WorkspaceTabViewModel)DataContext).Commands.FillCommand}" CommandParameter="{Binding Text}" />
                       <Button Grid.Column="2" Content="执行" Classes="flat" FontSize="11" Command="{Binding $parent[ItemsControl].((vm:WorkspaceTabViewModel)DataContext).Commands.ExecuteQuickCommand}" CommandParameter="{Binding}" />
-                      <Button Grid.Column="3" Classes="flat" Padding="4,2" ToolTip.Tip="删除该常用命令" Command="{Binding $parent[ItemsControl].((vm:WorkspaceTabViewModel)DataContext).Commands.RemoveQuickCommand}" CommandParameter="{Binding}"><controls:StrokeIcon Symbol="close" Width="12" Height="12" /></Button>
+                      <Button Grid.Column="3" Classes="flat icon" ToolTip.Tip="删除该常用命令" Command="{Binding $parent[ItemsControl].((vm:WorkspaceTabViewModel)DataContext).Commands.RemoveQuickCommand}" CommandParameter="{Binding}" Width="20" Height="20"><controls:StrokeIcon Symbol="close" Width="12" Height="12" /></Button>
                     </Grid>
                   </DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer>
                   <TextBlock Text="点击“填入”放到输入框；“执行”立即发送；“添加”把输入框内容存成常用命令（随当前连接保存）。" FontSize="10" Foreground="{DynamicResource MutedForeground}" TextWrapping="Wrap" />
@@ -61,7 +61,7 @@
               </Flyout></Button.Flyout>
             </Button>
             <Button Grid.Column="3" Content="发送" Classes="primary" Command="{Binding Commands.SendCommand}" FontSize="11" Padding="10,4" />
-            <Button Grid.Column="4" Classes="flat" ToolTip.Tip="终端选项"><controls:StrokeIcon Symbol="more" Width="18" Height="18" />
+            <Button Grid.Column="4" Classes="flat icon" ToolTip.Tip="终端选项" Width="28" Height="28"><controls:StrokeIcon Symbol="more" Width="18" Height="18" />
               <Button.Flyout><MenuFlyout>
                 <MenuItem Header="复制选中内容" Click="CopyTerminal" /><MenuItem Header="粘贴到终端" Click="PasteTerminal" /><MenuItem Header="清屏" Click="ClearTerminal" /><Separator />
                 <MenuItem Header="终端进入文件面板当前目录" Command="{Binding TerminalDirectoryCommand}" /><MenuItem Header="放大字体" Command="{Binding IncreaseFontCommand}" /><MenuItem Header="缩小字体" Command="{Binding DecreaseFontCommand}" />

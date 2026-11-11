@@ -17,7 +17,7 @@
             <TextBlock Text="{Binding TransferSummary}" FontSize="11" Foreground="{DynamicResource SecondaryForeground}" VerticalAlignment="Center" />
           </StackPanel>
           <Button Grid.Column="1" Content="清除已完成" Classes="flat" FontSize="11" Command="{Binding ClearTransfersCommand}" />
-          <Button Grid.Column="2" Classes="flat" Command="{Binding ToggleTransfersCommand}" ToolTip.Tip="收起传输任务"><controls:StrokeIcon Symbol="down" Width="14" Height="14" /></Button>
+          <Button Grid.Column="2" Classes="flat icon" Command="{Binding ToggleTransfersCommand}" ToolTip.Tip="收起传输任务" Width="24" Height="24"><controls:StrokeIcon Symbol="down" Width="14" Height="14" /></Button>
         </Grid>
         <Grid DockPanel.Dock="Top" ColumnDefinitions="64,*,100,130,52" Margin="12,0,12,2" ColumnSpacing="10">
           <TextBlock Text="方向" FontSize="10" Foreground="{DynamicResource MutedForeground}" />
