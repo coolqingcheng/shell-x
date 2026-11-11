@@ -25,6 +25,8 @@ public partial class SettingsViewModel : ObservableObject
     private readonly ILockPasswordHasher _passwords;
     private readonly UpdateManager? _updates;
     private readonly IDialogService? _dialogs;
+    /// <summary>对话框服务：设置页打开的 MCP 日志窗口需要登记层级。</summary>
+    public IDialogService? Dialogs => _dialogs;
 
     public SettingsViewModel(AppSettings original, ILockPasswordHasher passwords, IReadOnlyList<string> fonts,
         bool systemSessionSupported = true, UpdateManager? updates = null, IDialogService? dialogs = null)

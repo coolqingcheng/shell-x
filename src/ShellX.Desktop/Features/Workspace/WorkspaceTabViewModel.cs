@@ -30,6 +30,7 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
     private readonly ILogger _log;
     private readonly SharedMonitorRegistry _monitors;
     private SharedMonitorRegistry.Lease _monitorLease;
+    private ServerMonitorViewModel? _observedMonitor;
     private ConnectionEndpoint _monitorEndpoint;
     private readonly Func<ProcessSortColumn, bool, Task>? _saveProcessSort;
     private CancellationTokenSource? _connection;
@@ -70,6 +71,10 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty] private bool _isReconnecting;
     [ObservableProperty] private bool _highlightTerminalText = true;
     [ObservableProperty] private string _status = "未连接";
+    /// <summary>SSH 往返延迟，取自监控采样的响应耗时。</summary>
+    [ObservableProperty] private string _latency = "";
+    public bool HasLatency => !string.IsNullOrEmpty(Latency);
+    partial void OnLatencyChanged(string value) => OnPropertyChanged(nameof(HasLatency));
     [ObservableProperty] private double _fontSize = 14;
     [ObservableProperty] private string _fontFamily = "Cascadia Mono,Consolas,monospace";
     [ObservableProperty] private IRemoteSession? _session;
@@ -94,6 +99,7 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
         _monitors = monitors ?? new SharedMonitorRegistry(dialogs, logs); _saveProcessSort = saveProcessSort;
         _monitorEndpoint = ConnectionEndpoint.From(profile);
         _monitorLease = AcquireMonitor();
+        ObserveMonitor();
         Commands = new(dialogs, SendRawAsync, async commands =>
         {
             var updated = Profile with { QuickCommands = commands.ToList() };
@@ -114,6 +120,25 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
     }
     private SharedMonitorRegistry.Lease AcquireMonitor() => _monitors.Acquire(Profile, () => IsSelected,
         async path => await Files.NavigateAsync(path), _saveProcessSort);
+    /// <summary>监控面板与工作区共享同一个采样器，这里跟随它更新连接延迟显示。</summary>
+    private void ObserveMonitor()
+    {
+        var monitor = _monitorLease.Monitor;
+        if (ReferenceEquals(_observedMonitor, monitor)) return;
+        if (_observedMonitor != null) _observedMonitor.PropertyChanged -= MonitorPropertyChanged;
+        _observedMonitor = monitor;
+        if (_observedMonitor != null) _observedMonitor.PropertyChanged += MonitorPropertyChanged;
+        UpdateLatency();
+    }
+    private void MonitorPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ServerMonitorViewModel.Response)) UpdateLatency();
+    }
+    private void UpdateLatency()
+    {
+        var response = _observedMonitor?.Response ?? "";
+        Latency = string.IsNullOrWhiteSpace(response) || response == "—" ? "" : response;
+    }
     private void TunnelChanged(object? sender, PropertyChangedEventArgs e)
     { if (e.PropertyName is nameof(TunnelViewModel.State) or nameof(TunnelViewModel.Running) or nameof(TunnelViewModel.Reason)) NotifyTunnelStatus(); }
     private void NotifyTunnelStatus()
@@ -173,6 +198,7 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
                 await _monitorLease.DisposeAsync();
                 if (_disposed || version != _connectionVersion || cancellationToken.IsCancellationRequested) return;
                 _monitorEndpoint = ConnectionEndpoint.From(Profile); _monitorLease = AcquireMonitor();
+                ObserveMonitor();
                 Monitor.ApplySort(column, descending); OnPropertyChanged(nameof(Monitor));
             }
             Status = "正在连接…";

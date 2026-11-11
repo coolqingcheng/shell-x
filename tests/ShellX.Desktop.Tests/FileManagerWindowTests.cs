@@ -171,7 +171,8 @@ public sealed class FileManagerWindowTests
         main.Show();
         file.Show();
         var dialogs = new DialogService(new TextCodec()) { Owner = main };
-        dialogs.SetDialogOwnerContext(file);
+        dialogs.TrackOwnerWindow(main);
+        dialogs.TrackOwnerWindow(file);
         try
         {
             var entry = new RemoteEntry("test.txt", "/tmp/test.txt", false, false, 1024, DateTime.UtcNow, 420, 1000, 1000);
@@ -188,8 +189,60 @@ public sealed class FileManagerWindowTests
         }
         finally
         {
-            dialogs.ClearDialogOwnerContext(file);
+            dialogs.UntrackOwnerWindow(file);
             foreach (var owned in file.OwnedWindows.ToArray()) owned.Close();
+            file.Close();
+            main.Close();
+        }
+    }
+
+    /// <summary>模态弹窗的父窗口取“最近激活的窗口”：文件管理器里弹出的对话框不会落到主窗口上，
+    /// 关闭时也就不会把主窗口提到前面。</summary>
+    [AvaloniaFact]
+    public async Task DialogOwnerFollowsMostRecentlyActivatedWindow()
+    {
+        var main = new Window();
+        var file = new Window();
+        main.Show();
+        file.Show();
+        var dialogs = new DialogService(new TextCodec()) { Owner = main };
+        dialogs.TrackOwnerWindow(main);
+        dialogs.TrackOwnerWindow(file);
+        try
+        {
+            var entry = new RemoteEntry("test.txt", "/tmp/test.txt", false, false, 1024, DateTime.UtcNow, 420, 1000, 1000);
+
+            // 文件管理器是最近激活的窗口：弹窗挂在文件管理器下。
+            var first = dialogs.PermissionsAsync(entry);
+            await Task.Delay(80);
+            var permission = file.OwnedWindows.OfType<Window>().Single(w => w.Title == "属性与权限");
+            Assert.Same(file, permission.Owner);
+            permission.Close();
+            await first;
+
+            // 弹窗关闭后父窗口仍然有效，后续弹窗不会退回到主窗口。
+            var second = dialogs.PermissionsAsync(entry);
+            await Task.Delay(80);
+            var again = file.OwnedWindows.OfType<Window>().Single(w => w.Title == "属性与权限");
+            Assert.Same(file, again.Owner);
+            Assert.DoesNotContain(main.OwnedWindows.OfType<Window>(), w => ReferenceEquals(w, again));
+            again.Close();
+            await second;
+
+            // 用户回到终端后，弹窗跟随主窗口。
+            dialogs.TrackOwnerWindow(main);
+            var third = dialogs.PermissionsAsync(entry);
+            await Task.Delay(80);
+            var terminal = main.OwnedWindows.OfType<Window>().Single(w => w.Title == "属性与权限");
+            Assert.Same(main, terminal.Owner);
+            terminal.Close();
+            await third;
+        }
+        finally
+        {
+            dialogs.UntrackOwnerWindow(file);
+            foreach (var owned in file.OwnedWindows.ToArray()) owned.Close();
+            foreach (var owned in main.OwnedWindows.ToArray()) owned.Close();
             file.Close();
             main.Close();
         }

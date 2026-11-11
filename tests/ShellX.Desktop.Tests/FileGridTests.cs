@@ -84,4 +84,31 @@ public sealed class FileGridTests
         }
         finally { window.Close(); Directory.Delete(root, true); }
     }
+
+    /// <summary>文件列表支持 Ctrl+A 全选。</summary>
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ControlASelectsAllRowsInFileGrid(bool remote)
+    {
+        var root = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "shellx-selectall-" + Guid.NewGuid().ToString("N"))).FullName;
+        await File.WriteAllTextAsync(Path.Combine(root, "one.txt"), "1");
+        await File.WriteAllTextAsync(Path.Combine(root, "two.txt"), "2");
+        using var browser = new FileBrowserViewModel(new DialogService(new TextCodec()), NullLogger<FileBrowserViewModel>.Instance, new LocalFileSystem(root));
+        browser.IsAvailable = true;
+        browser.Entries.Add(new RemoteEntry("one.txt", "/one.txt", false, false, 1, DateTime.UtcNow, 420, 1000, 1000));
+        browser.Entries.Add(new RemoteEntry("two.txt", "/two.txt", false, false, 2, DateTime.UtcNow, 420, 1000, 1000));
+        UserControl view = remote ? new RemoteFileBrowserView { DataContext = browser } : new LocalFileBrowserView { DataContext = browser.Local };
+        var grid = view.FindControl<DataGrid>(remote ? "FileGrid" : "LocalGrid")!;
+        var window = new Window { Content = view, Width = 560, Height = 360 }; window.Show();
+        try
+        {
+            await browser.Local.InitializeAsync();
+            await Task.Delay(60);
+            grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.A, KeyModifiers = KeyModifiers.Control });
+            await Task.Delay(40);
+            Assert.Equal(2, grid.SelectedItems.Count);
+        }
+        finally { window.Close(); Directory.Delete(root, true); }
+    }
 }

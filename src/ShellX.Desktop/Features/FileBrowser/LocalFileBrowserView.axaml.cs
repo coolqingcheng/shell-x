@@ -9,7 +9,26 @@ namespace ShellX.Desktop.Features.FileBrowser;
 public partial class LocalFileBrowserView : UserControl
 {
     [DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, typeof(LocalEntry))]
-    public LocalFileBrowserView() { InitializeComponent(); FileGridInteraction.SelectOnRightClick(LocalGrid); FileGridInteraction.EnableColumnSizing(LocalGrid); FileDragDrop.Attach(this, LocalGrid, false); }
+    public LocalFileBrowserView()
+    {
+        InitializeComponent();
+        FileGridInteraction.SelectOnRightClick(LocalGrid); FileGridInteraction.EnableColumnSizing(LocalGrid); FileDragDrop.Attach(this, LocalGrid, false);
+        LocalGrid.AddHandler(InputElement.KeyDownEvent, SelectAllFiles, RoutingStrategies.Tunnel);
+    }
+    /// <summary>Ctrl+A 全选本地列表。</summary>
+    private void SelectAllFiles(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.A || !e.KeyModifiers.HasFlag(KeyModifiers.Control)) return;
+        LocalGrid.SelectionChanged -= SelectionChanged;
+        try { FileGridInteraction.SelectAll(LocalGrid); }
+        finally { LocalGrid.SelectionChanged += SelectionChanged; }
+        if (DataContext is LocalFileBrowserViewModel vm)
+        {
+            vm.SelectedEntries.Clear(); vm.SelectedEntries.AddRange(LocalGrid.SelectedItems.OfType<LocalEntry>());
+            vm.NotifySelectionChanged();
+        }
+        e.Handled = true;
+    }
     private async void ViewLoaded(object? sender, RoutedEventArgs e)
     { if (DataContext is LocalFileBrowserViewModel vm) await vm.InitializeAsync(); }
     private async void FileDoubleTapped(object? sender, TappedEventArgs e)

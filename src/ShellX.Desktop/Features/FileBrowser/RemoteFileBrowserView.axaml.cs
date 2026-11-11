@@ -17,6 +17,7 @@ public partial class RemoteFileBrowserView : UserControl
     {
         InitializeComponent();
         FileGridInteraction.SelectOnRightClick(FileGrid); FileGridInteraction.EnableColumnSizing(FileGrid); FileDragDrop.Attach(this, FileGrid, true);
+        FileGrid.AddHandler(InputElement.KeyDownEvent, SelectAllFiles, RoutingStrategies.Tunnel);
         DataContextChanged += (_, _) => { AttachLayout(); AttachFiles(); };
         AttachedToVisualTree += (_, _) => AttachLayout();
         DetachedFromVisualTree += (_, _) => DetachLayout();
@@ -49,6 +50,8 @@ public partial class RemoteFileBrowserView : UserControl
         if (LogViewerWindow.TryActivate(vm.LogReader, path)) return;
         var viewModel = new LogViewerViewModel(vm.LogReader, path, $"{vm.LogTarget} · {path}");
         var window = new LogViewerWindow(viewModel, vm.Session);
+        vm.Dialogs.TrackOwnerWindow(window);
+        window.Closed += (_, _) => vm.Dialogs.UntrackOwnerWindow(window);
         if (TopLevel.GetTopLevel(this) is Window owner) window.Show(owner);
         else window.Show();
     }
@@ -77,5 +80,19 @@ public partial class RemoteFileBrowserView : UserControl
         if (DataContext is not FileBrowserViewModel vm) return;
         vm.SelectedEntries.Clear(); vm.SelectedEntries.AddRange(FileGrid.SelectedItems.OfType<RemoteEntry>());
         vm.NotifySelectionChanged();
+    }
+    /// <summary>Ctrl+A 全选远程列表。</summary>
+    private void SelectAllFiles(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.A || !e.KeyModifiers.HasFlag(KeyModifiers.Control)) return;
+        FileGrid.SelectionChanged -= SelectionChanged;
+        try { FileGridInteraction.SelectAll(FileGrid); }
+        finally { FileGrid.SelectionChanged += SelectionChanged; }
+        if (DataContext is FileBrowserViewModel vm)
+        {
+            vm.SelectedEntries.Clear(); vm.SelectedEntries.AddRange(FileGrid.SelectedItems.OfType<RemoteEntry>());
+            vm.NotifySelectionChanged();
+        }
+        e.Handled = true;
     }
 }

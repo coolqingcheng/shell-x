@@ -32,6 +32,14 @@ internal static class FileGridInteraction
 
     public static bool IsFileRow(object? source) => source is DataGridRow || source is Visual visual && visual.FindAncestorOfType<DataGridRow>() is not null;
 
+    /// <summary>Ctrl+A 全选当前表格的所有行。</summary>
+    public static void SelectAll(DataGrid grid)
+    {
+        grid.SelectedItems.Clear();
+        if (grid.ItemsSource is not System.Collections.IEnumerable items) return;
+        foreach (var item in items) grid.SelectedItems.Add(item);
+    }
+
     public static void SelectOnRightClick(DataGrid grid) => grid.AddHandler(InputElement.PointerPressedEvent, (_, e) =>
     {
         if (!e.GetCurrentPoint(grid).Properties.IsRightButtonPressed) return;

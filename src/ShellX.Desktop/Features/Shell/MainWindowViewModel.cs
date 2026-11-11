@@ -58,6 +58,8 @@ public partial class MainWindowViewModel : ObservableObject
     public string FileManagerWindowTitle => SelectedFileManagerTab is null ? "文件管理" : $"文件管理 · {SelectedFileManagerTab.Title}";
     public bool HasSelectedFileManagerTab => SelectedFileManagerTab is not null;
     public Window? FileManagerWindow => _fileWindow;
+    /// <summary>对话框服务：各窗口用它登记层级关系，保证弹窗落在正确的父窗口上。</summary>
+    public IDialogService Dialogs => _dialogs;
     [ObservableProperty] private WorkspaceTabViewModel? _selectedTab;
     [ObservableProperty] private string _search = "";
     [ObservableProperty] private string _status = "就绪";
@@ -586,15 +588,15 @@ public partial class MainWindowViewModel : ObservableObject
             Content = new FileManagerWindowView { DataContext = this }
         };
         _fileWindow = window;
-        _dialogs.SetDialogOwnerContext(window);
-        window.Activated += (_, _) => _dialogs.SetDialogOwnerContext(window);
-        window.Deactivated += (_, _) => _dialogs.ClearDialogOwnerContext(window);
+        // 登记为模态对话框的候选父窗口：文件管理器里的权限、删除、覆盖等弹窗都以它为父窗口，
+        // 关闭弹窗时只会回到文件管理器，不会把主窗口提到前面。窗口失焦不注销，避免弹窗层级错乱。
+        _dialogs.TrackOwnerWindow(window);
         window.Closed += (_, _) =>
         {
-            _dialogs.ClearDialogOwnerContext(window);
+            _dialogs.UntrackOwnerWindow(window);
             if (ReferenceEquals(_fileWindow, window)) _fileWindow = null;
         };
-        // 文件管理器必须是独立顶层窗口：不设置 Owner、不使用 ShowDialog，主窗口图标和终端始终可点击。
+        // 文件管理器是独立顶层窗口：不设置 Owner、不使用 ShowDialog，主窗口图标和终端始终可点击。
         window.Show();
         window.Activate();
     }

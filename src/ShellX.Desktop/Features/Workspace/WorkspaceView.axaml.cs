@@ -66,8 +66,10 @@ public partial class WorkspaceView : UserControl
         var target = $"{_vm.Name} · {_vm.Profile.Host}:{_vm.Profile.Port}";
         var viewModel = new ServiceWindowViewModel(session.Services, target,
             message => _vm.Dialogs.ConfirmAsync("服务操作", message, true));
-        _serviceWindow = new ServiceWindow(viewModel, session);
-        _serviceWindow.Closed += (_, _) => _serviceWindow = null;
+        var window = new ServiceWindow(viewModel, session);
+        _serviceWindow = window;
+        window.Closed += (_, _) => { _vm.Dialogs.UntrackOwnerWindow(window); if (ReferenceEquals(_serviceWindow, window)) _serviceWindow = null; };
+        _vm.Dialogs.TrackOwnerWindow(window);
         if (TopLevel.GetTopLevel(this) is Window owner) _serviceWindow.Show(owner);
         else _serviceWindow.Show();
     }
@@ -77,8 +79,10 @@ public partial class WorkspaceView : UserControl
         if (_portsWindow is { IsVisible: true }) { _portsWindow.Activate(); return; }
         var target = $"{_vm.Name} · {_vm.Profile.Host}:{_vm.Profile.Port}";
         var viewModel = new PortUsageWindowViewModel(session.Services as IPortUsageReader, target);
-        _portsWindow = new PortUsageWindow(viewModel, session);
-        _portsWindow.Closed += (_, _) => _portsWindow = null;
+        var window = new PortUsageWindow(viewModel, session);
+        _portsWindow = window;
+        window.Closed += (_, _) => { _vm.Dialogs.UntrackOwnerWindow(window); if (ReferenceEquals(_portsWindow, window)) _portsWindow = null; };
+        _vm.Dialogs.TrackOwnerWindow(window);
         if (TopLevel.GetTopLevel(this) is Window owner) _portsWindow.Show(owner);
         else _portsWindow.Show();
     }
@@ -89,8 +93,10 @@ public partial class WorkspaceView : UserControl
         if (_tunnelWindow is { IsVisible: true }) { _tunnelWindow.Activate(); return; }
         var target = $"{_vm.Name} · {_vm.Profile.Host}:{_vm.Profile.Port}";
         var viewModel = new TunnelWindowViewModel(_vm, target);
-        _tunnelWindow = new TunnelWindow(viewModel);
-        _tunnelWindow.Closed += (_, _) => _tunnelWindow = null;
+        var window = new TunnelWindow(viewModel);
+        _tunnelWindow = window;
+        window.Closed += (_, _) => { _vm.Dialogs.UntrackOwnerWindow(window); if (ReferenceEquals(_tunnelWindow, window)) _tunnelWindow = null; };
+        _vm.Dialogs.TrackOwnerWindow(window);
         if (TopLevel.GetTopLevel(this) is Window owner) _tunnelWindow.Show(owner);
         else _tunnelWindow.Show();
     }
@@ -115,7 +121,8 @@ public partial class WorkspaceView : UserControl
         };
         WindowTitles.ApplyVersion(window);
         _fileWindow = window;
-        window.Closed += (_, _) => _fileWindow = null;
+        window.Closed += (_, _) => { _vm.Dialogs.UntrackOwnerWindow(window); _fileWindow = null; };
+        _vm.Dialogs.TrackOwnerWindow(window);
         window.Show(owner);
     }
     private async void CopyTerminal(object? sender, RoutedEventArgs e) => await Terminal.CopyAsync();

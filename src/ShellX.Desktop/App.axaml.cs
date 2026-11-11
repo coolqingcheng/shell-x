@@ -39,16 +39,27 @@ public sealed partial class App : Application
                     var main = new MainWindow(tray) { DataContext = vm };
                     lockCoordinator.Protect(main);
                     dialogs.Owner = main;
+                    // 主窗口登记为模态对话框的父窗口候选，最近激活的窗口优先。
+                    dialogs.TrackOwnerWindow(main);
                     desktop.MainWindow = main;
                     workspace = main;
                     // 窗口关闭后不要再被"激活"请求重新拉起来。
-                    main.Closed += (_, _) => { if (ReferenceEquals(workspace, main)) workspace = null; };
+                    main.Closed += (_, _) =>
+                    {
+                        dialogs.UntrackOwnerWindow(main);
+                        if (ReferenceEquals(workspace, main)) workspace = null;
+                    };
                     main.Show();
                     _ = vm.ConnectCommand.ExecuteAsync(profile);
                 }, tray);
                 lockCoordinator.Protect(window);
                 if (takeDialogOwner) dialogs.Owner = window;
-                window.Closed += (_, _) => { if (ReferenceEquals(manager, window)) manager = null; };
+                dialogs.TrackOwnerWindow(window);
+                window.Closed += (_, _) =>
+                {
+                    dialogs.UntrackOwnerWindow(window);
+                    if (ReferenceEquals(manager, window)) manager = null;
+                };
                 window.Opened += async (_, _) =>
                 {
                     if (started) return;

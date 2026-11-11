@@ -19,9 +19,11 @@ public partial class SettingsView : UserControl
     {
         if (TopLevel.GetTopLevel(this) is not Window owner) return;
         if (_mcpLogWindow is { IsVisible: true }) { _mcpLogWindow.Activate(); return; }
-        _mcpLogWindow = new McpLogWindow();
-        _mcpLogWindow.Closed += (_, _) => _mcpLogWindow = null;
-        _mcpLogWindow.Show(owner);
+        var window = new McpLogWindow();
+        _mcpLogWindow = window;
+        window.Closed += (_, _) => { (DataContext as SettingsViewModel)?.Dialogs?.UntrackOwnerWindow(window); if (ReferenceEquals(_mcpLogWindow, window)) _mcpLogWindow = null; };
+        if (DataContext is SettingsViewModel vm) vm.Dialogs?.TrackOwnerWindow(window);
+        window.Show(owner);
     }
 
 

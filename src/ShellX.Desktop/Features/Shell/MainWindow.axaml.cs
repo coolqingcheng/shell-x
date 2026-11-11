@@ -63,9 +63,11 @@ ShellX.Desktop.Services.WindowTitles.ApplyVersion(this);
     private void ShowMcpLog(object? sender, RoutedEventArgs e)
     {
         if (_mcpLogWindow is { IsVisible: true }) { _mcpLogWindow.Activate(); return; }
-        _mcpLogWindow = new McpLogWindow();
-        _mcpLogWindow.Closed += (_, _) => _mcpLogWindow = null;
-        _mcpLogWindow.Show(this);
+        var window = new McpLogWindow();
+        _mcpLogWindow = window;
+        window.Closed += (_, _) => { (DataContext as MainWindowViewModel)?.Dialogs.UntrackOwnerWindow(window); if (ReferenceEquals(_mcpLogWindow, window)) _mcpLogWindow = null; };
+        if (DataContext is MainWindowViewModel vm) vm.Dialogs.TrackOwnerWindow(window);
+        window.Show(this);
     }
     private async void EditConnection(object? sender, RoutedEventArgs e)
     { if (sender is MenuItem { Tag: ConnectionProfile profile } && DataContext is MainWindowViewModel vm) await vm.EditConnectionCommand.ExecuteAsync(profile); }

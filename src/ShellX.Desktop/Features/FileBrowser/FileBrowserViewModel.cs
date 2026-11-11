@@ -17,6 +17,8 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
     private readonly ILogger<FileBrowserViewModel> log;
     private readonly ILocalFileSystem _localFiles;
     public LocalFileBrowserViewModel Local { get; }
+    /// <summary>对话框服务：文件管理器里的弹窗需要登记窗口层级。</summary>
+    public IDialogService Dialogs => dialogs;
     public FileBrowserViewModel(IDialogService dialogs, ILogger<FileBrowserViewModel> log, ILocalFileSystem localFiles)
     {
         this.dialogs = dialogs; this.log = log; _localFiles = localFiles;
@@ -218,6 +220,8 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
     {
         var files = _files; var targetDirectory = Path; var sessionToken = _sessionToken;
         if (files == null) return;
+        // 勾选“保持选择”后，本次批量上传里的后续文件直接覆盖，不再逐个询问。
+        var overwriteConfirmed = false;
         foreach (var local in paths)
         {
             try
@@ -243,7 +247,12 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
                     continue;
                 }
                 var name = System.IO.Path.GetFileName(local); var target = RemotePath.Combine(targetDirectory, name);
-                if (await files.ExistsAsync(target, sessionToken) && !await dialogs.ConfirmAsync("覆盖文件", $"远程文件已存在：\n{target}\n\n是否覆盖？", true)) continue;
+                if (!overwriteConfirmed && await files.ExistsAsync(target, sessionToken))
+                {
+                    var answer = await dialogs.ConfirmWithRememberAsync("覆盖文件", $"远程文件已存在：\n{target}\n\n是否覆盖？", true);
+                    if (!answer.Confirmed) continue;
+                    overwriteConfirmed = answer.Remember;
+                }
                 var transfer = new TransferViewModel(name, "↑ 上传", new FileInfo(local).Length); TrackTransfer(transfer); ShowTransfers = true;
                 var task = TransferAsync(transfer, ct => files.UploadAsync(local, target, new Progress<long>(transfer.Report), ct), sessionToken, true);
                 _transfers.Add(task);
@@ -275,6 +284,8 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
     {
         if (!IsCurrent(selection)) return;
         var files = selection.Files; var sessionToken = selection.Token;
+        // 勾选“保持选择”后，本次批量下载里的后续文件直接覆盖，不再逐个询问。
+        var overwriteConfirmed = false;
         foreach (var entry in selection.Entries)
         {
             if (!IsCurrent(selection)) break;
@@ -301,7 +312,12 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
                 var local = directory == null ? await dialogs.PickDownloadAsync(entry.Name) : DirectoryDownloader.ChildPath(directory, entry.Name);
                 if (local == null) continue;
                 DirectoryDownloader.EnsureFile(local);
-                if (directory != null && File.Exists(local) && !await dialogs.ConfirmAsync("覆盖本地文件", $"本地文件已存在：\n{local}\n\n是否覆盖？", true)) continue;
+                if (!overwriteConfirmed && directory != null && File.Exists(local))
+                {
+                    var answer = await dialogs.ConfirmWithRememberAsync("覆盖本地文件", $"本地文件已存在：\n{local}\n\n是否覆盖？", true);
+                    if (!answer.Confirmed) continue;
+                    overwriteConfirmed = answer.Remember;
+                }
                 sessionToken.ThrowIfCancellationRequested();
                 var transfer = new TransferViewModel(entry.Name, "↓ 下载", entry.Size); TrackTransfer(transfer); ShowTransfers = true;
                 _transfers.Add(TransferAsync(transfer, ct => files.DownloadAsync(entry.FullPath, local, new Progress<long>(transfer.Report), ct), sessionToken, false));

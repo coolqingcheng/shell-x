@@ -30,25 +30,48 @@ public sealed class DialogService(ITextCodec codec, AppLockService? appLock = nu
     IConnectionTester? connectionTester = null, IHostKeyStore? knownHosts = null, UpdateManager? updates = null) : IDialogService
 {
     public Window Owner { get; set; } = null!;
-    private Window? _dialogOwnerContext;
+    // 候选父窗口：主窗口、连接管理器、文件管理器等非模态窗口都登记在这里，最近激活的窗口优先。
+    private readonly List<Window> _ownerWindows = [];
 
-    /// <summary>非模态文件管理器激活时作为对话框上下文；避免权限等弹窗把主窗口/终端提到前面。</summary>
-    public void SetDialogOwnerContext(Window window) => _dialogOwnerContext = window;
-
-    public void ClearDialogOwnerContext(Window window)
+    /// <summary>
+    /// 登记窗口为模态对话框的候选父窗口。窗口失去焦点时不会注销：模态框弹出时父窗口会先失焦，
+    /// 若此时清空上下文，后续弹窗就会落到主窗口上，关闭时反而把主窗口提到前面。
+    /// </summary>
+    public void TrackOwnerWindow(Window window)
     {
-        if (ReferenceEquals(_dialogOwnerContext, window)) _dialogOwnerContext = null;
+        if (window is null) return;
+        if (!_ownerWindows.Contains(window))
+        {
+            _ownerWindows.Add(window);
+            window.Activated += (_, _) => TouchOwnerWindow(window);
+            window.Closed += (_, _) => UntrackOwnerWindow(window);
+        }
+        TouchOwnerWindow(window);
     }
 
-    private Window DialogOwner
+    public void UntrackOwnerWindow(Window window) => _ownerWindows.Remove(window);
+
+    private void TouchOwnerWindow(Window window)
+    {
+        _ownerWindows.Remove(window);
+        _ownerWindows.Add(window);
+    }
+
+    private Window? ActiveOwnerWindow
     {
         get
         {
-            var current = _dialogOwnerContext ?? Owner;
-            while (current.OwnedWindows.LastOrDefault(w => w.IsVisible && w.IsEnabled) is { } child) current = child;
-            return current;
+            for (var index = _ownerWindows.Count - 1; index >= 0; index--)
+            {
+                var candidate = _ownerWindows[index];
+                if (!candidate.IsVisible) { _ownerWindows.RemoveAt(index); continue; }
+                return candidate;
+            }
+            return null;
         }
     }
+
+    private Window DialogOwner => ActiveOwnerWindow ?? Owner;
     private Window Window(string title, double width = 510, double height = 600)
     {
         var window = new Window { Title = title, Width = width, Height = height, MinWidth = 400, MinHeight = 180,
@@ -215,6 +238,17 @@ public sealed class DialogService(ITextCodec codec, AppLockService? appLock = nu
         Layout(window, body, Button("取消", () => window.Close(false)), Button(danger ? "确认操作" : "确认", () => window.Close(true), true));
         return await window.ShowDialog<bool>(DialogOwner);
     }
+    /// <summary>带“保持选择”的确认框：勾选后本次批量操作不再逐个询问。</summary>
+    public async Task<ConfirmOutcome> ConfirmWithRememberAsync(string title, string message, bool danger = false)
+    {
+        var window = Window(title, 520, 330); var body = Stack(); body.Children.Add(Text(title, 19)); body.Children.Add(Text(message));
+        var remember = new CheckBox { Content = "保持选择（本次批量操作不再询问）", Margin = new Thickness(0, 4, 0, 0) };
+        body.Children.Add(remember);
+        Layout(window, body,
+            Button("取消", () => window.Close(new ConfirmOutcome(false, false))),
+            Button(danger ? "确认操作" : "确认", () => window.Close(new ConfirmOutcome(true, remember.IsChecked == true)), true));
+        return await window.ShowDialog<ConfirmOutcome>(DialogOwner) ?? new ConfirmOutcome(false, false);
+    }
     public async Task<string?> PromptAsync(string title, string label, string value = "", bool secret = false)
     {
         var window = Window(title, 480, 250); var body = Stack(); TextBox input = secret ? new SecretTextBox() : new TextBox(); input.Text = value;
@@ -335,12 +369,13 @@ public sealed class DialogService(ITextCodec codec, AppLockService? appLock = nu
                 : $"有 {dirty} 个文件尚未保存，关闭将放弃这些修改，是否继续？";
             if (await ConfirmOwnedAsync(window, "未保存的修改", message)) { approved = true; window.Close(); }
         };
-        window.Closed += (_, _) => { DetachEditorTabs(); _editorWindow = null; _editorTabControl = null; };
+        window.Closed += (_, _) => { DetachEditorTabs(); _editorWindow = null; _editorTabControl = null; UntrackOwnerWindow(window); };
         window.KeyBindings.Add(new KeyBinding
         {
             Gesture = new KeyGesture(Key.S, KeyModifiers.Control),
             Command = new RelayCommand(() => { if (ActiveEditorTab(tabs) is { } state) _ = state.Vm.SaveCommand.ExecuteAsync(null); })
         });
+        TrackOwnerWindow(window);
         window.Show(DialogOwner); // 非模态：不阻塞调用方，窗口与标签自行管理生命周期
         await Task.CompletedTask;
     }
