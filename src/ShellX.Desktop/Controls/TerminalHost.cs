@@ -54,6 +54,9 @@ public sealed class TerminalHost : Border
         AddHandler(InputElement.PointerPressedEvent, OnTerminalPointerPressed, RoutingStrategies.Tunnel, true);
         AddHandler(InputElement.PointerReleasedEvent, OnTerminalPointerReleased, RoutingStrategies.Tunnel, true);
         AddHandler(InputElement.ContextRequestedEvent, OnTerminalContextRequested, RoutingStrategies.Bubble, true);
+        // Esc 由我们自己发，详见 OnTerminalKeyDown 的说明。
+        AddHandler(InputElement.KeyDownEvent, OnTerminalKeyDown, RoutingStrategies.Tunnel);
+        AddHandler(InputElement.KeyUpEvent, OnTerminalKeyUp, RoutingStrategies.Tunnel);
         Loaded += (_, _) => Attach();
         DetachedFromVisualTree += (_, _) => { _terminal.DetachConnection(); _terminal.Dispose(); _attached = null; };
     }
@@ -65,6 +68,37 @@ public sealed class TerminalHost : Border
         if (change.Property == TerminalFontFamilyProperty) _terminal.FontFamily = new FontFamily(TerminalFontFamily);
         if (change.Property == HighlightTextProperty) ApplyHighlightSettings();
     }
+
+    /// <summary>
+    /// Esc 走标准 VT 序列，不走终端库的 Win32 输入记录。
+    /// </summary>
+    /// <remarks>
+    /// 终端库在 Windows 上会把 Esc 编码成 Win32 INPUT_RECORD（ESC [ 27;0;27;1;…;1 _），
+    /// 因为本机 ConPTY 没有单独表示 Esc 的 VT 序列，只能用输入记录传。
+    /// 但这里的 PTY 是 SSH 过去的远端 shell，不是 ConPTY，它读不懂这种记录：
+    /// 远端把收到的字节原样回显，命令行里就会多出一串裸参数（;0;27;1;32;1_）。
+    /// 所以这里在隧道阶段拦下按键，标记为已处理，库不会再发那条记录，改由我们发标准的 0x1B。
+    /// </remarks>
+    private void OnTerminalKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape) return;
+        e.Handled = true;
+        _ = SendEscapeAsync();
+    }
+
+    /// <summary>松开按键时库还会补一条 Win32 记录（Kd=0），必须一起拦掉，否则远端照样回显裸参数。</summary>
+    private void OnTerminalKeyUp(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape) return;
+        e.Handled = true;
+    }
+
+    private async Task SendEscapeAsync()
+    {
+        try { await _terminal.SendInputAsync("\u001b").ConfigureAwait(false); }
+        catch (Exception) { /* 会话已经断开时忽略：Esc 没有别的地方可去。 */ }
+    }
+
     private void OnTerminalPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (!e.GetCurrentPoint(this).Properties.IsRightButtonPressed) return;
