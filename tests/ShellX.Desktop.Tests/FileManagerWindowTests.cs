@@ -196,6 +196,56 @@ public sealed class FileManagerWindowTests
         }
     }
 
+    /// <summary>文件管理器里弹出的对话框以文件管理器为父窗口：关闭弹窗时只回到文件管理器，
+    /// 不会把主窗口提到前面。</summary>
+    [AvaloniaFact]
+    public async Task DialogFromFileManagerKeepsFileManagerAsParent()
+    {
+        var root = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "shellx-filedialog-" + Guid.NewGuid().ToString("N"))).FullName;
+        var paths = new AppPaths(root);
+        var repository = new JsonConnectionRepository(paths);
+        var dialogs = new DialogService(new TextCodec());
+        var main = new MainWindowViewModel(repository, new WindowsCredentialStore(paths), new JsonHostKeyStore(paths),
+            new JsonSettingsStore(paths), new UnusedFactory(), dialogs, NullLoggerFactory.Instance, new LocalFileSystem(root),
+            new AppLockService(new LockPasswordHasher()), new JsonConfigurationExporter(paths));
+        await main.InitializeAsync();
+        var tab = new WorkspaceTabViewModel(
+            new ConnectionProfile { Name = "连接 A", Host = "a.test", Port = 22, Username = "root" },
+            new UnusedFactory(), dialogs, NullLoggerFactory.Instance,
+            () => Task.FromResult<ConnectionSecret?>(null), _ => Task.FromResult(true),
+            _ => Task.CompletedTask, _ => Task.CompletedTask, new AppSettings(), new LocalFileSystem(root));
+        var view = new WorkspaceView { DataContext = tab };
+        var owner = new Window { DataContext = main, Content = view, Width = 1200, Height = 760 };
+        owner.Show();
+        try
+        {
+            dialogs.Owner = owner;
+            dialogs.TrackOwnerWindow(owner);
+            view.FindControl<Button>("OpenFileManagerButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await Task.Delay(80);
+            var fileWindow = main.FileManagerWindow!;
+            Assert.NotNull(fileWindow);
+
+            var entry = new RemoteEntry("test.txt", "/tmp/test.txt", false, false, 1024, DateTime.UtcNow, 420, 1000, 1000);
+            var pending = dialogs.PermissionsAsync(entry);
+            await Task.Delay(80);
+            var permission = fileWindow.OwnedWindows.OfType<Window>().Single(w => w.Title == "属性与权限");
+            Assert.Same(fileWindow, permission.Owner);
+            Assert.DoesNotContain(owner.OwnedWindows.OfType<Window>(), w => ReferenceEquals(w, permission));
+            permission.Close();
+            await pending;
+        }
+        finally
+        {
+            main.FileManagerWindow?.Close();
+            foreach (var owned in owner.OwnedWindows.ToArray()) owned.Close();
+            owner.Close();
+            await main.ShutdownAsync();
+            await tab.DisposeAsync();
+            Directory.Delete(root, true);
+        }
+    }
+
     /// <summary>模态弹窗的父窗口取“最近激活的窗口”：文件管理器里弹出的对话框不会落到主窗口上，
     /// 关闭时也就不会把主窗口提到前面。</summary>
     [AvaloniaFact]
