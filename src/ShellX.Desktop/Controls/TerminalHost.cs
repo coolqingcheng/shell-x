@@ -4,11 +4,14 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Media.Immutable;
 using Iciclecreek.Terminal;
 using Porta.Pty;
 using Avalonia.Styling;
 using ShellX.Desktop.Services;
 using ShellX.Core.Sessions;
+using ShellX.Desktop.Styles;
+using XTerm.Options;
 
 namespace ShellX.Desktop.Controls;
 
@@ -24,7 +27,9 @@ public sealed class TerminalHost : Border
     {
         FontFamily = new FontFamily("Cascadia Mono,Consolas,monospace"), FontSize = 14,
         BufferSize = 5000,
-        AllowWindowOps = false, Process = ""
+        AllowWindowOps = false, Process = "",
+        // 终端的 ANSI 配色也要跟主题走：整体赋值，模拟器构造时会用这份调色板。
+        Options = new TerminalOptions { Theme = ThemeCatalog.TerminalTheme(ThemeService.Current) }
     };
     private ITerminalChannel? _attached;
     public ITerminalChannel? Channel { get => GetValue(ChannelProperty); set => SetValue(ChannelProperty, value); }
@@ -109,8 +114,20 @@ public sealed class TerminalHost : Border
         if (Channel is ITerminalHighlighting highlighting)
         {
             highlighting.HighlightEnabled = HighlightText;
-            highlighting.LightTheme = ActualThemeVariant == ThemeVariant.Light;
+            highlighting.Theme = ThemeService.Current;
         }
+        ApplyTerminalTheme();
+    }
+
+    /// <summary>终端的 ANSI 配色跟随主题。必须整体赋值新对象，模拟器才会重新播种调色板。</summary>
+    private void ApplyTerminalTheme()
+    {
+        var theme = ThemeService.Current;
+        if (_terminal.Options is { } options) options.Theme = ThemeCatalog.TerminalTheme(theme);
+        var palette = ThemeCatalog.Of(theme).Terminal;
+        var selection = Color.Parse(palette.Selection);
+        _terminal.SelectionBrush = new ImmutableSolidColorBrush(new Color(0x80, selection.R, selection.G, selection.B));
+        _terminal.CursorColor = Color.Parse(palette.Cursor);
     }
 }
 

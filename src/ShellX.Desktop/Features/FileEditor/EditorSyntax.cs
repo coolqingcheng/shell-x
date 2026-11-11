@@ -4,6 +4,8 @@ using Avalonia.Styling;
 using AvaloniaEdit.Rendering;
 using Avalonia.Media;
 using AvaloniaEdit.Highlighting;
+using ShellX.Desktop.Services;
+using ShellX.Desktop.Styles;
 
 namespace ShellX.Desktop.Features.FileEditor;
 
@@ -12,13 +14,13 @@ public sealed record EditorSyntax(string Name, IHighlightingDefinition? Highligh
 public static class EditorSyntaxes
 {
     private const string Quoted = @"""(?:\\.|[^""\\])*""|'(?:\\.|[^'\\])*'";
-    private static readonly HighlightingColor Comment = Color("Comment", "#6A9955");
-    private static readonly HighlightingColor String = Color("String", "#CE9178");
-    private static readonly HighlightingColor Key = Color("Property", "#9CDCFE");
-    private static readonly HighlightingColor Keyword = Color("Keyword", "#569CD6");
-    private static readonly HighlightingColor Number = Color("Number", "#B5CEA8");
-    private static readonly HighlightingColor Variable = Color("Variable", "#C586C0");
-    private static readonly HighlightingColor Delimiter = Color("Delimiter", "#808080");
+    private static readonly HighlightingColor Comment = Color("Comment", ThemeCatalog.RoleComment);
+    private static readonly HighlightingColor String = Color("String", ThemeCatalog.RoleString);
+    private static readonly HighlightingColor Key = Color("Property", ThemeCatalog.RoleProperty);
+    private static readonly HighlightingColor Keyword = Color("Keyword", ThemeCatalog.RoleKeyword);
+    private static readonly HighlightingColor Number = Color("Number", ThemeCatalog.RoleNumber);
+    private static readonly HighlightingColor Variable = Color("Variable", ThemeCatalog.RoleVariable);
+    private static readonly HighlightingColor Delimiter = Color("Delimiter", ThemeCatalog.RoleDelimiter);
 
     public static IReadOnlyList<EditorSyntax> All { get; } = Create();
     public static EditorSyntax Detect(string path, string content)
@@ -92,17 +94,12 @@ public static class EditorSyntaxes
     private static void Span(HighlightingRuleSet rules, string start, string end, HighlightingColor color, HighlightingRuleSet? nested = null, HighlightingColor? startColor = null) =>
         rules.Spans.Add(new() { StartExpression = Pattern(start), EndExpression = Pattern(end), SpanColor = color, StartColor = startColor ?? color, EndColor = color,
             SpanColorIncludesStart = startColor == null, SpanColorIncludesEnd = true, RuleSet = nested ?? new() });
-    private static HighlightingColor Color(string name, string hex) => new() { Name = name, Foreground = new ThemedHighlightingBrush(hex) };
-    private sealed class ThemedHighlightingBrush(string dark) : HighlightingBrush
+    private static HighlightingColor Color(string name, string role) => new() { Name = name, Foreground = new ThemedHighlightingBrush(role) };
+    // 语法色按当前主题取：主题切换后画刷要跟着换，所以不缓存具体颜色。
+    private sealed class ThemedHighlightingBrush(string role) : HighlightingBrush
     {
-        private readonly IBrush _dark = Brush.Parse(dark);
-        private readonly IBrush _light = Brush.Parse(dark switch
-        {
-            "#6A9955" => "#008000", "#CE9178" => "#A31515", "#9CDCFE" => "#0451A5",
-            "#569CD6" => "#0000FF", "#B5CEA8" => "#098658", "#C586C0" => "#AF00DB", _ => "#666666"
-        });
         public override IBrush GetBrush(ITextRunConstructionContext context)
-            => (context?.TextView.ActualThemeVariant ?? Application.Current?.ActualThemeVariant) == ThemeVariant.Light ? _light : _dark;
+            => ThemeCatalog.SyntaxBrush(ThemeService.Current, role);
     }
     private sealed class Definition(string name) : IHighlightingDefinition
     {

@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using ShellX.Core.Security;
 using ShellX.Core.Settings;
 using ShellX.Core.Updates;
+using ShellX.Desktop.Styles;
 using ShellX.Desktop.Services;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -30,7 +31,7 @@ public partial class SettingsViewModel : ObservableObject
     {
         _original = original; _passwords = passwords; _updates = updates; _dialogs = dialogs;
         Fonts = fonts; SystemSessionSupported = systemSessionSupported;
-        ThemeIndex = original.Theme == AppTheme.Light ? 1 : 0;
+        ThemeIndex = ThemeCatalog.ToIndex(original.Theme);
         TerminalFontFamily = fonts.FirstOrDefault(name => name.Equals(original.TerminalFontFamily, StringComparison.OrdinalIgnoreCase)) ?? original.TerminalFontFamily;
         TerminalFontSize = (decimal)original.TerminalFontSize;
         EditorFontFamily = fonts.FirstOrDefault(name => name.Equals(original.EditorFontFamily, StringComparison.OrdinalIgnoreCase)) ?? original.EditorFontFamily;
@@ -57,7 +58,7 @@ public partial class SettingsViewModel : ObservableObject
     public string PasswordSummary => HasPassword ? "已设置锁定密码" : "尚未设置锁定密码";
     public bool ShowPasswordFields => ChangePassword || RemovePassword;
     public bool ShowNewPassword => ChangePassword && !RemovePassword;
-    public string[] Themes { get; } = ["暗色", "亮色"];
+    public string[] Themes { get; } = ["暗色", "亮色", "One Dark Pro", "Dracula", "Solarized Light"];
     [ObservableProperty] private int _themeIndex;
     public string[] DurationUnits { get; } = ["分钟", "小时"];
     public bool SystemSessionSupported { get; }
@@ -169,7 +170,7 @@ public partial class SettingsViewModel : ObservableObject
             if (AutoLock && string.IsNullOrEmpty(hash) && !RemovePassword) throw new ArgumentException("请先设置锁定密码，再启用自动锁定。");
             if (AutoLock && !RemovePassword && AutoLockOnlyWhenSystemLocked && !SystemSessionSupported)
                 throw new ArgumentException("当前系统暂不支持锁屏检测，请取消“仅在系统锁屏后计时”或关闭自动锁定。");
-            var result = _original with { Theme = ThemeIndex == 1 ? AppTheme.Light : AppTheme.Dark, TerminalFontFamily = TerminalFontFamily, TerminalFontSize = (double)TerminalFontSize,
+            var result = _original with { Theme = ThemeCatalog.FromIndex(ThemeIndex), TerminalFontFamily = TerminalFontFamily, TerminalFontSize = (double)TerminalFontSize,
                 EditorFontFamily = EditorFontFamily, EditorFontSize = (double)EditorFontSize,
                 ShowHiddenFiles = ShowHidden, HighlightTerminalText = HighlightText,
                 AutoReconnectEnabled = AutoReconnect, ReconnectIntervalSeconds = (int)ReconnectIntervalSeconds,

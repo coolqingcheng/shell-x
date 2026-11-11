@@ -1,4 +1,4 @@
-<Application xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+<Application xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:styles="using:ShellX.Desktop.Styles"
              x:Class="ShellX.Desktop.App" RequestedThemeVariant="Dark">
   <Application.Styles>
     <FluentTheme />
@@ -6,5 +6,6 @@
     <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
     <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
     <StyleInclude Source="avares://ShellX.Desktop/Styles/Theme.axaml" />
+    <styles:ShellXThemes />
   </Application.Styles>
 </Application>

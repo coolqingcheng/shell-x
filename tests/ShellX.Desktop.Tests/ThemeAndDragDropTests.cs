@@ -20,6 +20,7 @@ using ShellX.Desktop.Features.FileBrowser;
 using ShellX.Desktop.Features.FileEditor;
 using ShellX.Desktop.Features.Settings;
 using ShellX.Desktop.Services;
+using ShellX.Desktop.Styles;
 using ShellX.Infrastructure.Files;
 using ShellX.Infrastructure.Security;
 using ShellX.Infrastructure.Ssh;
@@ -43,10 +44,11 @@ public sealed class ThemeAndDragDropTests
         try
         {
             await browser.Local.InitializeAsync();
-            foreach (var theme in new[] { AppTheme.Dark, AppTheme.Light, AppTheme.Dark })
+            foreach (var theme in new[] { AppTheme.Dark, AppTheme.Light, AppTheme.OneDark, AppTheme.Dracula, AppTheme.SolarizedLight, AppTheme.Dark })
             {
                 ThemeService.Apply(theme); await Task.Delay(60);
-                var background = theme == AppTheme.Light ? "#FFFFFF" : "#1E1E1E";
+                var palette = ThemeCatalog.Of(theme);
+                var background = palette.Ui[ThemeCatalog.AppBackground];
                 Assert.Equal(Color.Parse(background), ((ISolidColorBrush)window.Background!).Color);
                 Assert.Equal(Color.Parse(background), ((ISolidColorBrush)editor.Background!).Color);
                 Assert.Equal(Color.Parse(background), ((ISolidColorBrush)terminal.GetVisualDescendants().OfType<TerminalControl>().Single().Background!).Color);
@@ -54,11 +56,11 @@ public sealed class ThemeAndDragDropTests
                 Assert.Equal(2, grids.Length);
                 Assert.All(grids, grid => Assert.Equal(Color.Parse(background), ((ISolidColorBrush)grid.Background!).Color));
                 var syntax = EditorSyntaxes.All.Single(s => s.Name == "JSON").Highlighting!.GetNamedColor("Property").Foreground.GetColor(null!);
-                Assert.Equal(Color.Parse(theme == AppTheme.Light ? "#0451A5" : "#9CDCFE"), syntax);
+                Assert.Equal(Color.Parse(palette.Syntax.Property), syntax);
                 if (Environment.GetEnvironmentVariable("SHELLX_PREVIEW_PATH") is { Length: > 0 } preview)
                 {
                     using var bitmap = new RenderTargetBitmap(new PixelSize(1180, 780), new Vector(96, 96));
-                    bitmap.Render(window); bitmap.Save(Path.Combine(Path.GetDirectoryName(preview)!, theme == AppTheme.Light ? "theme-light.png" : "theme-dark.png"), PngBitmapEncoderOptions.Default);
+                    bitmap.Render(window); bitmap.Save(Path.Combine(Path.GetDirectoryName(preview)!, $"theme-{theme.ToString().ToLowerInvariant()}.png"), PngBitmapEncoderOptions.Default);
                 }
             }
             AppSettings? saved = null;
@@ -70,6 +72,31 @@ public sealed class ThemeAndDragDropTests
         finally { ThemeService.Apply(AppTheme.Dark); window.Close(); Directory.Delete(root, true); }
     }
 
+    [AvaloniaFact]
+    public async Task PopularThemesDriveTerminalAnsiColorsAndEditorSyntax()
+    {
+        var editor = new CodeEditor { Text = "{\"a\": 1}", SyntaxHighlighting = EditorSyntaxes.All.Single(s => s.Name == "JSON").Highlighting };
+        var terminal = new TerminalHost();
+        var grid = new Grid { RowDefinitions = new("*,*") };
+        Grid.SetRow(editor, 0); Grid.SetRow(terminal, 1);
+        grid.Children.Add(editor); grid.Children.Add(terminal);
+        var window = new Window { Width = 900, Height = 600, Content = grid }; window.Show();
+        try
+        {
+            foreach (var theme in new[] { AppTheme.OneDark, AppTheme.Dracula, AppTheme.SolarizedLight, AppTheme.Dark })
+            {
+                ThemeService.Apply(theme); await Task.Delay(80);
+                var palette = ThemeCatalog.Of(theme);
+                var control = terminal.GetVisualDescendants().OfType<TerminalControl>().Single();
+                // 终端的 ANSI 调色板要跟着主题走，不然界面换了色而终端还是老样子。
+                Assert.Equal(palette.Terminal.Green, control.Options!.Theme!.Green);
+                Assert.Equal(Color.Parse(palette.Terminal.Background), ((ISolidColorBrush)control.Background!).Color);
+                Assert.Equal(Color.Parse(palette.Ui[ThemeCatalog.AppBackground]), ((ISolidColorBrush)window.Background!).Color);
+                Assert.Equal(Color.Parse(palette.Syntax.Keyword), EditorSyntaxes.All.Single(s => s.Name == "JSON").Highlighting!.GetNamedColor("Keyword").Foreground.GetColor(null!));
+            }
+        }
+        finally { ThemeService.Apply(AppTheme.Dark); window.Close(); }
+    }
     [AvaloniaFact]
     public async Task ExplorerAndInternalDropsTransferFilesAndFoldersWithExactBytesAndMergeConfirmation()
     {

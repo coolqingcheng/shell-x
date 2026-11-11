@@ -1,5 +1,6 @@
 using System.Text;
 using System.Threading.Channels;
+using ShellX.Core.Settings;
 using ShellX.Core.Sessions;
 using ShellX.Desktop.Controls;
 
@@ -25,7 +26,7 @@ public sealed class SessionTerminalChannel : ITerminalChannel, ITerminalHighligh
     public event Action<ITerminalChannel, string>? Closed;
 
     public bool HighlightEnabled { get => _highlighter.Enabled; set => _highlighter.Enabled = value; }
-    public bool LightTheme { get => _highlighter.LightTheme; set => _highlighter.LightTheme = value; }
+    public AppTheme Theme { get => _highlighter.Theme; set => _highlighter.Theme = value; }
 
     public SessionTerminalChannel() => Stream = new DuplexStream(this);
 

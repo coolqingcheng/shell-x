@@ -1,6 +1,8 @@
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
+using ShellX.Core.Settings;
+using ShellX.Desktop.Styles;
 
 namespace ShellX.Desktop.Controls;
 
@@ -13,7 +15,8 @@ public sealed partial class TerminalHighlighter
     private bool _foregroundSet;
     private bool _alternateScreen;
     private bool _savedForeground;
-    public bool LightTheme { get; set; }
+    /// <summary>当前主题，语义着色按主题取色。</summary>
+    public AppTheme Theme { get; set; } = AppTheme.Dark;
     public bool Enabled { get; set; } = true;
 
     [GeneratedRegex(@"(?<error>\b(?:error|failed|failure|fatal|denied|exception)\b|错误|失败|拒绝)|(?<warning>\b(?:warning|warn)\b|警告)|(?<success>\b(?:success(?:ful(?:ly)?)?|passed|connected|done)\b|成功|已完成)|(?<url>https?://[^\s<>]+)|(?<ip>\b(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?\b)|(?<path>(?<![\w/])(?:~?/|\.{1,2}/)[\w.\-/~]+)|(?<host>[\w.\-]+@[\w.\-]+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
@@ -98,16 +101,17 @@ public sealed partial class TerminalHighlighter
 
     private string Color(Match match)
     {
+        var palette = ThemeCatalog.Of(Theme).Highlight;
         string rgb;
-        if (match.Groups["error"].Success) rgb = LightTheme ? "191;32;32" : "244;135;113";
-        else if (match.Groups["warning"].Success) rgb = LightTheme ? "138;97;0" : "215;186;125";
-        else if (match.Groups["success"].Success || match.Groups["host"].Success) rgb = LightTheme ? "22;114;60" : "78;201;176";
+        if (match.Groups["error"].Success) rgb = palette.Error;
+        else if (match.Groups["warning"].Success) rgb = palette.Warning;
+        else if (match.Groups["success"].Success || match.Groups["host"].Success) rgb = palette.Success;
         else if (match.Groups["ip"].Success)
         {
             if (!IPAddress.TryParse(match.Value.Split(':')[0], out _)) return match.Value;
-            rgb = LightTheme ? "71;122;48" : "181;206;168";
+            rgb = palette.Ip;
         }
-        else rgb = LightTheme ? "0;106;177" : "79;193;255";
+        else rgb = palette.Link;
         // 只恢复前景色，不重置服务器的加粗、下划线或背景色。
         return $"\x1b[38;2;{rgb}m{match.Value}\x1b[39m";
     }

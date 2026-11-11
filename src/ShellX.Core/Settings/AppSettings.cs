@@ -1,6 +1,6 @@
 namespace ShellX.Core.Settings;
 
-public enum AppTheme { Dark, Light }
+public enum AppTheme { Dark, Light, OneDark, Dracula, SolarizedLight }
 
 public enum ProcessSortColumn { Cpu, Memory }
 

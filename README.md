@@ -63,6 +63,7 @@ ShellX 在三大主流桌面系统上提供一致的体验，全部发行物为 
 | 服务器监控 | CPU、内存、负载、进程列表、网络速率、磁盘挂载与容量（Linux `/proc`） |
 | MCP 服务 | HTTP JSON-RPC 暴露本机命令执行，Bearer 鉴权、一键复制客户端配置、逐条审计日志与实时日志窗口 |
 | 系统托盘 | 点击关闭按钮最小化到右下角托盘（可在设置中关闭），托盘菜单可恢复窗口、打开连接管理器或退出程序 |
+| 界面主题 | 暗色 / 亮色 / One Dark Pro / Dracula / Solarized Light 五套主题，界面、终端 ANSI 配色与编辑器语法高亮同步切换 |
 | 安全 | 服务器指纹校验（SHA-256）、Windows DPAPI 凭据保护、应用锁与超时自动锁定 |
 | 发布 | Native AOT 单文件、Windows / macOS / Linux 三平台原生安装包（exe / dmg / AppImage）、应用内自动更新（GitHub Releases） |
 
@@ -145,6 +146,10 @@ GET  http://127.0.0.1:8765/healthz
 
 提供 `list_mcp_connections` 与 `execute_local_command` 两个工具；每次执行、拒绝和失败都写入 `%LOCALAPPDATA%\ShellX\logs\mcp-audit-yyyyMMdd.jsonl`，主页右上角“MCP 日志”可实时逐行查看。服务默认只监听 `127.0.0.1`，对外开放前请自行加上 TLS 与访问控制。
 
+### 界面主题
+
+- `设置 → 常规 → 界面主题` 可选 **暗色 / 亮色 / One Dark Pro / Dracula / Solarized Light** 五套配色，取自 VS Code 主流主题。
+- 一套主题同时覆盖三处：**界面**（面板、边框、选中态、图标与状态色）、**终端**（ANSI 16 色、前景 / 背景、光标与选中色）与**文本编辑器**（注释、字符串、键名、关键字、数字、变量等语法高亮）。切换后立即生效，随配置保存，下次启动沿用。
 ### 安全
 
 - 首次连接要求确认服务器指纹（SHA-256），确认后记录在 `known-hosts.json`。
