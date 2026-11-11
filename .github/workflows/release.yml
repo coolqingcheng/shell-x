@@ -204,15 +204,21 @@ jobs:
             version="${GITHUB_REF##*/}"
             current="v${version#v}"
           fi
-          previous="$(git tag --list 'v*' --sort=-v:refname | awk -v current="$current" '$0 != current { print; exit }')"
+          previous="$(git tag --list 'v*' --sort=-v:refname | awk -v current="$current" '
+            { tags[NR] = $0 }
+            $0 == current { found = NR }
+            END { if (found > 0 && found < NR) print tags[found + 1] }')"
           {
             echo "## 更新内容"
             echo
+            notes=""
             if [[ -n "$previous" ]]; then
-              git log --no-merges --pretty=format:'- %s' "$previous..HEAD"
-            else
-              git log -20 --no-merges --pretty=format:'- %s' HEAD
+              notes="$(git log --no-merges --pretty=format:'- %s' "$previous..HEAD")"
             fi
+            if [[ -z "$notes" ]]; then
+              notes="$(git log -20 --no-merges --pretty=format:'- %s' HEAD)"
+            fi
+            printf '%s\n' "$notes"
             echo
             echo
             if [[ -n "$previous" ]]; then
