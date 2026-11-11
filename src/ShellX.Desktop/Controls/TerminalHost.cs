@@ -19,7 +19,7 @@ public sealed class TerminalHost : Border
     public static readonly StyledProperty<double> TerminalFontSizeProperty = AvaloniaProperty.Register<TerminalHost, double>(nameof(TerminalFontSize), 14);
     public static readonly StyledProperty<string> TerminalFontFamilyProperty = AvaloniaProperty.Register<TerminalHost, string>(nameof(TerminalFontFamily), "Cascadia Mono,Consolas,monospace");
     public static readonly StyledProperty<bool> HighlightTextProperty = AvaloniaProperty.Register<TerminalHost, bool>(nameof(HighlightText), true);
-    private TerminalHighlighter _highlighter = new();
+
     private readonly TerminalControl _terminal = new()
     {
         FontFamily = new FontFamily("Cascadia Mono,Consolas,monospace"), FontSize = 14,
@@ -41,7 +41,7 @@ public sealed class TerminalHost : Border
     {
         ThemeService.Bind(_terminal, TerminalControl.BackgroundProperty, "AppBackground");
         ThemeService.Bind(_terminal, TerminalControl.ForegroundProperty, "EditorForeground");
-        ActualThemeVariantChanged += (_, _) => _highlighter.LightTheme = ActualThemeVariant == ThemeVariant.Light;
+        ActualThemeVariantChanged += (_, _) => ApplyHighlightSettings();
         Padding = new Thickness(12, 6, 4, 4); Child = _terminal;
         var contextMenu = BuildContextMenu();
         ContextMenu = contextMenu;
@@ -58,7 +58,7 @@ public sealed class TerminalHost : Border
         if (change.Property == ChannelProperty && IsLoaded) Attach();
         if (change.Property == TerminalFontSizeProperty) _terminal.FontSize = TerminalFontSize;
         if (change.Property == TerminalFontFamilyProperty) _terminal.FontFamily = new FontFamily(TerminalFontFamily);
-        if (change.Property == HighlightTextProperty) _highlighter.Enabled = HighlightText;
+        if (change.Property == HighlightTextProperty) ApplyHighlightSettings();
     }
     private void OnTerminalPointerPressed(object? sender, PointerPressedEventArgs e)
     {
@@ -94,21 +94,33 @@ public sealed class TerminalHost : Border
 
     private void Attach()
     {
+        ApplyHighlightSettings();
         if (ReferenceEquals(_attached, Channel)) return;
         _terminal.DetachConnection(); _attached = Channel;
         if (Channel != null)
         {
-            _highlighter = new() { Enabled = HighlightText, LightTheme = ActualThemeVariant == ThemeVariant.Light };
-            _terminal.AttachConnection(new RemotePtyConnection(Channel, _highlighter)); _terminal.Focus();
+            _terminal.AttachConnection(new RemotePtyConnection(Channel)); _terminal.Focus();
+        }
+    }
+
+    /// <summary>着色由通道负责，控件只把开关和主题同步过去。</summary>
+    private void ApplyHighlightSettings()
+    {
+        if (Channel is ITerminalHighlighting highlighting)
+        {
+            highlighting.HighlightEnabled = HighlightText;
+            highlighting.LightTheme = ActualThemeVariant == ThemeVariant.Light;
         }
     }
 }
 
-internal sealed class RemotePtyConnection(ITerminalChannel terminal, TerminalHighlighter highlighter) : IPtyConnection
+internal sealed class RemotePtyConnection(ITerminalChannel terminal) : IPtyConnection
 {
-    private readonly Stream _reader = new HighlightedTerminalStream(terminal.Stream, highlighter);
     public event EventHandler<PtyExitedEventArgs>? ProcessExited { add { } remove { } }
-    public Stream ReaderStream => _reader;
+    public Stream ReaderStream => terminal.Stream;
+    // 声明可取消读取：控件销毁时库才能叫醒阻塞中的读线程并退出，
+    // 否则旧读线程会一直挂着，和新控件的读线程抢同一个通道，把字节流撕成两半。
+    public bool SupportsCancellableRead => true;
     public Stream WriterStream => terminal.Stream;
     public int Pid => -1;
     public int ExitCode => 0;

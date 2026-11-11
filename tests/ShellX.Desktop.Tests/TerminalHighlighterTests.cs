@@ -36,6 +36,45 @@ public sealed class TerminalHighlighterTests
         Assert.Contains("\x1b[38;2;", highlighter.Transform("ERROR /etc/config"));
     }
     [Fact]
+    public void StreamKeepsAnsiSequencesIntactWhenReadsSplitMidSequence()
+    {
+        // 真实提示符：ESC[0;27;0;32;1m 是 bash PS1 的颜色序列，被拆散就会漏出 "0;27;0;32;1" 这种裸参数。
+        const string prompt = "\x1b[0;27;0;32;1m[defu@izuf6b0ooqp0ht8h7ujteyz ~]$ ";
+        foreach (var chunk in new[] { 1, 2, 3, 5, 8 })
+        {
+            var source = new ChunkedStream(System.Text.Encoding.UTF8.GetBytes(prompt), chunk);
+            var stream = new HighlightedTerminalStream(source, new TerminalHighlighter());
+            using var output = new MemoryStream();
+            var buffer = new byte[64];
+            int read;
+            while ((read = stream.Read(buffer, 0, buffer.Length)) > 0) output.Write(buffer, 0, read);
+            var text = System.Text.Encoding.UTF8.GetString(output.ToArray());
+            Assert.Contains("\x1b[0;27;0;32;1m", text);              // 颜色序列完整保留
+            Assert.DoesNotContain("0;27;0;32;1m[defu", text.Replace("\x1b[0;27;0;32;1m", ""));
+        }
+    }
+
+    private sealed class ChunkedStream(byte[] data, int chunk) : Stream
+    {
+        private int _position;
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            if (_position >= data.Length) return 0;
+            var take = Math.Min(Math.Min(count, chunk), data.Length - _position);
+            Array.Copy(data, _position, buffer, offset, take); _position += take; return take;
+        }
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => data.Length;
+        public override long Position { get => _position; set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override long Seek(long o, SeekOrigin s) => throw new NotSupportedException();
+        public override void SetLength(long v) => throw new NotSupportedException();
+        public override void Write(byte[] b, int o, int c) => throw new NotSupportedException();
+    }
+
+    [Fact]
     public void HighlightCanBeDisabledWithoutRemovingAnsiSupport()
     {
         var highlighter = new TerminalHighlighter { Enabled = false };

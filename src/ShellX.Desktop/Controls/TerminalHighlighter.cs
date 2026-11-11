@@ -19,7 +19,15 @@ public sealed partial class TerminalHighlighter
     [GeneratedRegex(@"(?<error>\b(?:error|failed|failure|fatal|denied|exception)\b|错误|失败|拒绝)|(?<warning>\b(?:warning|warn)\b|警告)|(?<success>\b(?:success(?:ful(?:ly)?)?|passed|connected|done)\b|成功|已完成)|(?<url>https?://[^\s<>]+)|(?<ip>\b(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?\b)|(?<path>(?<![\w/])(?:~?/|\.{1,2}/)[\w.\-/~]+)|(?<host>[\w.\-]+@[\w.\-]+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex Tokens();
 
+    // 解析状态是共享的：重连时新旧读线程可能短暂并存，串行化避免状态被踩。
+    private readonly object _gate = new();
+
     public string Transform(string input)
+    {
+        lock (_gate) return TransformCore(input);
+    }
+
+    private string TransformCore(string input)
     {
         var output = new StringBuilder(input.Length + 64); var text = new StringBuilder();
         void Flush()
@@ -103,8 +111,22 @@ public sealed partial class TerminalHighlighter
         // 只恢复前景色，不重置服务器的加粗、下划线或背景色。
         return $"\x1b[38;2;{rgb}m{match.Value}\x1b[39m";
     }
+
+    /// <summary>清空解析状态：重新连接时用，避免上一次连接末尾残留半个控制序列。</summary>
+    public void Reset()
+    {
+        lock (_gate)
+        {
+            _state = ParseState.Text;
+            _sequence.Clear();
+            _foregroundSet = false;
+            _alternateScreen = false;
+            _savedForeground = false;
+        }
+    }
 }
 
+/// <summary>把原始字节流按 UTF-8 解码后交给高亮器，输出仍是带 ANSI 的字节流。</summary>
 internal sealed class HighlightedTerminalStream(Stream input, TerminalHighlighter highlighter) : Stream
 {
     private readonly Decoder _decoder = Encoding.UTF8.GetDecoder();
@@ -114,16 +136,31 @@ internal sealed class HighlightedTerminalStream(Stream input, TerminalHighlighte
     private int _offset;
     private bool _eof;
     public override int Read(byte[] buffer, int offset, int count)
+        => ReadAsync(buffer.AsMemory(offset, count), CancellationToken.None).AsTask().GetAwaiter().GetResult();
+    public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        => ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+    public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
     {
-        ValidateBufferArguments(buffer, offset, count); if (count == 0) return 0;
-        while (_offset == _pending.Length && !_eof)
+        if (buffer.IsEmpty) return 0;
+        while (true)
         {
-            var length = input.Read(_inputBuffer, 0, _inputBuffer.Length); _eof = length == 0;
+            // 高亮器可能把这一块整个吞掉（半个控制序列还没写完），这种情况不是结束，要继续读。
+            if (_offset < _pending.Length)
+            {
+                var available = Math.Min(buffer.Length, _pending.Length - _offset);
+                _pending.AsSpan(_offset, available).CopyTo(buffer.Span);
+                _offset += available;
+                return available;
+            }
+            if (_eof) return 0;
+            cancellationToken.ThrowIfCancellationRequested();
+            var length = await input.ReadAsync(_inputBuffer, cancellationToken).ConfigureAwait(false);
+            if (length == 0) _eof = true;
+            // 解码器跨块保存半个多字节字符，高亮器跨块保存半个控制序列，两者都不会把半个序列吐出去。
             var decoded = _decoder.GetChars(_inputBuffer, 0, length, _characters, 0, _eof);
-            _pending = Encoding.UTF8.GetBytes(highlighter.Transform(new string(_characters, 0, decoded))); _offset = 0;
+            _pending = Encoding.UTF8.GetBytes(highlighter.Transform(new string(_characters, 0, decoded)));
+            _offset = 0;
         }
-        var available = Math.Min(count, _pending.Length - _offset);
-        _pending.AsSpan(_offset, available).CopyTo(buffer.AsSpan(offset)); _offset += available; return available;
     }
     public override bool CanRead => true;
     public override bool CanSeek => false;
