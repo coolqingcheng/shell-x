@@ -17,6 +17,10 @@ public sealed record ConnectionProfile
     public bool McpEnabled { get; init; }
     public string InitialDirectory { get; init; } = ".";
     public List<Tunnels.TunnelDefinition> Tunnels { get; init; } = [];
+    /// <summary>隧道启动失败或连通检测失败后，按固定间隔自动重试。</summary>
+    public bool TunnelAutoRetry { get; init; }
+    /// <summary>自动重试的间隔秒数，取值范围 3–600。</summary>
+    public int TunnelRetrySeconds { get; init; } = 10;
     public List<Commands.SavedCommand> QuickCommands { get; init; } = [];
     public string Address => $"{Username}@{Host}:{Port}";
 

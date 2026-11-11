@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using Microsoft.Extensions.Logging.Abstractions;
 using ShellX.Core.Connections;
@@ -49,10 +50,14 @@ public sealed class TunnelEditingTests
         try
         {
             await first.ConnectWithSecretAsync(new("fixture-password")); await second.ConnectWithSecretAsync(new("fixture-password"));
-            first.ShowTunnels = true; await Task.Delay(60);
-            Click(window, view.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "EditTunnelRule"));
-            await Until(() => window.OwnedWindows.Any(w => w.Title == "编辑端口转发"));
-            var editor = window.OwnedWindows.Single(); var vm = (TunnelEditorViewModel)editor.DataContext!;
+            // 隧道规则已拆到独立窗口，编辑入口在隧道窗口里。
+            view.FindControl<Button>("TunnelButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await Until(() => window.OwnedWindows.Any(w => w.Title?.StartsWith("端口转发") == true));
+            var tunnelWindow = window.OwnedWindows.Single(w => w.Title?.StartsWith("端口转发") == true);
+            await Task.Delay(60);
+            Click(tunnelWindow, tunnelWindow.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "EditTunnelRule"));
+            await Until(() => tunnelWindow.OwnedWindows.Any(w => w.Title == "编辑端口转发"));
+            var editor = tunnelWindow.OwnedWindows.Single(); var vm = (TunnelEditorViewModel)editor.DataContext!;
             Assert.Equal(rule, vm.Build());
             var port = FreePort(); vm.Name = "修改后的规则"; vm.BindPort = port.ToString();
             await Task.Delay(40); Click(editor, editor.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Content, "保存规则")));
@@ -62,20 +67,20 @@ public sealed class TunnelEditingTests
             Assert.Equal(rule.Id, first.Tunnels[0].Definition.Id);
             Assert.Equal(port, Assert.Single((await store.LoadAsync())[0].Tunnels).BindPort);
             using (var freed = new TcpListener(IPAddress.Loopback, rule.BindPort)) freed.Start();
-            var cancelled = first.Tunnels[0].EditCommand.ExecuteAsync(null); await Until(() => window.OwnedWindows.Any());
-            editor = window.OwnedWindows.Single(); ((TunnelEditorViewModel)editor.DataContext!).Name = "不能保存"; editor.Close(); await cancelled;
+            var cancelled = first.Tunnels[0].EditCommand.ExecuteAsync(null); await Until(() => tunnelWindow.OwnedWindows.Any());
+            editor = tunnelWindow.OwnedWindows.Single(); ((TunnelEditorViewModel)editor.DataContext!).Name = "不能保存"; editor.Close(); await cancelled;
             Assert.Equal("修改后的规则", first.Tunnels[0].Name);
             await first.Tunnels[0].ToggleCommand.ExecuteAsync(null);
-            var editing = second.Tunnels[0].EditCommand.ExecuteAsync(null); await Until(() => window.OwnedWindows.Any());
-            editor = window.OwnedWindows.Single(); vm = (TunnelEditorViewModel)editor.DataContext!;
+            var editing = second.Tunnels[0].EditCommand.ExecuteAsync(null); await Until(() => tunnelWindow.OwnedWindows.Any());
+            editor = tunnelWindow.OwnedWindows.Single(); vm = (TunnelEditorViewModel)editor.DataContext!;
             vm.Name = "停止中编辑"; await Task.Delay(40); Click(editor, editor.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Content, "保存规则"))); await editing;
             Assert.Equal(TunnelState.Stopped, second.Tunnels[0].State);
             await second.Tunnels[0].ToggleCommand.ExecuteAsync(null); await Until(() => first.Tunnels[0].State == TunnelState.Connected);
-            failSave = true; editing = first.Tunnels[0].EditCommand.ExecuteAsync(null); await Until(() => window.OwnedWindows.Any());
-            editor = window.OwnedWindows.Single(); vm = (TunnelEditorViewModel)editor.DataContext!; vm.BindPort = FreePort().ToString();
+            failSave = true; editing = first.Tunnels[0].EditCommand.ExecuteAsync(null); await Until(() => tunnelWindow.OwnedWindows.Any());
+            editor = tunnelWindow.OwnedWindows.Single(); vm = (TunnelEditorViewModel)editor.DataContext!; vm.BindPort = FreePort().ToString();
             await Task.Delay(40); Click(editor, editor.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Content, "保存规则")));
-            await Until(() => window.OwnedWindows.Any(w => w.Title == "操作失败"));
-            var error = window.OwnedWindows.Single(); Assert.Contains(error.GetVisualDescendants().OfType<TextBlock>(), t => t.Text?.Contains("模拟配置写入失败") == true);
+            await Until(() => tunnelWindow.OwnedWindows.Any(w => w.Title == "操作失败"));
+            var error = tunnelWindow.OwnedWindows.Single(); Assert.Contains(error.GetVisualDescendants().OfType<TextBlock>(), t => t.Text?.Contains("模拟配置写入失败") == true);
             Assert.Equal(port, first.Tunnels[0].Definition.BindPort); Assert.True(first.Tunnels[0].Running);
             error.Close(); await editing;
         }

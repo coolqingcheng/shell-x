@@ -1,0 +1,83 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ShellX.Desktop.Features.Tunnels" xmlns:controls="using:ShellX.Desktop.Controls"
+        x:Class="ShellX.Desktop.Features.Tunnels.TunnelWindow" x:DataType="vm:TunnelWindowViewModel"
+        Title="端口转发" Width="900" Height="640" MinWidth="720" MinHeight="440"
+        WindowStartupLocation="CenterOwner" Background="{DynamicResource AppBackground}">
+  <Grid RowDefinitions="Auto,Auto,*,Auto">
+    <Border Background="{DynamicResource HeaderBackground}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1" Padding="14,9">
+      <Grid ColumnDefinitions="*,300,Auto" ColumnSpacing="10">
+        <StackPanel Spacing="2">
+          <TextBlock Text="端口转发" FontSize="14" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding Target}" FontSize="10" Foreground="{DynamicResource MutedForeground}"
+                     TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Target}" />
+        </StackPanel>
+        <TextBox Grid.Column="1" Name="TunnelSearchBox" Text="{Binding Search, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                 PlaceholderText="搜索名称、地址或端口…" VerticalAlignment="Center" Padding="8,5" />
+        <Button Grid.Column="2" Name="AddTunnelButton" Content="新建隧道" Command="{Binding AddCommand}" VerticalAlignment="Center" />
+      </Grid>
+    </Border>
+
+    <Border Grid.Row="1" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1" Padding="12,8">
+      <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" ColumnSpacing="10">
+        <Button Name="StartAllTunnelsButton" Content="全部启动" Command="{Binding StartAllCommand}" IsEnabled="{Binding CanStartAll}"
+                ToolTip.Tip="启动本连接所有未运行的转发规则" />
+        <Button Grid.Column="1" Name="StopAllTunnelsButton" Content="全部停止" Command="{Binding StopAllCommand}" IsEnabled="{Binding CanStopAll}"
+                ToolTip.Tip="停止本连接所有正在运行的转发规则" />
+        <CheckBox Grid.Column="3" Name="AutoRetryToggle" Content="失败自动重试" IsChecked="{Binding AutoRetry, Mode=TwoWay}"
+                  VerticalAlignment="Center" ToolTip.Tip="隧道失败后按设定间隔自动重试；关闭后仍可手动启动或检测" />
+        <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" IsEnabled="{Binding AutoRetry}">
+          <TextBlock Text="间隔" FontSize="11" Foreground="{DynamicResource MutedForeground}" VerticalAlignment="Center" />
+          <NumericUpDown Name="RetrySeconds" Width="92" Minimum="3" Maximum="600" Increment="1"
+                         Value="{Binding RetrySeconds, Mode=TwoWay}" FormatString="0" />
+          <TextBlock Text="秒" FontSize="11" Foreground="{DynamicResource MutedForeground}" VerticalAlignment="Center" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <ScrollViewer Grid.Row="2">
+      <ItemsControl ItemsSource="{Binding VisibleTunnels}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:TunnelViewModel">
+            <Border Padding="14,12" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1">
+              <StackPanel Spacing="8">
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                  <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding Name}" />
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                    <Ellipse Width="8" Height="8" Fill="{Binding StatusColor}" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding Status}" Foreground="{Binding StatusColor}" FontSize="11" />
+                  </StackPanel>
+                  <Button Grid.Column="2" Classes="flat" Padding="2" Command="{Binding RemoveCommand}" ToolTip.Tip="删除规则">
+                    <controls:StrokeIcon Symbol="close" Width="12" Height="12" />
+                  </Button>
+                </Grid>
+                <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryForeground}" FontSize="11" />
+                <TextBlock Text="{Binding Reason}" IsVisible="{Binding HasReason}" TextWrapping="Wrap" Foreground="{Binding StatusColor}" FontSize="11" />
+                <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding HasRetryText}" VerticalAlignment="Center">
+                  <controls:StrokeIcon Symbol="refresh" Width="14" Height="14" Foreground="{DynamicResource WarningForeground}" />
+                  <TextBlock Text="{Binding RetryText}" Foreground="{DynamicResource WarningForeground}" FontSize="11" VerticalAlignment="Center" />
+                </StackPanel>
+                <TextBlock Text="{Binding CheckedText}" Foreground="{DynamicResource MutedForeground}" FontSize="10" />
+                <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding HasTraffic}" VerticalAlignment="Center">
+                  <Border Classes="flow" Classes.active="{Binding HasTraffic}" Padding="6,2" CornerRadius="2" Background="{DynamicResource ChartBackground}" ToolTip.Tip="端口转发现有数据经过">
+                    <controls:StrokeIcon Symbol="flow" Width="16" Height="16" StrokeThickness="1.4" Foreground="{DynamicResource SuccessForeground}" />
+                  </Border>
+                  <TextBlock Text="{Binding TrafficText}" FontSize="10" FontFamily="Consolas" Foreground="{DynamicResource SecondaryForeground}" VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Button Content="{Binding ActionText}" Command="{Binding ToggleCommand}" />
+                  <Button Content="检测" Classes="flat" Command="{Binding CheckCommand}" />
+                  <Button Name="EditTunnelRule" Content="编辑" Classes="flat" Command="{Binding EditCommand}" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+
+    <Border Grid.Row="3" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,1,0,0" Background="{DynamicResource PanelBackground}" Padding="12,8">
+      <TextBlock Text="同一主机、SSH 端口和账号的标签共享隧道状态，可在任一标签启停；最后一个连接断开时释放。每 10 秒检测 TCP 可达性：绿色连通，红色失败，灰色停止。开启失败自动重试后，未建立的监听会按间隔重新拉起，仍在监听的规则会定期复检目标连通性。"
+                 TextWrapping="Wrap" FontSize="10" Foreground="{DynamicResource MutedForeground}" />
+    </Border>
+  </Grid>
+</Window>

@@ -374,7 +374,7 @@ public sealed class WorkspaceTests
             applicationLock.Password = "test-live-lock"; await applicationLock.UnlockCommand.ExecuteAsync(null);
             Assert.False(applicationLock.IsLocked); Assert.True(first.IsEffectivelyVisible); Assert.True(first.IsLive);
             await Until(() => selected.Monitor.Hostname == "fixture-linux");
-            Assert.False(selected.ShowTunnels);
+
             await Until(() => selected.Tunnels[0].State == TunnelState.Connected && selected.Tunnels[1].State == TunnelState.Failed);
             Assert.Equal("#73C991", selected.Tunnels[0].StatusColor);
             Assert.Equal("#F48771", selected.Tunnels[1].StatusColor);
@@ -404,10 +404,12 @@ public sealed class WorkspaceTests
             var localPane = fileWindow.GetVisualDescendants().OfType<LocalFileBrowserView>().Single();
             fileWindow.MouseWheel(localPane.TranslatePoint(new Point(100, 100), fileWindow)!.Value, new Vector(0, 1), RawInputModifiers.Control);
             Assert.Equal(15, first.FontSize);
-            Assert.False(workspace.FindControl<Border>("TunnelPanel")!.IsVisible);
+            Assert.Null(workspace.FindControl<Border>("TunnelPanel"));            // 隧道已拆成独立窗口
             Assert.Equal(Color.Parse("#F48771"), Assert.IsAssignableFrom<ISolidColorBrush>(workspace.FindControl<Button>("TunnelButton")!.Foreground).Color);
-            selected.ToggleTunnelsCommand.Execute(null); Assert.True(selected.ShowTunnels);
-            selected.ToggleTunnelsCommand.Execute(null); Assert.False(selected.ShowTunnels);
+            workspace.FindControl<Button>("TunnelButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await Task.Delay(120);
+            var tunnelWindow = window.OwnedWindows.Single(w => w.Title?.StartsWith("端口转发") == true);
+            Assert.NotNull(tunnelWindow);
             Assert.Equal("已连接", selected.Status);
             selected.Commands.Input = "pwd"; await selected.Commands.SendCommand.ExecuteAsync(null);
             await Until(() => Screen(first).Contains("received: pwd")); Assert.Equal("pwd", selected.Commands.History[0].Text);
@@ -416,7 +418,7 @@ public sealed class WorkspaceTests
             await vm.ConnectCommand.ExecuteAsync(profile); Assert.Equal(2, vm.Tabs.Count);
             var secondTab = vm.SelectedTab!;
             Assert.Equal(14, secondTab.FontSize);
-            Assert.False(secondTab.ShowTunnels);
+
             await Until(() => secondTab.Tunnels[0].State == TunnelState.Connected);
             Assert.Equal("#73C991", secondTab.Tunnels[0].StatusColor);
             Assert.Equal(selected.Tunnels[1].Reason, secondTab.Tunnels[1].Reason);

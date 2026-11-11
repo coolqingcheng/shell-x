@@ -16,6 +16,7 @@ public partial class TunnelViewModel(TunnelDefinition definition, Func<TunnelVie
     [ObservableProperty] private DateTimeOffset? _checkedAt;
     [ObservableProperty] private bool _hasTraffic;
     [ObservableProperty] private string _trafficText = "";
+    [ObservableProperty] private string _retryText = "";
     public string Status => State switch
     {
         TunnelState.Starting => "正在启动", TunnelState.Checking => "正在检测",
@@ -28,6 +29,7 @@ public partial class TunnelViewModel(TunnelDefinition definition, Func<TunnelVie
         TunnelState.Starting or TunnelState.Checking or TunnelState.Unverified => "#D7BA7D", _ => "#858585"
     };
     public bool HasReason => !string.IsNullOrEmpty(Reason);
+    public bool HasRetryText => !string.IsNullOrEmpty(RetryText);
     public string CheckedText => CheckedAt.HasValue ? "最近检测 " + CheckedAt.Value.ToLocalTime().ToString("HH:mm:ss") : "";
     public bool IsBusy => State is TunnelState.Starting or TunnelState.Checking;
     private bool CanChange => !IsBusy;
@@ -40,6 +42,7 @@ public partial class TunnelViewModel(TunnelDefinition definition, Func<TunnelVie
         ToggleCommand.NotifyCanExecuteChanged(); RemoveCommand.NotifyCanExecuteChanged(); CheckCommand.NotifyCanExecuteChanged(); EditCommand.NotifyCanExecuteChanged();
     }
     partial void OnReasonChanged(string value) => OnPropertyChanged(nameof(HasReason));
+    partial void OnRetryTextChanged(string value) => OnPropertyChanged(nameof(HasRetryText));
     partial void OnCheckedAtChanged(DateTimeOffset? value) => OnPropertyChanged(nameof(CheckedText));
     public void Apply(TunnelStatus value)
     {
@@ -49,6 +52,15 @@ public partial class TunnelViewModel(TunnelDefinition definition, Func<TunnelVie
         var active = value.SentRate > 0 || value.ReceivedRate > 0;
         HasTraffic = active;
         TrafficText = active ? $"↑ {TunnelSpeed.Format(value.SentRate)}   ↓ {TunnelSpeed.Format(value.ReceivedRate)}" : "";
+    }
+    /// <summary>安排下一次自动重试并显示倒计时；传 null 表示不再重试。</summary>
+    /// <param name="next">下一次重试时间；为空表示取消。</param>
+    /// <param name="probe">为 true 表示监听仍在、重连目标做连通复检，否则重新建立监听。</param>
+    public void SetRetry(DateTimeOffset? next, bool probe = false)
+    {
+        if (next is null) { RetryText = ""; return; }
+        var remain = (int)Math.Ceiling((next.Value - DateTimeOffset.Now).TotalSeconds);
+        RetryText = remain > 0 ? (probe ? $"{remain} 秒后重新检测" : $"{remain} 秒后自动重试") : (probe ? "正在重新检测…" : "正在自动重试…");
     }
     [RelayCommand(CanExecute = nameof(CanChange))] private Task ToggleAsync() => toggle(this);
     [RelayCommand(CanExecute = nameof(CanChange))] private Task RemoveAsync() => remove(this);

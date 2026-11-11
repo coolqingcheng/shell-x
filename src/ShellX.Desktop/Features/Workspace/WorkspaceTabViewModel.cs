@@ -35,6 +35,9 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
     private CancellationTokenSource? _connection;
     private CancellationTokenSource? _reconnectCancellation;
     private Task _reconnectTask = Task.CompletedTask;
+    private CancellationTokenSource? _tunnelRetryCancellation;
+    // 每条规则的下一次重试时间，避免失败后高频反复拉起。
+    private readonly Dictionary<Guid, DateTimeOffset> _tunnelRetryAt = [];
     private ConnectionSecret? _reconnectSecret;
     private bool _autoReconnectEnabled;
     private int _reconnectIntervalSeconds = 5;
@@ -65,7 +68,6 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty] private bool _isConnecting;
     [ObservableProperty] private bool _isConnected;
     [ObservableProperty] private bool _isReconnecting;
-    [ObservableProperty] private bool _showTunnels;
     [ObservableProperty] private bool _highlightTerminalText = true;
     [ObservableProperty] private string _status = "未连接";
     [ObservableProperty] private double _fontSize = 14;
@@ -80,8 +82,8 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
     public string TunnelStatusColor => Tunnels.Any(t => t.State == TunnelState.Failed) ? "#F48771"
         : Tunnels.Any(t => t.State is TunnelState.Starting or TunnelState.Checking or TunnelState.Unverified) ? "#D7BA7D"
         : Tunnels.Any(t => t.State == TunnelState.Connected) ? "#73C991" : "#858585";
-    public string TunnelTooltip => Tunnels.Count == 0 ? "端口转发 · 点击管理隧道"
-        : "端口转发 · 点击查看详情\n" + string.Join("\n", Tunnels.Select(t => $"{t.Name}：{t.Status}" + (t.State == TunnelState.Failed && t.HasReason ? " · " + t.Reason : "")));
+    public string TunnelTooltip => Tunnels.Count == 0 ? "端口转发 · 点击打开隧道窗口"
+        : "端口转发 · 点击打开隧道窗口\n" + string.Join("\n", Tunnels.Select(t => $"{t.Name}：{t.Status}" + (t.State == TunnelState.Failed && t.HasReason ? " · " + t.Reason : "")));
     public WorkspaceTabViewModel(ConnectionProfile profile, IRemoteSessionFactory factory, IDialogService dialogs,
         ILoggerFactory logs, Func<Task<ConnectionSecret?>> getSecret, Func<HostKeyChallenge, Task<bool>> verify,
         Func<ConnectionProfile, Task> save, Func<WorkspaceTabViewModel, Task> close, AppSettings settings, ILocalFileSystem localFiles,
@@ -108,6 +110,7 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
             NotifyTunnelStatus();
         };
         ApplySettings(settings); RebuildTunnels();
+        EnsureTunnelRetryLoop();
     }
     private SharedMonitorRegistry.Lease AcquireMonitor() => _monitors.Acquire(Profile, () => IsSelected,
         async path => await Files.NavigateAsync(path), _saveProcessSort);
@@ -296,7 +299,6 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
         OnPropertyChanged(nameof(Name));
     }
     [RelayCommand] private Task CloseAsync() => _close(this);
-    [RelayCommand] private void ToggleTunnels() => ShowTunnels = !ShowTunnels;
     [RelayCommand] private void IncreaseFont() => FontSize = Math.Min(28, FontSize + 1);
     [RelayCommand] private void DecreaseFont() => FontSize = Math.Max(10, FontSize - 1);
     [RelayCommand]
@@ -447,10 +449,81 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
         catch (OperationCanceledException) when (_disposed || !IsConnected) { }
         catch (Exception ex) { await _dialogs.ShowErrorAsync((saved ? "规则已保存，但应用失败：\n" : "规则未能保存：\n") + ex.Message); }
     }
+    /// <summary>隧道窗口的“失败自动重试”开关：写回连接配置并持久化。</summary>
+    public async Task SetTunnelAutoRetryAsync(bool enabled, int seconds)
+    {
+        var updated = Profile with { TunnelAutoRetry = enabled, TunnelRetrySeconds = Math.Clamp(seconds, 3, 600) };
+        if (updated.TunnelAutoRetry == Profile.TunnelAutoRetry && updated.TunnelRetrySeconds == Profile.TunnelRetrySeconds) return;
+        await _save(updated); UpdateProfile(updated);
+    }
+    private void EnsureTunnelRetryLoop()
+    {
+        if (_disposed || _tunnelRetryCancellation != null) return;
+        var cancellation = _tunnelRetryCancellation = new CancellationTokenSource();
+        _ = TunnelRetryLoopAsync(cancellation.Token);   // 后台循环：关闭标签时只取消，不等待它结束
+    }
+    /// <summary>定时重试：监听没建立的重新拉起，监听仍在的复检目标连通性。</summary>
+    private async Task TunnelRetryLoopAsync(CancellationToken ct)
+    {
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(1), ct);
+                if (_disposed) break;
+                try { await RetryFailedTunnelsAsync(ct); }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { break; }
+                catch (Exception ex) { _log.LogWarning(ex, "隧道自动重试异常 {ConnectionId}", Profile.Id); }
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+    private async Task RetryFailedTunnelsAsync(CancellationToken ct)
+    {
+        var session = Session;
+        var now = DateTimeOffset.Now;
+        if (session == null || !IsConnected || !Profile.TunnelAutoRetry)
+        {
+            foreach (var tunnel in Tunnels) { _tunnelRetryAt.Remove(tunnel.Definition.Id); tunnel.SetRetry(null); }
+            return;
+        }
+        var interval = Math.Clamp(Profile.TunnelRetrySeconds, 3, 600);
+        foreach (var tunnel in Tunnels.ToArray())
+        {
+            if (ct.IsCancellationRequested) return;
+            if (tunnel.State != TunnelState.Failed || tunnel.IsBusy)
+            {
+                _tunnelRetryAt.Remove(tunnel.Definition.Id); tunnel.SetRetry(null); continue;
+            }
+            // 监听仍在说明只是目标不通，复检连通性即可；否则重新建立监听。
+            var probe = tunnel.Running;
+            if (!_tunnelRetryAt.TryGetValue(tunnel.Definition.Id, out var next))
+            {
+                next = now.AddSeconds(interval); _tunnelRetryAt[tunnel.Definition.Id] = next;
+                var reason = tunnel.HasReason ? tunnel.Reason : "未知原因";
+                Terminal.TryLog($"隧道“{tunnel.Name}”{(probe ? "连通检测失败" : "启动失败")}，{interval} 秒后自动重试：{reason}", error: true);
+            }
+            if (next > now) { tunnel.SetRetry(next, probe); continue; }
+            _tunnelRetryAt[tunnel.Definition.Id] = now.AddSeconds(interval); tunnel.SetRetry(null);
+            try
+            {
+                if (probe) await session.Tunnels.CheckAsync(tunnel.Definition.Id, ct);
+                else await session.Tunnels.StartAsync(tunnel.Definition, ct);
+            }
+            catch (Exception ex) { _log.LogWarning(ex, "隧道自动重试失败 {TunnelId}", tunnel.Definition.Id); }
+            if (!ReferenceEquals(Session, session)) return;
+            var status = session.Tunnels.GetStatus(tunnel.Definition.Id);
+            tunnel.Apply(status);
+            if (status.State == TunnelState.Failed)
+                Terminal.TryLog($"隧道“{tunnel.Name}”重试仍然失败：{status.Reason}", error: true);
+        }
+    }
     public async ValueTask DisposeAsync()
     {
         if (_disposed) return;
         _disposed = true;
+        // 只取消不等待：重试循环的续体排在界面线程上，在这里等待会与界面线程互相等待。
+        _tunnelRetryCancellation?.Cancel();
         await DisconnectAsync(); await _monitorLease.DisposeAsync(); await _sessions.DisposeAsync();
         await Terminal.DisposeAsync(); Files.Dispose();
         Disposed?.Invoke(this, EventArgs.Empty);

@@ -6,6 +6,7 @@ using ShellX.Desktop.Features.Shell;
 using ShellX.Core.Services;
 using ShellX.Desktop.Features.Ports;
 using ShellX.Desktop.Features.Services;
+using ShellX.Desktop.Features.Tunnels;
 using ShellX.Desktop.Services;
 
 namespace ShellX.Desktop.Features.Workspace;
@@ -15,6 +16,7 @@ public partial class WorkspaceView : UserControl
     private ServiceWindow? _serviceWindow;
     private Window? _fileWindow;
     private PortUsageWindow? _portsWindow;
+    private TunnelWindow? _tunnelWindow;
 
     public WorkspaceView()
     {
@@ -38,6 +40,7 @@ public partial class WorkspaceView : UserControl
         _serviceWindow?.Close();
         _fileWindow?.Close();
         _portsWindow?.Close();
+        _tunnelWindow?.Close();
     }
 
     private async void CommandKeyDown(object? sender, KeyEventArgs e)
@@ -78,6 +81,18 @@ public partial class WorkspaceView : UserControl
         _portsWindow.Closed += (_, _) => _portsWindow = null;
         if (TopLevel.GetTopLevel(this) is Window owner) _portsWindow.Show(owner);
         else _portsWindow.Show();
+    }
+    /// <summary>端口转发的独立窗口：非模态，同一连接重复打开时激活已有窗口。</summary>
+    private void OpenTunnels(object? sender, RoutedEventArgs e)
+    {
+        if (_vm == null) return;
+        if (_tunnelWindow is { IsVisible: true }) { _tunnelWindow.Activate(); return; }
+        var target = $"{_vm.Name} · {_vm.Profile.Host}:{_vm.Profile.Port}";
+        var viewModel = new TunnelWindowViewModel(_vm, target);
+        _tunnelWindow = new TunnelWindow(viewModel);
+        _tunnelWindow.Closed += (_, _) => _tunnelWindow = null;
+        if (TopLevel.GetTopLevel(this) is Window owner) _tunnelWindow.Show(owner);
+        else _tunnelWindow.Show();
     }
     private async void OpenFileManager(object? sender, RoutedEventArgs e)
     {

@@ -56,11 +56,21 @@ public sealed class SessionTerminalChannel : ITerminalChannel, IAsyncDisposable
     }
 
     public ValueTask LogAsync(string message, bool error = false, CancellationToken cancellationToken = default)
+        => _output.Writer.WriteAsync(Format(message, error), cancellationToken);
+
+    /// <summary>写一条本地日志但不等待消费者；终端没有读取方或已关闭时直接丢弃，不拖住调用方。</summary>
+    public bool TryLog(string message, bool error = false)
     {
-        // A server error must never inject terminal control sequences into a local log line.
+        try { return _output.Writer.TryWrite(Format(message, error)); }
+        catch (ChannelClosedException) { return false; }
+    }
+
+    // A server error must never inject terminal control sequences into a local log line.
+    private static byte[] Format(string message, bool error)
+    {
         var clean = new string(message.Where(c => !char.IsControl(c)).Take(600).ToArray());
         var color = error ? "31" : "36";
-        return _output.Writer.WriteAsync(Encoding.UTF8.GetBytes($"\u001b[?47l\u001b[0m\r\n\u001b[{color}m[ShellX {DateTime.Now:HH:mm:ss}] {clean}\u001b[0m\r\n"), cancellationToken);
+        return Encoding.UTF8.GetBytes($"\u001b[?47l\u001b[0m\r\n\u001b[{color}m[ShellX {DateTime.Now:HH:mm:ss}] {clean}\u001b[0m\r\n");
     }
 
     public void Resize(int columns, int rows)

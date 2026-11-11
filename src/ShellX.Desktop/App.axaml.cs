@@ -93,6 +93,9 @@ public sealed partial class App : Application
                 catch (Exception ex) { Serilog.Log.Error(ex, "MCP HTTP 配置更新失败"); }
             };
             tray.Initialize(Restore, ShowManager, ExitApplication);
+            // 重复启动时把已在运行的窗口带到前台，不再开第二个实例。
+            Program.ActivateRequested = Restore;
+            Program.ListenSingleInstance();
             desktop.Exit += (_, _) => { updates.ApplyOnExit(); mcpServer.Dispose(); tray.Dispose(); _services.Dispose(); Log.CloseAndFlush(); };
         }
         base.OnFrameworkInitializationCompleted();

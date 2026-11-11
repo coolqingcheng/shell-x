@@ -127,30 +127,48 @@ public sealed class WorkspaceTabTunnelTests
         }
     }
     [AvaloniaFact]
-    public void TunnelPanelHasStartAllAndCornerDeleteButtons()
+    public void TunnelWindowHasStartAllAndCornerDeleteButtons()
     {
         var dialogs = new TestDialogs();
         var tab = NewTab(Profile(), dialogs).GetAwaiter().GetResult();
-        var view = new WorkspaceView { DataContext = tab };
-        var window = new Window { Content = view, Width = 1380, Height = 900 };
-        tab.ShowTunnels = true;                    // 面板展开后才能看到规则行
+        var window = new TunnelWindow(new TunnelWindowViewModel(tab, "隧道测试 · 127.0.0.1:22"));
         window.Show();
         try
         {
-            Assert.NotNull(view.FindControl<Button>("StartAllTunnelsButton"));
-            Assert.NotNull(view.FindControl<TextBox>("TunnelSearchBox"));
-            var stopAll = view.FindControl<Button>("StopAllTunnelsButton");
+            Assert.NotNull(window.FindControl<Button>("StartAllTunnelsButton"));
+            Assert.NotNull(window.FindControl<TextBox>("TunnelSearchBox"));
+            var stopAll = window.FindControl<Button>("StopAllTunnelsButton");
             Assert.NotNull(stopAll);
             Assert.False(stopAll!.IsEnabled);                                 // 未连接/无运行隧道时不可点
             var tunnel = Assert.Single(tab.Tunnels);
             // 行右上角是小叉，且不再有“删除规则”文字按钮
-            var remove = view.GetVisualDescendants().OfType<Button>()
+            var remove = window.GetVisualDescendants().OfType<Button>()
                 .First(b => ReferenceEquals(b.Command, tunnel.RemoveCommand));
             Assert.Contains(remove.GetVisualDescendants().OfType<Controls.StrokeIcon>(), icon => icon.Symbol == "close");
-            Assert.DoesNotContain(view.GetVisualDescendants().OfType<TextBlock>(), text => text.Text == "删除规则");
-            Assert.Contains(view.GetVisualDescendants().OfType<Button>(), b => b.Name == "EditTunnelRule");   // 编辑入口保留（模板内名称走视觉树）
+            Assert.DoesNotContain(window.GetVisualDescendants().OfType<TextBlock>(), text => text.Text == "删除规则");
+            Assert.Contains(window.GetVisualDescendants().OfType<Button>(), b => b.Name == "EditTunnelRule");   // 编辑入口保留（模板内名称走视觉树）
+            Assert.NotNull(window.FindControl<CheckBox>("AutoRetryToggle"));   // 失败自动重试开关
         }
         finally { window.Close(); tab.DisposeAsync().GetAwaiter().GetResult(); }
+    }
+
+    [AvaloniaFact]
+    public async Task AutoRetrySwitchPersistsIntoTheConnectionProfile()
+    {
+        var dialogs = new TestDialogs();
+        var tab = NewTab(Profile(), dialogs).GetAwaiter().GetResult();
+        try
+        {
+            var viewModel = new TunnelWindowViewModel(tab, "隧道测试");
+            Assert.False(viewModel.AutoRetry);
+            viewModel.AutoRetry = true;
+            viewModel.RetrySeconds = 20;
+            for (var i = 0; i < 50 && !tab.Profile.TunnelAutoRetry; i++) await Task.Delay(20);
+            Assert.True(tab.Profile.TunnelAutoRetry);
+            Assert.Equal(20, tab.Profile.TunnelRetrySeconds);
+            viewModel.Dispose();
+        }
+        finally { await tab.DisposeAsync(); }
     }
 
 
@@ -192,6 +210,71 @@ public sealed class WorkspaceTabTunnelTests
             _statuses[id] = status;
             StatusChanged?.Invoke(this, status);
         }
+    }
+
+    [AvaloniaFact]
+    public async Task AutoRetryRetriesFailedTunnelOnTheConfiguredInterval()
+    {
+        var dialogs = new TestDialogs();
+        var tab = await NewTab(Profile(), dialogs);
+        var service = new FailingTunnelService(tab.Tunnels.Select(t => t.Definition));
+        try
+        {
+            tab.Session = new TestSession(service);
+            tab.IsConnected = true;
+            var tunnel = tab.Tunnels[0];
+            tunnel.Apply(new(tunnel.Definition.Id, TunnelState.Failed, false, "端口被占用"));
+
+            await tab.SetTunnelAutoRetryAsync(true, 3);
+
+            for (var i = 0; i < 50 && tunnel.RetryText.Length == 0; i++) await Task.Delay(100);
+            Assert.Contains("秒后自动重试", tunnel.RetryText);          // 界面上给出倒计时提示
+            for (var i = 0; i < 120 && service.StartAttempts == 0; i++) await Task.Delay(100);
+            Assert.True(service.StartAttempts >= 1);                     // 到点后自动重新拉起
+        }
+        finally { tab.IsConnected = false; tab.Session = null; await tab.DisposeAsync(); }
+    }
+
+    [AvaloniaFact]
+    public async Task AutoRetryOffLeavesFailedTunnelAlone()
+    {
+        var dialogs = new TestDialogs();
+        var tab = await NewTab(Profile(), dialogs);
+        var service = new FailingTunnelService(tab.Tunnels.Select(t => t.Definition));
+        try
+        {
+            tab.Session = new TestSession(service);
+            tab.IsConnected = true;
+            var tunnel = tab.Tunnels[0];
+            tunnel.Apply(new(tunnel.Definition.Id, TunnelState.Failed, false, "端口被占用"));
+            for (var i = 0; i < 25; i++) await Task.Delay(100);
+            Assert.Equal(0, service.StartAttempts);                      // 开关关闭时不自动重试
+            Assert.Equal("", tunnel.RetryText);
+        }
+        finally { tab.IsConnected = false; tab.Session = null; await tab.DisposeAsync(); }
+    }
+
+    private sealed class FailingTunnelService : ITunnelService
+    {
+        private readonly Dictionary<Guid, TunnelStatus> _statuses = new();
+        public int StartAttempts { get; private set; }
+        public event EventHandler<TunnelStatus>? StatusChanged;
+        public FailingTunnelService(IEnumerable<TunnelDefinition> definitions)
+        {
+            foreach (var definition in definitions)
+                _statuses[definition.Id] = new(definition.Id, TunnelState.Failed, false, "端口被占用");
+        }
+        public bool IsRunning(Guid id) => false;
+        public TunnelStatus GetStatus(Guid id) => _statuses.GetValueOrDefault(id) ?? new(id, TunnelState.Stopped, false);
+        public Task StartAsync(TunnelDefinition definition, CancellationToken cancellationToken = default)
+        {
+            StartAttempts++;
+            var status = new TunnelStatus(definition.Id, TunnelState.Failed, false, "端口被占用");
+            _statuses[definition.Id] = status; StatusChanged?.Invoke(this, status);
+            return Task.CompletedTask;
+        }
+        public Task StopAsync(Guid id, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task CheckAsync(Guid id, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
     private sealed class TestSession : IRemoteSession
