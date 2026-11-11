@@ -1,0 +1,122 @@
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Headless.XUnit;
+using Avalonia.Media;
+using Avalonia.Media.Imaging;
+using Avalonia.VisualTree;
+using Microsoft.Extensions.Logging.Abstractions;
+using ShellX.Core.Connections;
+using ShellX.Core.Files;
+using ShellX.Core.Security;
+using ShellX.Core.Settings;
+using ShellX.Core.Tunnels;
+using ShellX.Desktop.Features.Security;
+using ShellX.Desktop.Features.Shell;
+using ShellX.Desktop.Features.Workspace;
+using ShellX.Desktop.Services;
+using ShellX.Infrastructure.Files;
+using ShellX.Infrastructure.Persistence;
+using ShellX.Infrastructure.Security;
+using ShellX.Infrastructure.Ssh;
+
+namespace ShellX.Desktop.Tests;
+
+/// <summary>主窗口顶部：图标按钮的悬浮背景是正方形且不贴边，标签的关闭按钮固定在右侧。</summary>
+public sealed class MainWindowHeaderTests
+{
+    [AvaloniaFact]
+    public async Task HeaderIconButtonsHaveSquareHoverAreaAndTabCloseButtonSitsAtTheRightEdge()
+    {
+        var root = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "shellx-header-" + Guid.NewGuid().ToString("N"))).FullName;
+        MainWindowViewModel? vm = null;
+        Window? window = null;
+        try
+        {
+            var profile = new ConnectionProfile { Name = "短名字", Host = "127.0.0.1", Port = 22, Username = "root" };
+            var dialogs = new Dialogs();
+            vm = new MainWindowViewModel(new Connections(profile), new Credentials(), new Hosts(), new Settings(), new SshSessionFactory(NullLoggerFactory.Instance),
+                dialogs, NullLoggerFactory.Instance, new LocalFileSystem(root), new AppLockService(new LockPasswordHasher()), new JsonConfigurationExporter(new(root)));
+            window = new MainWindow { DataContext = vm, Width = 1380, Height = 900 };
+            window.Show();
+            await Task.Delay(120);
+
+            // 顶部图标按钮：悬浮背景是正方形，左右都留出间距，不再和相邻元素贴在一起。
+            foreach (var key in new[] { "OpenConnectionManager", "ResetLayout" })
+            {
+                var button = window.FindControl<Button>(key)!;
+                Assert.Equal(button.Bounds.Width, button.Bounds.Height);
+                Assert.True(button.Bounds.Width >= 24 && button.Bounds.Width <= 32, $"{key} 的悬浮背景不是正方形：{button.Bounds}");
+            }
+            var manager = window.FindControl<Button>("OpenConnectionManager")!;
+            var tabs = window.FindControl<ListBox>("ConnectionTabs")!;
+            var header = (Control)manager.Parent!;
+            var iconRight = manager.TranslatePoint(new Point(manager.Bounds.Width, 0), window)!.Value.X;
+            var tabsLeft = tabs.TranslatePoint(new Point(0, 0), window)!.Value.X;
+            var headerLeft = header.TranslatePoint(new Point(0, 0), window)!.Value.X;
+            var iconLeft = manager.TranslatePoint(new Point(0, 0), window)!.Value.X;
+            Assert.True(iconLeft - headerLeft >= 5, $"连接管理器图标贴住了左侧分隔线：{iconLeft - headerLeft}");
+            Assert.True(tabsLeft - iconRight >= 5, $"连接管理器图标和标签挨太近：{tabsLeft - iconRight}");
+
+            // 标签：关闭按钮固定在标签最右侧，标题与关闭按钮之间留出空白。
+            var tab = new WorkspaceTabViewModel(profile, new SshSessionFactory(NullLoggerFactory.Instance), dialogs, NullLoggerFactory.Instance,
+                () => Task.FromResult<ConnectionSecret?>(null), _ => Task.FromResult(true), _ => Task.CompletedTask, _ => Task.CompletedTask,
+                new AppSettings(), new LocalFileSystem(root));
+            vm.Tabs.Add(tab);
+            await Task.Delay(150);
+            var item = tabs.GetVisualDescendants().OfType<ListBoxItem>().Single();
+            var close = item.GetVisualDescendants().OfType<Button>().Single(button => ReferenceEquals(button.Command, tab.CloseCommand));
+            var title = item.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Text == "短名字");
+            var closeLeft = close.TranslatePoint(new Point(0, 0), item)!.Value.X;
+            var closeRight = close.TranslatePoint(new Point(close.Bounds.Width, 0), item)!.Value.X;
+            var titleLeft = title.TranslatePoint(new Point(0, 0), item)!.Value.X;
+            // 标题文本块会被拉伸到标签右侧，按实际文字宽度算中间的空白。
+            title.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            var textWidth = title.DesiredSize.Width;
+            Assert.True(item.Bounds.Width - closeRight < 12, $"关闭按钮没有贴到标签右侧：{item.Bounds.Width - closeRight}");
+            Assert.True(closeLeft - titleLeft - textWidth > 20, $"关闭按钮离标题太近：{closeLeft - titleLeft - textWidth}");
+            if (Environment.GetEnvironmentVariable("SHELLX_PREVIEW_PATH") is { Length: > 0 } preview)
+            {
+                using var bitmap = new RenderTargetBitmap(new PixelSize((int)window.ClientSize.Width, 120), new Vector(96, 96));
+                bitmap.Render(window);
+                bitmap.Save(Path.Combine(Path.GetDirectoryName(preview)!, "main-header.png"), PngBitmapEncoderOptions.Default);
+            }
+        }
+        finally { if (vm != null) await vm.ShutdownAsync(); window?.Close(); Directory.Delete(root, true); }
+    }
+
+    private sealed class Connections(ConnectionProfile profile) : IConnectionRepository
+    {
+        public Task<IReadOnlyList<ConnectionProfile>> LoadAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ConnectionProfile>>([profile]);
+        public Task SaveAsync(IReadOnlyList<ConnectionProfile> connections, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+    private sealed class Credentials : ICredentialStore
+    {
+        public Task<ConnectionSecret?> ReadAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<ConnectionSecret?>(null);
+        public Task SaveAsync(Guid id, ConnectionSecret secret, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+    private sealed class Hosts : IHostKeyStore
+    {
+        public Task<string?> GetAsync(string host, int port, CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
+        public Task TrustAsync(HostKeyChallenge host, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+    private sealed class Settings : ISettingsStore
+    {
+        public AppSettings Value { get; private set; } = new();
+        public Task<AppSettings> LoadAsync(CancellationToken cancellationToken = default) => Task.FromResult(Value);
+        public Task SaveAsync(AppSettings settings, CancellationToken cancellationToken = default) { Value = settings; return Task.CompletedTask; }
+    }
+    private sealed class Dialogs : IDialogService
+    {
+        public Task<bool> ConfirmAsync(string title, string message, bool danger = false) => Task.FromResult(true);
+        public Task ShowErrorAsync(string message) => Task.CompletedTask;
+        public Task<ConnectionEditResult?> EditConnectionAsync(ConnectionProfile? profile, ConnectionSecret? secret) => Task.FromResult<ConnectionEditResult?>(null);
+        public Task<string?> PromptAsync(string title, string label, string value = "", bool secret = false) => Task.FromResult<string?>(null);
+        public Task<IReadOnlyList<string>> PickUploadAsync() => Task.FromResult<IReadOnlyList<string>>([]);
+        public Task<string?> PickDownloadAsync(string name) => Task.FromResult<string?>(null);
+        public Task EditFileAsync(TextDocument document, Func<TextDocument, string, Task<TextDocument>> save) => Task.CompletedTask;
+        public Task<int?> PermissionsAsync(RemoteEntry entry) => Task.FromResult<int?>(null);
+        public Task<TunnelDefinition?> EditTunnelAsync() => Task.FromResult<TunnelDefinition?>(null);
+        public Task<AppSettings?> SettingsAsync(AppSettings settings) => Task.FromResult<AppSettings?>(null);
+    }
+}
