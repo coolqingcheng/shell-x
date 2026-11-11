@@ -44,9 +44,17 @@ ShellX.Desktop.Services.WindowTitles.ApplyVersion(this);
         _layoutVm.LayoutChanged += ApplyLayout;
         ApplyLayout(_layoutVm.LayoutSettings);
     }
+    /// <summary>面板收起后保留的窄把手宽度。</summary>
+    private const double CollapsedPaneWidth = 26;
+
     private void ApplyLayout(AppSettings settings)
     {
-        RootLayout.ColumnDefinitions[0].Width = new GridLength(Math.Clamp(settings.MonitorPaneWidth, 160, 420), GridUnitType.Pixel);
+        var collapsed = settings.MonitorPaneCollapsed;
+        // 收起时压缩成一条窄把手并隐藏分隔条；展开后恢复此前的宽度。
+        RootLayout.ColumnDefinitions[0].Width = new GridLength(
+            collapsed ? CollapsedPaneWidth : Math.Clamp(settings.MonitorPaneWidth, 160, 420), GridUnitType.Pixel);
+        RootLayout.ColumnDefinitions[1].Width = new GridLength(collapsed ? 0 : 4, GridUnitType.Pixel);
+        MonitorSplitter.IsVisible = !collapsed;
     }
     private async void MonitorSplitterDragCompleted(object? sender, VectorEventArgs e)
     {

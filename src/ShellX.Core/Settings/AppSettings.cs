@@ -23,6 +23,8 @@ public sealed record AppSettings
     public ProcessSortColumn ProcessSortColumn { get; init; } = ProcessSortColumn.Cpu;
     public bool ProcessSortDescending { get; init; } = true;
     public double MonitorPaneWidth { get; init; } = 220;
+    /// <summary>左侧服务器状态面板是否收起。</summary>
+    public bool MonitorPaneCollapsed { get; init; }
     public double TerminalPaneStar { get; init; } = 1.3;
     public double LocalPaneStar { get; init; } = 1;
     public double RemoteTreeWidth { get; init; } = 150;

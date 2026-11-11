@@ -498,6 +498,46 @@ public sealed class WorkspaceTests
         }
         finally { window.Close(); }
     }
+    [AvaloniaFact]
+    public async Task MonitorPaneCollapsesIntoAHandleAndRestoresItsWidth()
+    {
+        var localDirectory = Path.Combine(Path.GetTempPath(), "shellx-collapse-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(localDirectory);
+        var settings = new Settings();
+        var profile = new ConnectionProfile { Name = "折叠测试", Host = "127.0.0.1", Port = 22, Username = "root" };
+        var vm = new MainWindowViewModel(new Connections(profile), new Credentials(), new Hosts(), settings, new SshSessionFactory(NullLoggerFactory.Instance), new Dialogs(), NullLoggerFactory.Instance, new LocalFileSystem(localDirectory), new AppLockService(new LockPasswordHasher()), new JsonConfigurationExporter(new(localDirectory)));
+        var window = new MainWindow { DataContext = vm };
+        window.Show();
+        try
+        {
+            await vm.InitializeAsync();
+            var layout = window.FindControl<Grid>("RootLayout")!;
+            Assert.Equal(220, layout.ColumnDefinitions[0].Width.Value);
+
+            var collapse = window.FindControl<Button>("CollapseMonitorPane")!;
+            Assert.True(collapse.IsEffectivelyVisible);
+            Assert.Same(vm.ToggleMonitorPaneCommand, collapse.Command);       // 标题栏折叠入口已接上命令
+            collapse.Command!.Execute(null);
+            await Task.Delay(60);
+            Assert.True(vm.IsMonitorPaneCollapsed);
+            Assert.Equal(26, layout.ColumnDefinitions[0].Width.Value);          // 收起后只剩窄把手
+            Assert.True(settings.Value.MonitorPaneCollapsed);                 // 折叠状态被记住
+            Assert.False(collapse.IsEffectivelyVisible);
+
+            var expand = window.FindControl<Button>("ExpandMonitorPane")!;
+            Assert.True(expand.IsEffectivelyVisible);
+            expand.Command!.Execute(null);
+            await Task.Delay(60);
+            Assert.False(vm.IsMonitorPaneCollapsed);
+            Assert.Equal(220, layout.ColumnDefinitions[0].Width.Value);         // 展开后恢复原宽度
+            Assert.False(settings.Value.MonitorPaneCollapsed);
+
+            await vm.ResetLayoutCommand.ExecuteAsync(null);
+            Assert.False(vm.IsMonitorPaneCollapsed);                            // 恢复默认布局会展开面板
+        }
+        finally { window.Close(); }
+    }
+
     private static void Capture(Window window, string name)
     {
         if (Environment.GetEnvironmentVariable("SHELLX_PREVIEW_PATH") is not { Length: > 0 } preview) return;

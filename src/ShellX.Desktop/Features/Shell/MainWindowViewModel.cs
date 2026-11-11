@@ -61,6 +61,8 @@ public partial class MainWindowViewModel : ObservableObject
     [ObservableProperty] private WorkspaceTabViewModel? _selectedTab;
     [ObservableProperty] private string _search = "";
     [ObservableProperty] private string _status = "就绪";
+    /// <summary>左侧服务器状态面板是否收起。</summary>
+    [ObservableProperty] private bool _isMonitorPaneCollapsed;
     [ObservableProperty] private int _connectionCount;
     public bool HasTabs => Tabs.Count > 0;
     public bool HasNoTabs => !HasTabs;
@@ -78,7 +80,7 @@ public partial class MainWindowViewModel : ObservableObject
         {
             var catalog = await _connections.LoadCatalogAsync(); _profiles = catalog.Connections.ToList(); _folders = catalog.Folders.ToList();
             _configurationLoaded = true;
-            _settings = await _settingsStore.LoadAsync(); ThemeService.Apply(_settings.Theme); _applicationLock.Configure(_settings, startup: true); RefreshGroups();
+            _settings = await _settingsStore.LoadAsync(); IsMonitorPaneCollapsed = _settings.MonitorPaneCollapsed; ThemeService.Apply(_settings.Theme); _applicationLock.Configure(_settings, startup: true); RefreshGroups();
         }
         catch (Exception ex) { _applicationLock.ConfigurationFailed(); Status = "配置加载失败"; await _dialogs.ShowErrorAsync("配置未被覆盖，请检查本地配置文件。\n" + ex.Message); }
     }
@@ -722,6 +724,20 @@ public partial class MainWindowViewModel : ObservableObject
         }
         catch (Exception ex) { Status = "布局保存失败：" + ex.Message; }
     }
+    partial void OnIsMonitorPaneCollapsedChanged(bool value)
+    {
+        // 立即同步布局，避免等设置落盘才生效。
+        LayoutChanged?.Invoke(_settings with { MonitorPaneCollapsed = value });
+    }
+
+    /// <summary>收起 / 展开左侧服务器状态面板。</summary>
+    [RelayCommand]
+    private async Task ToggleMonitorPaneAsync()
+    {
+        var collapsed = !IsMonitorPaneCollapsed;
+        IsMonitorPaneCollapsed = collapsed;
+        await SaveLayoutAsync(settings => settings with { MonitorPaneCollapsed = collapsed });
+    }
     public Task SaveMonitorPaneWidthAsync(double width)
         => SaveLayoutAsync(settings => settings with { MonitorPaneWidth = Math.Clamp(width, 160, 420) });
     public Task SaveWorkspaceLayoutAsync(double terminalStar, double lowerStar)
@@ -737,6 +753,7 @@ public partial class MainWindowViewModel : ObservableObject
         return SaveLayoutAsync(settings => settings with
         {
             MonitorPaneWidth = defaults.MonitorPaneWidth,
+            MonitorPaneCollapsed = defaults.MonitorPaneCollapsed,
             TerminalPaneStar = defaults.TerminalPaneStar,
             LocalPaneStar = defaults.LocalPaneStar,
             RemoteTreeWidth = defaults.RemoteTreeWidth
