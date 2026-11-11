@@ -50,7 +50,7 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _isAvailable;
     [ObservableProperty] private bool _showTransfers;
     [ObservableProperty] private double _transferPanelHeight = 180;
-    [ObservableProperty] private bool _showTree;
+    [ObservableProperty] private bool _showTree = true;
     public bool HasActiveTransfers => Transfers.Any(t => t.IsActive);
     public bool ShowTransferTray => !ShowTransfers;
     public string TransferSummary
@@ -120,6 +120,7 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
             var result = await files.ListAsync(path, _sessionToken);
             if (generation != _navigationGeneration || !ReferenceEquals(files, _files)) return;
             Path = result.Path; _all = result.Entries; Filter(); SelectedEntries.Clear(); SelectedEntry = null;
+            await SyncTreeAsync(result.Path);
             RecentPaths.Remove(Path); RecentPaths.Insert(0, Path);
             while (RecentPaths.Count > 30) RecentPaths.RemoveAt(RecentPaths.Count - 1);
             if (addHistory && (_historyIndex < 0 || _history[_historyIndex] != Path))
@@ -145,7 +146,21 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(HasActiveTransfers));
     }
     [RelayCommand] private void ToggleTransfers() => ShowTransfers = !ShowTransfers;
-    [RelayCommand] private void ToggleTree() => ShowTree = !ShowTree;
+    [RelayCommand]
+    private async Task ToggleTreeAsync()
+    {
+        ShowTree = !ShowTree;
+        if (ShowTree) await SyncTreeAsync(Path);
+    }
+
+    /// <summary>目录树跟随当前路径：展开祖先目录并高亮当前目录。</summary>
+    private async Task SyncTreeAsync(string path)
+    {
+        var root = DirectoryRoots.FirstOrDefault();
+        if (root == null) return;
+        root.ClearCurrent();
+        await root.ExpandToAsync(path);
+    }
     [RelayCommand] private Task OpenAsync() => OpenEntryAsync(SelectedEntry);
     public async Task OpenEntryAsync(RemoteEntry? entry)
     {

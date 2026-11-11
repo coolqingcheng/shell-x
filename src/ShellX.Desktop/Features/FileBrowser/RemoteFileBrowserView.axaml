@@ -17,7 +17,9 @@
             <Button Content="权限" Classes="flat" Command="{Binding PermissionsCommand}" FontSize="11" />
           </StackPanel>
         </ScrollViewer>
-        <Button Grid.Column="2" Classes="flat icon" ToolTip.Tip="更多操作" Width="28" Height="28"><controls:StrokeIcon Symbol="more" Width="20" Height="20" />
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2">
+        <Button Classes="flat icon" Command="{Binding ToggleTreeCommand}" ToolTip.Tip="显示 / 隐藏目录树" Width="28" Height="28"><controls:StrokeIcon Symbol="tree" Width="18" Height="18" /></Button>
+        <Button Classes="flat icon" ToolTip.Tip="更多操作" Width="28" Height="28"><controls:StrokeIcon Symbol="more" Width="20" Height="20" />
           <Button.Flyout><MenuFlyout>
             <MenuItem Header="选择文件上传…" Command="{Binding ChooseUploadCommand}" /><MenuItem Header="另存为…" Command="{Binding DownloadAsCommand}" /><Separator />
             <MenuItem Header="重命名    F2" Command="{Binding RenameCommand}" />
@@ -26,6 +28,7 @@
             <MenuItem Header="显示/隐藏目录树" Command="{Binding ToggleTreeCommand}" />
           </MenuFlyout></Button.Flyout>
         </Button>
+        </StackPanel>
       </Grid>
     </Border>
     <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6" Margin="8,5" IsEnabled="{Binding IsAvailable}">

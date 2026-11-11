@@ -49,6 +49,7 @@ public class StrokeIcon : Control
         ["chevron-down"] = "M5,9 L12,16 L19,9",
         ["chevron-left"] = "M15,5 L8,12 L15,19",
         ["chevron-right"] = "M9,5 L16,12 L9,19",
+        ["tree"] = "M5,4 V20 M5,8 H12 V12 H18 M5,16 H12",
         ["more"] = "M6,12 m-1.5,0 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0 M12,12 m-1.5,0 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0 M18,12 m-1.5,0 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0"
     };
     private static readonly Dictionary<string, Geometry> Cache = new(StringComparer.Ordinal);

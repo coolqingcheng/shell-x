@@ -15,6 +15,8 @@ public partial class LocalFileBrowserViewModel(ILocalFileSystem files, IDialogSe
     private int _historyIndex = -1;
     private int _navigationGeneration;
     public ObservableCollection<LocalEntry> Entries { get; } = [];
+    /// <summary>本地目录树的根节点（磁盘）。</summary>
+    public ObservableCollection<LocalDirectoryNodeViewModel> DirectoryRoots { get; } = [];
     public ObservableCollection<string> RecentPaths { get; } = [];
     public IReadOnlyList<string> Roots { get; } = files.Roots;
     public List<LocalEntry> SelectedEntries { get; } = [];
@@ -25,18 +27,51 @@ public partial class LocalFileBrowserViewModel(ILocalFileSystem files, IDialogSe
     [ObservableProperty] private string _error = "";
     [ObservableProperty] private string _summary = "本地文件";
     [ObservableProperty] private bool _showHidden;
+    /// <summary>是否显示本地目录树。</summary>
+    [ObservableProperty] private bool _showTree;
     [ObservableProperty] private bool _isBusy;
     /// <summary>删除进行中：期间禁止重复触发删除。</summary>
     [ObservableProperty] private bool _isDeleting;
     [ObservableProperty] private bool _isRemoteAvailable;
     public bool HasError => !string.IsNullOrEmpty(Error);
+
+    /// <summary>
+    /// 初始化本地目录树：每个磁盘一个根节点。
+    /// </summary>
+    private void InitializeTree()
+    {
+        DirectoryRoots.Clear();
+        async Task<IReadOnlyList<LocalEntry>> LoadAsync(string path) => (await files.ListAsync(path, _lifetime.Token)).Entries;
+        async Task GoAsync(string path) => await NavigateAsync(path);
+        void Report(string message) => Error = message;
+        foreach (var root in files.Roots)
+            DirectoryRoots.Add(new LocalDirectoryNodeViewModel(root.TrimEnd('\\'), root, LoadAsync, GoAsync, Report));
+    }
+
+    /// <summary>在已经展开的目录树里高亮当前目录，不会额外读取磁盘。</summary>
+    private void MarkCurrent(string path)
+    {
+        if (DirectoryRoots.Count == 0 || string.IsNullOrEmpty(path)) return;
+        foreach (var root in DirectoryRoots) root.ClearCurrent();
+        foreach (var root in DirectoryRoots)
+        {
+            if (root.MarkCurrent(path)) return;
+        }
+    }
+
+    [RelayCommand]
+    private void ToggleTree() => ShowTree = !ShowTree;
     public bool CanEditText => !IsEditingText && SelectedEntries.Count <= 1 && SelectedEntry is { IsDirectory: false, IsSymbolicLink: false };
     public void NotifySelectionChanged() => EditTextCommand.NotifyCanExecuteChanged();
     partial void OnErrorChanged(string value) => OnPropertyChanged(nameof(HasError));
     partial void OnSearchChanged(string value) => Filter();
     partial void OnShowHiddenChanged(bool value) => Filter();
 
-    public Task InitializeAsync() => Path.Length > 0 || IsBusy ? Task.CompletedTask : NavigateAsync(files.HomeDirectory);
+    public Task InitializeAsync()
+    {
+        if (DirectoryRoots.Count == 0) InitializeTree();
+        return Path.Length > 0 || IsBusy ? Task.CompletedTask : NavigateAsync(files.HomeDirectory);
+    }
     public async Task NavigateAsync(string path, bool addHistory = true)
     {
         var generation = ++_navigationGeneration; IsBusy = true; Error = "";
@@ -47,6 +82,7 @@ public partial class LocalFileBrowserViewModel(ILocalFileSystem files, IDialogSe
             var result = await files.ListAsync(path, _lifetime.Token);
             if (generation != _navigationGeneration || _lifetime.IsCancellationRequested) return;
             Path = result.Path; _all = result.Entries; Filter();
+            MarkCurrent(result.Path);
             RecentPaths.Remove(Path); RecentPaths.Insert(0, Path);
             while (RecentPaths.Count > 30) RecentPaths.RemoveAt(RecentPaths.Count - 1);
             if (addHistory && (_historyIndex < 0 || _history[_historyIndex] != Path))

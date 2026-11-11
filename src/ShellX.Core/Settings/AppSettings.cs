@@ -28,6 +28,8 @@ public sealed record AppSettings
     public double TerminalPaneStar { get; init; } = 1.3;
     public double LocalPaneStar { get; init; } = 1;
     public double RemoteTreeWidth { get; init; } = 150;
+    /// <summary>本地目录树宽度。</summary>
+    public double LocalTreeWidth { get; init; } = 180;
     public bool McpEnabled { get; init; } = true;
     public string McpAddress { get; init; } = "http://127.0.0.1:8765";
     public string McpToken { get; init; } = "";

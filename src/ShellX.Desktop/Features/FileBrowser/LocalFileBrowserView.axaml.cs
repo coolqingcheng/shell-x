@@ -3,17 +3,48 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using ShellX.Core.Files;
+using ShellX.Core.Settings;
+using ShellX.Desktop.Features.Shell;
 
 namespace ShellX.Desktop.Features.FileBrowser;
 
 public partial class LocalFileBrowserView : UserControl
 {
+    private MainWindowViewModel? _layoutVm;
     [DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, typeof(LocalEntry))]
     public LocalFileBrowserView()
     {
         InitializeComponent();
         FileGridInteraction.SelectOnRightClick(LocalGrid); FileGridInteraction.EnableColumnSizing(LocalGrid); FileDragDrop.Attach(this, LocalGrid, false);
         LocalGrid.AddHandler(InputElement.KeyDownEvent, SelectAllFiles, RoutingStrategies.Tunnel);
+        DataContextChanged += (_, _) => AttachLayout();
+        AttachedToVisualTree += (_, _) => AttachLayout();
+        DetachedFromVisualTree += (_, _) => DetachLayout();
+    }
+
+    private void AttachLayout()
+    {
+        var vm = TopLevel.GetTopLevel(this)?.DataContext as MainWindowViewModel;
+        if (ReferenceEquals(_layoutVm, vm)) return;
+        DetachLayout();
+        _layoutVm = vm;
+        if (_layoutVm == null) return;
+        _layoutVm.LayoutChanged += ApplyLayout;
+        ApplyLayout(_layoutVm.LayoutSettings);
+    }
+
+    private void DetachLayout()
+    {
+        if (_layoutVm != null) _layoutVm.LayoutChanged -= ApplyLayout;
+        _layoutVm = null;
+    }
+
+    private void ApplyLayout(AppSettings settings) => LocalTree.Width = Math.Clamp(settings.LocalTreeWidth, 100, 320);
+
+    private async void LocalTreeSplitterDragCompleted(object? sender, Avalonia.Input.VectorEventArgs e)
+    {
+        if (_layoutVm == null) return;
+        await _layoutVm.SaveLocalTreeWidthAsync(LocalTree.Bounds.Width > 0 ? LocalTree.Bounds.Width : LocalTree.Width);
     }
     /// <summary>Ctrl+A 全选本地列表。</summary>
     private void SelectAllFiles(object? sender, KeyEventArgs e)

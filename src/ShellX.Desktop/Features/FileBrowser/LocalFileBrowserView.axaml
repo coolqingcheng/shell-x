@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:ShellX.Desktop.Features.FileBrowser" x:DataType="vm:LocalFileBrowserViewModel"
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:ShellX.Desktop.Features.FileBrowser" xmlns:local="using:ShellX.Desktop.Features.FileBrowser" x:DataType="vm:LocalFileBrowserViewModel"
              xmlns:models="using:ShellX.Core.Files" xmlns:controls="using:ShellX.Desktop.Controls" x:Class="ShellX.Desktop.Features.FileBrowser.LocalFileBrowserView" Loaded="ViewLoaded">
   <UserControl.KeyBindings><KeyBinding Gesture="F5" Command="{Binding RefreshCommand}" /><KeyBinding Gesture="Alt+Up" Command="{Binding UpCommand}" /></UserControl.KeyBindings>
   <Grid RowDefinitions="35,44,Auto,*,32">
@@ -10,7 +10,10 @@
           <Button Classes="flat" FontSize="11" Command="{Binding NewFolderCommand}" Padding="8,5"><StackPanel Orientation="Horizontal" Spacing="5"><controls:StrokeIcon Symbol="plus" Width="15" Height="15" Foreground="{DynamicResource ForegroundBrush}" /><TextBlock Text="文件夹" FontSize="11" VerticalAlignment="Center" /></StackPanel></Button>
         </StackPanel>
         <Button Grid.Column="2" Classes="flat" FontSize="11" Padding="8,5" Command="{Binding UploadCommand}" IsEnabled="{Binding IsRemoteAvailable}" ToolTip.Tip="上传选中的本地文件或文件夹到右侧目录，文件夹会递归上传"><StackPanel Orientation="Horizontal" Spacing="5"><controls:StrokeIcon Symbol="upload" Width="15" Height="15" Foreground="{DynamicResource ForegroundBrush}" /><TextBlock Text="上传" FontSize="11" VerticalAlignment="Center" /></StackPanel></Button>
-        <Button Grid.Column="3" Classes="flat icon" Width="28" Height="28"><controls:StrokeIcon Symbol="more" Width="20" Height="20" /><Button.Flyout><MenuFlyout><MenuItem Header="新建文件" Command="{Binding NewFileCommand}" /><MenuItem Header="新建文件夹" Command="{Binding NewFolderCommand}" /><MenuItem Header="重命名    F2" Command="{Binding RenameCommand}" /><Separator /><MenuItem Header="在系统文件管理器中打开" Command="{Binding ShowInExplorerCommand}" /></MenuFlyout></Button.Flyout></Button>
+        <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="2">
+        <Button Classes="flat icon" Command="{Binding ToggleTreeCommand}" ToolTip.Tip="显示 / 隐藏目录树" Width="28" Height="28"><controls:StrokeIcon Symbol="tree" Width="18" Height="18" /></Button>
+        <Button Classes="flat icon" Width="28" Height="28"><controls:StrokeIcon Symbol="more" Width="20" Height="20" /><Button.Flyout><MenuFlyout><MenuItem Header="新建文件" Command="{Binding NewFileCommand}" /><MenuItem Header="新建文件夹" Command="{Binding NewFolderCommand}" /><MenuItem Header="重命名    F2" Command="{Binding RenameCommand}" /><Separator /><MenuItem Header="在系统文件管理器中打开" Command="{Binding ShowInExplorerCommand}" /></MenuFlyout></Button.Flyout></Button>
+        </StackPanel>
       </Grid>
     </Border>
     <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6" Margin="8,5">
@@ -19,7 +22,12 @@
       <Button Grid.Column="2" x:Name="PathHistoryButton" Content="历史" Classes="flat" FontSize="11"><Button.Flyout><Flyout><ScrollViewer Width="350" MaxHeight="260"><ItemsControl ItemsSource="{Binding RecentPaths}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="x:String"><Button Content="{Binding}" Tag="{Binding}" Click="UsePathHistory" Classes="flat" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer></Flyout></Button.Flyout></Button>
     </Grid>
     <Border Grid.Row="2" IsVisible="{Binding HasError}" Background="{DynamicResource WarningBackground}" Padding="12,7"><TextBlock Text="{Binding Error}" Foreground="{DynamicResource WarningForeground}" FontSize="12" TextWrapping="Wrap" /></Border>
-    <Grid Grid.Row="3">
+    <Grid Grid.Row="3" ColumnDefinitions="Auto,4,*">
+      <Border x:Name="LocalTree" Width="180" MinWidth="80" IsVisible="{Binding ShowTree}" Background="{DynamicResource TreeBackground}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,1,0">
+        <ScrollViewer HorizontalScrollBarVisibility="Auto"><ItemsControl ItemsSource="{Binding DirectoryRoots}" Margin="4"><ItemsControl.ItemTemplate><DataTemplate x:DataType="vm:LocalDirectoryNodeViewModel"><local:DirectoryNodeView /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer>
+      </Border>
+      <GridSplitter x:Name="LocalTreeSplitter" Grid.Column="1" ResizeDirection="Columns" Background="{DynamicResource BorderColor}" IsVisible="{Binding ShowTree}" DragCompleted="LocalTreeSplitterDragCompleted" />
+      <Grid Grid.Column="2">
       <DataGrid x:Name="LocalGrid" ItemsSource="{Binding Entries}" SelectedItem="{Binding SelectedEntry, Mode=TwoWay}" FontSize="12" RowHeight="36" IsReadOnly="True" AutoGenerateColumns="False" SelectionMode="Extended" CanUserSortColumns="True" CanUserResizeColumns="True" HorizontalScrollBarVisibility="Auto" DoubleTapped="FileDoubleTapped" SelectionChanged="SelectionChanged">
         <DataGrid.KeyBindings><KeyBinding Gesture="F2" Command="{Binding RenameCommand}" /><KeyBinding Gesture="Delete" Command="{Binding DeleteCommand}" /></DataGrid.KeyBindings>
         <DataGrid.ContextMenu><ContextMenu><MenuItem Header="打开（系统默认程序）" Command="{Binding OpenCommand}" /><MenuItem Header="编辑文本" Command="{Binding EditTextCommand}" /><MenuItem Header="上传到右侧目录 →" Command="{Binding UploadCommand}" IsEnabled="{Binding IsRemoteAvailable}" /><Separator /><MenuItem Header="新建文件" Command="{Binding NewFileCommand}" /><MenuItem Header="新建文件夹" Command="{Binding NewFolderCommand}" /><MenuItem Header="重命名" Command="{Binding RenameCommand}" /><MenuItem Header="在系统文件管理器中打开" Command="{Binding ShowInExplorerCommand}" /><Separator /><MenuItem Header="删除    Delete" Command="{Binding DeleteCommand}" /></ContextMenu></DataGrid.ContextMenu>
@@ -31,6 +39,7 @@
         </DataGrid.Columns>
       </DataGrid>
       <ProgressBar IsVisible="{Binding IsBusy}" IsIndeterminate="True" MinWidth="0" Height="2" VerticalAlignment="Top" />
+      </Grid>
     </Grid>
     <Border Grid.Row="4" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,1,0,0"><Grid ColumnDefinitions="*,Auto,125" ColumnSpacing="6" Margin="8,0"><TextBlock Text="{Binding Summary}" FontSize="11" Foreground="{DynamicResource MutedForeground}" VerticalAlignment="Center" /><CheckBox Grid.Column="1" Name="HiddenFilesToggle" Content="隐藏文件" IsChecked="{Binding ShowHidden, Mode=TwoWay}" FontSize="11" MinHeight="0" Height="28" Padding="8,0,0,0" Margin="0,0,4,0" VerticalAlignment="Center" /><TextBox Grid.Column="2" Text="{Binding Search, Mode=TwoWay}" PlaceholderText="筛选本地文件" FontSize="11" Padding="6,2" MinHeight="0" Height="24" /></Grid></Border>
     <Border Name="DropHint" Grid.RowSpan="5" IsVisible="False" IsHitTestVisible="False" Background="{DynamicResource SelectionBackground}" BorderBrush="{DynamicResource AccentForeground}" BorderThickness="2" Opacity="0.95" Padding="20">

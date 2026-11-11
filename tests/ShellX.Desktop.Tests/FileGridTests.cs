@@ -29,6 +29,9 @@ public sealed class FileGridTests
         using var browser = new FileBrowserViewModel(new DialogService(new TextCodec()), NullLogger<FileBrowserViewModel>.Instance, new LocalFileSystem(root));
         browser.IsAvailable = true;
         browser.Entries.Add(new RemoteEntry(name, "/" + name, false, false, 4321, DateTime.UtcNow, 420, 1000, 1000));
+        // 目录树会占用左侧宽度，这里隐藏它，保持窄表栏布局的原始布局假设。
+        browser.ShowTree = false;
+        browser.Local.ShowTree = false;
         UserControl view = remote ? new RemoteFileBrowserView { DataContext = browser } : new LocalFileBrowserView { DataContext = browser.Local };
         var grid = view.FindControl<DataGrid>(remote ? "FileGrid" : "LocalGrid")!;
         var window = new Window { Content = view, Width = 560, Height = 360 }; window.Show();

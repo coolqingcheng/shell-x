@@ -748,6 +748,8 @@ public partial class MainWindowViewModel : ObservableObject
         => SaveLayoutAsync(settings => settings with { LocalPaneStar = Math.Clamp(remoteStar <= 0 ? localStar : localStar / remoteStar, 0.3, 8) });
     public Task SaveRemoteTreeWidthAsync(double width)
         => SaveLayoutAsync(settings => settings with { RemoteTreeWidth = Math.Clamp(width, 100, 320) });
+    public Task SaveLocalTreeWidthAsync(double width)
+        => SaveLayoutAsync(settings => settings with { LocalTreeWidth = Math.Clamp(width, 100, 320) });
     [RelayCommand]
     private Task ResetLayoutAsync()
     {
@@ -758,7 +760,8 @@ public partial class MainWindowViewModel : ObservableObject
             MonitorPaneCollapsed = defaults.MonitorPaneCollapsed,
             TerminalPaneStar = defaults.TerminalPaneStar,
             LocalPaneStar = defaults.LocalPaneStar,
-            RemoteTreeWidth = defaults.RemoteTreeWidth
+            RemoteTreeWidth = defaults.RemoteTreeWidth,
+            LocalTreeWidth = defaults.LocalTreeWidth
         });
     }
 
