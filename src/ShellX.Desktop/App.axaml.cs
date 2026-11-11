@@ -41,6 +41,8 @@ public sealed partial class App : Application
                     dialogs.Owner = main;
                     desktop.MainWindow = main;
                     workspace = main;
+                    // 窗口关闭后不要再被"激活"请求重新拉起来。
+                    main.Closed += (_, _) => { if (ReferenceEquals(workspace, main)) workspace = null; };
                     main.Show();
                     _ = vm.ConnectCommand.ExecuteAsync(profile);
                 }, tray);
@@ -96,7 +98,7 @@ public sealed partial class App : Application
             // 重复启动时把已在运行的窗口带到前台，不再开第二个实例。
             Program.ActivateRequested = Restore;
             Program.ListenSingleInstance();
-            desktop.Exit += (_, _) => { updates.ApplyOnExit(); mcpServer.Dispose(); tray.Dispose(); _services.Dispose(); Log.CloseAndFlush(); };
+            desktop.Exit += (_, _) => { updates.ApplyOnExit(); Program.ShutdownSingleInstance(); mcpServer.Dispose(); tray.Dispose(); _services.Dispose(); Log.CloseAndFlush(); };
         }
         base.OnFrameworkInitializationCompleted();
     }

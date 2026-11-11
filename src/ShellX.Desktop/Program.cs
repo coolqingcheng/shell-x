@@ -29,6 +29,13 @@ internal static class Program
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }
 
+    /// <summary>退出时释放单实例控制句柄，避免下次启动被误判为"已有实例"。</summary>
+    public static void ShutdownSingleInstance()
+    {
+        _singleInstance?.Dispose();
+        _singleInstance = null;
+    }
+
     /// <summary>界面就绪后开始监听"激活已有窗口"的请求。</summary>
     public static void ListenSingleInstance()
     {

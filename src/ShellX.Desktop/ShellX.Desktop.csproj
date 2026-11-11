@@ -7,6 +7,7 @@
     <ApplicationIcon>Assets/ShellX.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="ShellX.Desktop.Tests" />
     <AvaloniaResource Include="Assets/**" />
     <ProjectReference Include="../ShellX.Core/ShellX.Core.csproj" />
     <ProjectReference Include="../ShellX.Infrastructure/ShellX.Infrastructure.csproj" />
