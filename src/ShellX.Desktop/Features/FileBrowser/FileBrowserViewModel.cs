@@ -3,6 +3,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using ShellX.Core.Files;
+using ShellX.Core.Logs;
+using ShellX.Core.Sessions;
 using ShellX.Infrastructure.Files;
 using ShellX.Desktop.Features.Transfers;
 using ShellX.Desktop.Services;
@@ -33,7 +35,7 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
     public ObservableCollection<string> RecentPaths { get; } = [];
     public ObservableCollection<TransferViewModel> Transfers { get; } = [];
     public List<RemoteEntry> SelectedEntries { get; } = [];
-    [ObservableProperty, NotifyCanExecuteChangedFor(nameof(EditTextCommand))] private RemoteEntry? _selectedEntry;
+    [ObservableProperty, NotifyCanExecuteChangedFor(nameof(EditTextCommand)), NotifyCanExecuteChangedFor(nameof(ViewLogCommand))] private RemoteEntry? _selectedEntry;
     [ObservableProperty, NotifyCanExecuteChangedFor(nameof(EditTextCommand))] private bool _isEditingText;
     [ObservableProperty] private string _path = ".";
     [ObservableProperty] private string _search = "";
@@ -60,12 +62,31 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
     }
     public bool HasError => !string.IsNullOrEmpty(Error);
     partial void OnErrorChanged(string value) => OnPropertyChanged(nameof(HasError));
-    partial void OnIsAvailableChanged(bool value) { Local.IsRemoteAvailable = value; EditTextCommand.NotifyCanExecuteChanged(); }
+    partial void OnIsAvailableChanged(bool value) { Local.IsRemoteAvailable = value; EditTextCommand.NotifyCanExecuteChanged(); ViewLogCommand.NotifyCanExecuteChanged(); }
     public bool CanEditText => IsAvailable && !IsEditingText && SelectedEntries.Count <= 1 && SelectedEntry is { IsDirectory: false, IsSymbolicLink: false };
-    public void NotifySelectionChanged() => EditTextCommand.NotifyCanExecuteChanged();
-    public void Attach(IRemoteFileSystem? files, CancellationToken token)
+
+    /// <summary>当前远程会话，日志窗口断开连接时需要它。</summary>
+    public IRemoteSession? Session { get; private set; }
+
+    /// <summary>远程日志读取器：只有服务端会话提供时才可用。</summary>
+    public IRemoteLogReader? LogReader { get; private set; }
+
+    /// <summary>日志窗口标题里显示的连接信息。</summary>
+    public string LogTarget { get; private set; } = "";
+
+    /// <summary>用户请求查看某个远程日志文件，由界面负责开窗口。</summary>
+    public event Action<string>? LogRequested;
+
+    public bool CanViewLog => LogReader != null && SelectedEntry is { IsDirectory: false, IsSymbolicLink: false };
+    public void NotifySelectionChanged() { EditTextCommand.NotifyCanExecuteChanged(); ViewLogCommand.NotifyCanExecuteChanged(); }
+
+    /// <summary>在独立的日志窗口里查看选中的远程文件。</summary>
+    [RelayCommand(CanExecute = nameof(CanViewLog))]
+    private void ViewLog() { if (SelectedEntry is { } entry) LogRequested?.Invoke(entry.FullPath); }
+    public void Attach(IRemoteFileSystem? files, CancellationToken token, IRemoteSession? session = null, string target = "")
     {
         ++_navigationGeneration; ++SessionVersion; _files = files; _sessionToken = token; IsAvailable = files != null;
+        Session = session; LogReader = session?.Logs; LogTarget = target; ViewLogCommand.NotifyCanExecuteChanged();
         _all = []; Entries.Clear(); _history.Clear(); _historyIndex = -1; SelectedEntries.Clear(); SelectedEntry = null;
         Error = ""; IsBusy = false; Summary = files == null ? "尚未连接 SFTP" : "SFTP 已就绪";
         DirectoryRoots.Clear(); RecentPaths.Clear();

@@ -193,7 +193,7 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
             });
             foreach (var tunnel in Tunnels) tunnel.Apply(created.Tunnels.GetStatus(tunnel.Definition.Id));
             _log.LogInformation("已建立会话 {ConnectionId}", Profile.Id);
-            Files.Attach(created.Files, ct);
+            Files.Attach(created.Files, ct, created, $"{Name} · {Profile.Host}:{Profile.Port}");
             await _monitorLease.SetSourceAsync(created.Monitor);
             foreach (var tunnel in Tunnels.ToArray())
             {

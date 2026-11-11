@@ -57,7 +57,7 @@ public sealed class FileManagerTabViewModel : ObservableObject, IDisposable
         _files.CancelTransfers();
         if (session?.Files is { } remote)
         {
-            _files.Attach(remote, _connection.ConnectionToken);
+            _files.Attach(remote, _connection.ConnectionToken, session, $"{_connection.Name} · {_connection.Profile.Host}:{_connection.Profile.Port}");
             try { await _files.NavigateAsync(_connection.Profile.InitialDirectory); }
             catch (Exception ex)
             {
@@ -66,7 +66,7 @@ public sealed class FileManagerTabViewModel : ObservableObject, IDisposable
         }
         else
         {
-            _files.Attach(null, CancellationToken.None);
+            _files.Attach(null, CancellationToken.None, null, "");
         }
     }
 
@@ -83,7 +83,7 @@ public sealed class FileManagerTabViewModel : ObservableObject, IDisposable
         _connection.PropertyChanged -= ConnectionChanged;
         _connection.SessionChanged -= ConnectionSessionChanged;
         _files.CancelTransfers();
-        _files.Attach(null, CancellationToken.None);
+        _files.Attach(null, CancellationToken.None, null, "");
         _files.Dispose();
     }
 }

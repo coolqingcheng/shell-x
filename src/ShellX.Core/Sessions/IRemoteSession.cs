@@ -19,6 +19,7 @@ public interface IRemoteSession : IAsyncDisposable
     ITunnelService Tunnels { get; }
     Monitoring.IServerMonitor? Monitor => null;
     Services.IServiceCenter? Services => null;
+    Logs.IRemoteLogReader? Logs => null;
     event EventHandler<string>? Disconnected;
 }
 

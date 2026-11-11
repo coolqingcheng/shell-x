@@ -46,7 +46,7 @@
                 DoubleTapped="FileDoubleTapped" SelectionChanged="SelectionChanged">
         <DataGrid.KeyBindings><KeyBinding Gesture="F2" Command="{Binding RenameCommand}" /><KeyBinding Gesture="Delete" Command="{Binding DeleteCommand}" /></DataGrid.KeyBindings>
         <DataGrid.ContextMenu><ContextMenu>
-          <MenuItem Header="打开" Command="{Binding OpenCommand}" /><MenuItem Header="编辑文本" Command="{Binding EditTextCommand}" /><MenuItem Header="下载到左侧目录 ←" Command="{Binding DownloadCommand}" /><MenuItem Header="另存为…" Command="{Binding DownloadAsCommand}" /><Separator />
+          <MenuItem Header="打开" Command="{Binding OpenCommand}" /><MenuItem Header="编辑文本" Command="{Binding EditTextCommand}" /><MenuItem Header="查看日志…" Command="{Binding ViewLogCommand}" /><MenuItem Header="下载到左侧目录 ←" Command="{Binding DownloadCommand}" /><MenuItem Header="另存为…" Command="{Binding DownloadAsCommand}" /><Separator />
           <MenuItem Header="新建文件" Command="{Binding NewFileCommand}" /><MenuItem Header="新建文件夹" Command="{Binding NewFolderCommand}" />
           <MenuItem Header="重命名" Command="{Binding RenameCommand}" /><MenuItem Header="属性与权限" Command="{Binding PermissionsCommand}" />
           <Separator /><MenuItem Header="删除" Command="{Binding DeleteCommand}" />

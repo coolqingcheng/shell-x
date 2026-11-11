@@ -23,6 +23,7 @@ internal sealed class SshRemoteSession : IRemoteSession, ITerminalChannel
     public ITunnelService Tunnels { get; }
     public Core.Monitoring.IServerMonitor Monitor { get; }
     public Core.Services.IServiceCenter Services { get; }
+    public Core.Logs.IRemoteLogReader Logs { get; }
     public event EventHandler<string>? Disconnected;
 
     internal SshRemoteSession(SshClient ssh, ShellStream shell, SftpClient? sftp, SharedTunnelRegistry.Lease tunnels, string? fileError, ILogger log)
@@ -33,6 +34,7 @@ internal sealed class SshRemoteSession : IRemoteSession, ITerminalChannel
         _tunnelLease = tunnels; Tunnels = tunnels;
         Monitor = new Monitoring.LinuxServerMonitor(ssh, log);
         Services = new SshServiceCenter(ssh, log);
+        Logs = new SshLogReader(ssh);
         _sshError = (_, e) => Report(e.Exception.Message); _shellClosed = (_, _) => Report("远程终端已关闭。");
         ssh.ErrorOccurred += _sshError; shell.Closed += _shellClosed;
     }

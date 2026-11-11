@@ -1,0 +1,68 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ShellX.Desktop.Features.Logs" xmlns:core="using:ShellX.Core.Logs"
+        xmlns:controls="using:ShellX.Desktop.Controls"
+        x:Class="ShellX.Desktop.Features.Logs.LogViewerWindow" x:DataType="vm:LogViewerViewModel"
+        Title="日志查看" Width="1150" Height="700" MinWidth="780" MinHeight="420"
+        WindowStartupLocation="CenterOwner" Background="{DynamicResource AppBackground}">
+  <Grid RowDefinitions="Auto,Auto,*,Auto">
+    <Border Background="{DynamicResource HeaderBackground}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1" Padding="14,9">
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+        <StackPanel Spacing="2">
+          <TextBlock Text="{Binding FileName}" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding Path}" FontSize="10" Foreground="{DynamicResource MutedForeground}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Path}" />
+          <TextBlock Text="{Binding Target}" FontSize="10" Foreground="{DynamicResource MutedForeground}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Target}" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+          <Button Classes="flat" Command="{Binding SetModeCommand}" CommandParameter="Tail" ToolTip.Tip="查看文件末尾 200 行">尾部</Button>
+          <Button Classes="flat" Command="{Binding SetModeCommand}" CommandParameter="Follow" ToolTip.Tip="持续跟踪新增内容">跟随</Button>
+          <Button Classes="flat" Command="{Binding SetModeCommand}" CommandParameter="Search" ToolTip.Tip="在服务端检索日志">检索</Button>
+          <Border Width="1" Background="{DynamicResource BorderColor}" Margin="2,0" />
+          <ComboBox ItemsSource="{Binding FollowIntervals}" SelectedItem="{Binding FollowSeconds, Mode=TwoWay}" Width="72" ToolTip.Tip="跟随刷新间隔（秒）" IsVisible="{Binding IsFollowMode}" />
+          <Button Classes="flat" Command="{Binding RefreshCommand}" ToolTip.Tip="重新读取">
+            <controls:StrokeIcon Symbol="refresh" Width="18" Height="18" />
+          </Button>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8" Margin="12,8" IsVisible="{Binding IsSearchMode}">
+      <TextBox Text="{Binding SearchText, Mode=TwoWay}" PlaceholderText="检索内容…" FontSize="12" Padding="8,5" />
+      <CheckBox Grid.Column="1" Content="正则" IsChecked="{Binding UseRegex, Mode=TwoWay}" FontSize="11" VerticalAlignment="Center" ToolTip.Tip="关闭时按固定字符串匹配" />
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+        <TextBlock Text="上下文" FontSize="11" Foreground="{DynamicResource MutedForeground}" VerticalAlignment="Center" />
+        <TextBox Text="{Binding ContextLines, Mode=TwoWay}" Width="44" FontSize="11" Padding="6,3" />
+      </StackPanel>
+      <Button Grid.Column="3" Content="检索" Classes="primary" Command="{Binding SearchCommand}" />
+    </Grid>
+
+    <Grid Grid.Row="2">
+      <ListBox x:Name="LogList" ItemsSource="{Binding Lines}" FontFamily="Consolas" FontSize="12"
+               Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Auto"
+               SelectionMode="Single">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="core:LogLine">
+            <Border Classes.match="{Binding IsMatch}" Padding="0,1">
+              <Border.Styles>
+                <Style Selector="Border.match"><Setter Property="Background" Value="{DynamicResource SelectionBackground}" /></Style>
+              </Border.Styles>
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                <TextBlock Text="{Binding NumberText}" Foreground="{DynamicResource MutedForeground}" TextAlignment="Right" MinWidth="64" />
+                <TextBlock Grid.Column="1" Text="{Binding Text}" TextWrapping="NoWrap" VerticalAlignment="Top" />
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+      <TextBlock Text="{Binding Status}" IsVisible="{Binding IsBusy}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                 Foreground="{DynamicResource MutedForeground}" FontSize="12" />
+    </Grid>
+
+    <Border Grid.Row="3" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,1,0,0" Background="{DynamicResource PanelBackground}" Padding="12,7">
+      <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+        <TextBlock Text="{Binding Status}" Foreground="{DynamicResource SecondaryForeground}" FontSize="11" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Status}" />
+        <TextBlock Grid.Column="1" Text="{Binding Summary}" Foreground="{DynamicResource MutedForeground}" FontSize="11" VerticalAlignment="Center" />
+        <Button Grid.Column="2" Content="恢复跟随" Classes="flat" FontSize="11" IsVisible="{Binding IsPaused}" Command="{Binding ResumeFollowCommand}" />
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

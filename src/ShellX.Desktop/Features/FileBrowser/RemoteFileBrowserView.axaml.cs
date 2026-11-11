@@ -5,6 +5,7 @@ using Avalonia.Interactivity;
 using ShellX.Core.Files;
 using ShellX.Core.Settings;
 using ShellX.Desktop.Features.Shell;
+using ShellX.Desktop.Features.Logs;
 
 namespace ShellX.Desktop.Features.FileBrowser;
 
@@ -16,7 +17,7 @@ public partial class RemoteFileBrowserView : UserControl
     {
         InitializeComponent();
         FileGridInteraction.SelectOnRightClick(FileGrid); FileGridInteraction.EnableColumnSizing(FileGrid); FileDragDrop.Attach(this, FileGrid, true);
-        DataContextChanged += (_, _) => AttachLayout();
+        DataContextChanged += (_, _) => { AttachLayout(); AttachFiles(); };
         AttachedToVisualTree += (_, _) => AttachLayout();
         DetachedFromVisualTree += (_, _) => DetachLayout();
     }
@@ -30,10 +31,34 @@ public partial class RemoteFileBrowserView : UserControl
         _layoutVm.LayoutChanged += ApplyLayout;
         ApplyLayout(_layoutVm.LayoutSettings);
     }
+    private FileBrowserViewModel? _files;
+
+    /// <summary>远程文件面板的日志入口：在独立窗口里打开选中的日志文件。</summary>
+    private void AttachFiles()
+    {
+        if (_files != null) _files.LogRequested -= OpenLogViewer;
+        _files = DataContext as FileBrowserViewModel;
+        if (_files != null) _files.LogRequested += OpenLogViewer;
+    }
+
+    private void OpenLogViewer(string path)
+    {
+        var vm = _files;
+        if (vm?.LogReader == null) return;
+        // 同一个文件重复打开时只激活已有窗口。
+        if (LogViewerWindow.TryActivate(vm.LogReader, path)) return;
+        var viewModel = new LogViewerViewModel(vm.LogReader, path, $"{vm.LogTarget} · {path}");
+        var window = new LogViewerWindow(viewModel, vm.Session);
+        if (TopLevel.GetTopLevel(this) is Window owner) window.Show(owner);
+        else window.Show();
+    }
+
     private void DetachLayout()
     {
         if (_layoutVm != null) _layoutVm.LayoutChanged -= ApplyLayout;
         _layoutVm = null;
+        if (_files != null) _files.LogRequested -= OpenLogViewer;
+        _files = null;
     }
     private void ApplyLayout(AppSettings settings) => RemoteTree.Width = Math.Clamp(settings.RemoteTreeWidth, 100, 320);
     private async void RemoteTreeSplitterDragCompleted(object? sender, Avalonia.Input.VectorEventArgs e)
