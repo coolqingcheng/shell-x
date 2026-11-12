@@ -103,6 +103,10 @@
     <Setter Property="BorderBrush" Value="{DynamicResource BorderColor}" />
     <Setter Property="BorderThickness" Value="1" />
   </Style>
+  <!-- 勾选框：方框也带上一点点圆角，和整体圆角风格一致 -->
+  <Style Selector="CheckBox">
+    <Setter Property="CornerRadius" Value="3" />
+  </Style>
   <Style Selector="Expander.connectionGroup">
     <Setter Property="Padding" Value="0" />
     <Setter Property="BorderThickness" Value="0" />
