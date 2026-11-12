@@ -13,9 +13,9 @@ namespace ShellX.Desktop.Tests;
 public sealed class ConnectionAccentTests
 {
     [AvaloniaFact]
-    public async Task VividCustomRedBecomesMutedWithReadableTabBackgroundAndSubtleFourSidedFrameInBothThemes()
+    public async Task VividCustomRedBecomesBrightHighlightBarWithMutedReadableTabBackgroundAndSubtleFourSidedFrameInBothThemes()
     {
-        var indicator = new ConnectionAccentBorder { AccentColor = "#FF0000", Height = 3 };
+        var indicator = new ConnectionAccentBorder { AccentColor = "#FF0000", Height = 3, IsActive = true };
         var label = new TextBlock { Text = "敏感连接", Margin = new Thickness(10) };
         var tab = new ConnectionAccentBorder { AccentColor = "#FF0000", Appearance = ConnectionAccentAppearance.Tab, IsActive = true, Child = label };
         var frame = new ConnectionAccentBorder { AccentColor = "#FF0000", Appearance = ConnectionAccentAppearance.Frame, BorderThickness = new Thickness(2), Child = new TextBlock { Text = "terminal", Margin = new Thickness(15) } };
@@ -27,8 +27,9 @@ public sealed class ConnectionAccentTests
             {
                 ThemeService.Apply(theme); await Task.Delay(40);
                 var top = Solid(indicator.Background); var background = Solid(tab.Background); var edge = Solid(frame.BorderBrush);
-                Assert.True(top.R > top.G && top.R > top.B); Assert.InRange(top.R, 100, 199);
+                Assert.True(top.R > top.G && top.R > top.B); Assert.InRange(top.R, 200, 255);
                 Assert.True(top.G > 0); Assert.True(edge.R > edge.G); Assert.True(background.R > background.G);
+                indicator.IsActive = false; Assert.Equal(0, Solid(indicator.Background).A); indicator.IsActive = true;   // 未激活的标签没有高亮条
                 Assert.True(Contrast(Solid(label.Foreground), background) >= 4.5);
                 var active = background; tab.IsActive = false; Assert.NotEqual(active, Solid(tab.Background)); tab.IsActive = true;
                 frame.AccentColor = ""; Assert.Equal(0, Solid(frame.BorderBrush).A);

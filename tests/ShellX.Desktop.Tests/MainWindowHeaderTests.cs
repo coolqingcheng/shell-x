@@ -63,6 +63,7 @@ public sealed class MainWindowHeaderTests
                 () => Task.FromResult<ConnectionSecret?>(null), _ => Task.FromResult(true), _ => Task.CompletedTask, _ => Task.CompletedTask,
                 new AppSettings(), new LocalFileSystem(root));
             vm.Tabs.Add(tab);
+            vm.SelectedTab = tab;                       // 选中后标签才是激活态，预览图才能看到高亮条
             await Task.Delay(150);
             var item = tabs.GetVisualDescendants().OfType<ListBoxItem>().Single();
             var close = item.GetVisualDescendants().OfType<Button>().Single(button => ReferenceEquals(button.Command, tab.CloseCommand));

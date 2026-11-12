@@ -42,7 +42,11 @@ public sealed class ConnectionAccentBorder : Border
         switch (Appearance)
         {
             case ConnectionAccentAppearance.Indicator:
-                Background = new SolidColorBrush(marked ? accent : IsActive ? activeFallback : Colors.Transparent); break;
+                // 高亮条用高饱和的强调色，避免和页签底色融在一起看不出激活项。
+                Background = new SolidColorBrush(IsActive
+                    ? marked ? Bright(Color.Parse(AccentColor), light) : Color.Parse(light ? "#005FB8" : "#0078D4")
+                    : Colors.Transparent);
+                break;
             case ConnectionAccentAppearance.Tab:
                 if (IsActive)
                 {
@@ -100,6 +104,18 @@ public sealed class ConnectionAccentBorder : Border
         var dark = Color.Parse("#1E1E1E");
         return Contrast(white, background) >= Contrast(dark, background) ? white : dark;
     }
+    /// <summary>高饱和版本：保持色相，但把明度推到能压过底色的区间。</summary>
+    private static Color Bright(Color color, bool light)
+    {
+        var maximum = Math.Max(color.R, Math.Max(color.G, color.B)) / 255d;
+        var minimum = Math.Min(color.R, Math.Min(color.G, color.B)) / 255d;
+        var saturation = maximum == 0 ? 0 : (maximum - minimum) / maximum;
+        var capped = Math.Min(saturation, .9);
+        var value = Math.Clamp(maximum, light ? .55 : .72, light ? .85 : 1);
+        byte Channel(byte component) => (byte)Math.Round(255 * value * (saturation == 0 ? 1 : 1 - (1 - component / 255d / maximum) * capped / saturation));
+        return Color.FromRgb(Channel(color.R), Channel(color.G), Channel(color.B));
+    }
+
     private static Color Muted(Color color, bool light)
     {
         var maximum = Math.Max(color.R, Math.Max(color.G, color.B)) / 255d;
