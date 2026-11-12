@@ -132,6 +132,13 @@ public sealed class MainWindowHeaderTests
             }
 
             // 输入框文字垂直居中。
+            if (Environment.GetEnvironmentVariable("SHELLX_PREVIEW_PATH") is { Length: > 0 } preview)
+            {
+                using var bitmap = new RenderTargetBitmap(new PixelSize(1380, 900), new Vector(96, 96));
+                bitmap.Render(window);
+                bitmap.Save(Path.Combine(Path.GetDirectoryName(preview)!, "main-window.png"), PngBitmapEncoderOptions.Default);
+            }
+
             var input = window.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(box => box.Name == "CommandInput");
             Assert.NotNull(input);
             Assert.Equal(Avalonia.Layout.VerticalAlignment.Center, input!.VerticalContentAlignment);

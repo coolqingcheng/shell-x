@@ -6,7 +6,7 @@
     <Setter Property="Background" Value="{DynamicResource AppBackground}" />
   </Style>
   <Style Selector="Button">
-    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusSmall}" />
     <Setter Property="Padding" Value="10,6" />
     <Setter Property="Background" Value="{DynamicResource BorderColor}" />
     <Setter Property="BorderThickness" Value="0" />
@@ -60,7 +60,7 @@
     <Setter Property="Foreground" Value="{DynamicResource LinkForeground}" />
   </Style>
   <Style Selector="TextBox">
-    <Setter Property="CornerRadius" Value="2" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusSmall}" />
     <!-- 输入框文字垂直居中 -->
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="Background" Value="{DynamicResource InputBackground}" />
@@ -82,9 +82,26 @@
   </Style>
   <Style Selector="ComboBox">
     <Setter Property="Background" Value="{DynamicResource InputBackground}" />
-    <Setter Property="CornerRadius" Value="2" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusSmall}" />
     <!-- 下拉框文字垂直居中 -->
     <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <!-- 浮层：右键菜单外框用中圆角，菜单项与下拉项用小圆角，弹层不再是直角方块 -->
+  <Style Selector="ContextMenu">
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusMedium}" />
+  </Style>
+  <Style Selector="MenuItem">
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusSmall}" />
+  </Style>
+  <Style Selector="ComboBoxItem">
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusSmall}" />
+  </Style>
+  <!-- 卡片容器：独立区块（面板、列表分组）用中圆角 + 主题描边，跟内容区区分开 -->
+  <Style Selector="Border.card">
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusMedium}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderColor}" />
+    <Setter Property="BorderThickness" Value="1" />
   </Style>
   <Style Selector="Expander.connectionGroup">
     <Setter Property="Padding" Value="0" />
@@ -125,7 +142,14 @@
   </Style>
   <Style Selector="ToolTip">
     <Setter Property="Background" Value="{DynamicResource PanelBackground}" />
-    <Setter Property="CornerRadius" Value="2" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusSmall}" />
+  </Style>
+  <!-- 选中态统一圆角：列表与树的选中块不再是硬邦邦的直角方块 -->
+  <Style Selector="ListBoxItem">
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusSmall}" />
+  </Style>
+  <Style Selector="TreeViewItem">
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusSmall}" />
   </Style>
   <!-- 标签栏：终端、文件管理器、文本编辑器统一使用同一套列表样式 -->
   <Style Selector="ListBox.shelltabs">
@@ -140,13 +164,7 @@
   </Style>
   <Style Selector="ListBox.shelltabs ListBoxItem">
     <Setter Property="Padding" Value="0" />
-    <Setter Property="Margin" Value="0" />
+    <Setter Property="Margin" Value="0,0,3,0" />
     <Setter Property="MinHeight" Value="35" />
-  </Style>
-  <Style Selector="ListBox.shelltabs ListBoxItem:selected /template/ ContentPresenter">
-    <Setter Property="Background" Value="{DynamicResource AppBackground}" />
-  </Style>
-  <Style Selector="ListBox.shelltabs ListBoxItem:not(:selected) /template/ ContentPresenter">
-    <Setter Property="Background" Value="{DynamicResource RaisedBackground}" />
   </Style>
 </Styles>

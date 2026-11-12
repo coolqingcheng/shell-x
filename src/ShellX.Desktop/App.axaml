@@ -1,5 +1,14 @@
 <Application xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:styles="using:ShellX.Desktop.Styles"
              x:Class="ShellX.Desktop.App" RequestedThemeVariant="Dark">
+  <!-- 全局圆角刻度：控件用小圆角，面板与卡片用中圆角，状态徽标用胶囊 -->
+  <Application.Resources>
+    <ResourceDictionary>
+      <CornerRadius x:Key="RadiusSmall">4</CornerRadius>
+      <CornerRadius x:Key="RadiusMedium">6</CornerRadius>
+      <CornerRadius x:Key="RadiusLarge">12</CornerRadius>
+      <CornerRadius x:Key="RadiusPill">999</CornerRadius>
+    </ResourceDictionary>
+  </Application.Resources>
   <Application.Styles>
     <FluentTheme />
     <StyleInclude Source="avares://Iciclecreek.Avalonia.Terminal/Themes/Generic.axaml" />

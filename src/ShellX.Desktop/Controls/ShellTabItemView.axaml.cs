@@ -80,8 +80,11 @@ public partial class ShellTabItemView : UserControl
         TabBackground.AccentColor = AccentColor;
         TabBackground.IsActive = IsActive;
         TabBackground.MinWidth = TabMinWidth;
+        // 圆角页签：选中的只圆上方两角，跟下方内容区连成一片；未选中的四角全圆，像一枚小卡片。
+        TabBackground.CornerRadius = IsActive ? new CornerRadius(6, 6, 0, 0) : new CornerRadius(6);
         AccentLine.AccentColor = AccentColor;
         AccentLine.IsActive = IsActive;
+        AccentLine.CornerRadius = new CornerRadius(3, 3, 0, 0);
         TitleText.Text = Title;
         TitleText.MaxWidth = TitleMaxWidth;
         ToolTip.SetTip(TitleText, string.IsNullOrWhiteSpace(TitleToolTip) ? null : TitleToolTip);

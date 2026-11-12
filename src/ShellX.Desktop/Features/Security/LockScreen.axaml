@@ -2,11 +2,15 @@
              xmlns:security="using:ShellX.Desktop.Features.Security" xmlns:controls="using:ShellX.Desktop.Controls" x:DataType="security:AppLockService"
              x:Class="ShellX.Desktop.Features.Security.LockScreen">
   <Border Background="{DynamicResource AppBackground}">
-    <StackPanel x:Name="InputPanel" Width="330" MaxWidth="600" Margin="24" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="9" IsEnabled="{Binding IsReady}">
-      <Image x:Name="LockLogo" Source="/Assets/ShellX.png" Width="72" Height="72" Margin="0,0,0,8" HorizontalAlignment="Center" />
-      <controls:SecretTextBox x:Name="UnlockPassword" Text="{Binding Password, Mode=TwoWay}" MaxLength="256"
-               PlaceholderText="输入锁定密码，按 Enter 解锁" IsEnabled="{Binding !IsVerifying}" KeyDown="PasswordKeyDown" />
-      <TextBlock Text="{Binding Error}" Foreground="{DynamicResource ErrorForeground}" FontSize="12" TextWrapping="Wrap" />
-    </StackPanel>
+    <Border Background="{DynamicResource PanelBackground}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
+            CornerRadius="{DynamicResource RadiusLarge}" Padding="30,26" Width="380" MaxWidth="600"
+            HorizontalAlignment="Center" VerticalAlignment="Center" BoxShadow="0 8 24 0 #33000000">
+      <StackPanel x:Name="InputPanel" Spacing="9" IsEnabled="{Binding IsReady}">
+        <Image x:Name="LockLogo" Source="/Assets/ShellX.png" Width="72" Height="72" Margin="0,0,0,8" HorizontalAlignment="Center" />
+        <controls:SecretTextBox x:Name="UnlockPassword" Text="{Binding Password, Mode=TwoWay}" MaxLength="256"
+                 PlaceholderText="输入锁定密码，按 Enter 解锁" IsEnabled="{Binding !IsVerifying}" KeyDown="PasswordKeyDown" />
+        <TextBlock Text="{Binding Error}" Foreground="{DynamicResource ErrorForeground}" FontSize="12" TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
   </Border>
 </UserControl>

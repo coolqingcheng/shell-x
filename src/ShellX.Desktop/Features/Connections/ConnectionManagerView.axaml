@@ -17,7 +17,7 @@
       <TextBox Name="ConnectionSearch" Grid.Column="6" Text="{Binding Search, Mode=TwoWay}" PlaceholderText="搜索名称、地址、账号…" /><Button Name="ManagerSettings" Grid.Column="7" Classes="flat icon" Command="{Binding SettingsCommand}" ToolTip.Tip="设置" Width="28" Height="28"><controls:StrokeIcon Symbol="settings" Width="18" Height="18" /></Button>
     </Grid>
     <Grid Grid.Row="1" ColumnDefinitions="200,5,*">
-      <Border BorderBrush="{DynamicResource BorderColor}" BorderThickness="1" Background="{DynamicResource PanelBackground}">
+      <Border Classes="card" Background="{DynamicResource PanelBackground}">
         <TreeView Name="ConnectionFolders" ItemsSource="{Binding Groups}" SelectedItem="{Binding SelectedGroup, Mode=TwoWay}" Background="Transparent">
           <TreeView.Styles><Style Selector="TreeViewItem"><Setter Property="IsExpanded" Value="True" /><Setter Property="Padding" Value="4,6" /></Style></TreeView.Styles>
           <TreeView.ItemTemplate><TreeDataTemplate x:DataType="groups:ConnectionGroupViewModel" ItemsSource="{Binding Children}">
@@ -26,7 +26,7 @@
         </TreeView>
       </Border>
       <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="{DynamicResource BorderColor}" />
-      <Border Grid.Column="2" BorderBrush="{DynamicResource BorderColor}" BorderThickness="1">
+      <Border Grid.Column="2" Classes="card">
         <Grid RowDefinitions="Auto,*">
           <Border Background="{DynamicResource PanelBackground}" Padding="12,8"><Grid ColumnDefinitions="*,180,100"><TextBlock Text="名称" FontSize="11" Foreground="{DynamicResource MutedForeground}" /><TextBlock Grid.Column="1" Text="主机地址" FontSize="11" Foreground="{DynamicResource MutedForeground}" /><TextBlock Grid.Column="2" Text="账号" FontSize="11" Foreground="{DynamicResource MutedForeground}" /></Grid></Border>
           <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto">

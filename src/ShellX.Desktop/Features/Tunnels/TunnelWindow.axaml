@@ -39,7 +39,7 @@
       <ItemsControl ItemsSource="{Binding VisibleTunnels}">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:TunnelViewModel">
-            <Border Padding="14,12" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1">
+            <Border Classes="card" Margin="10,5" Padding="14,12" Background="{DynamicResource PanelBackground}">
               <StackPanel Spacing="8">
                 <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
                   <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding Name}" />
@@ -59,7 +59,7 @@
                 </StackPanel>
                 <TextBlock Text="{Binding CheckedText}" Foreground="{DynamicResource MutedForeground}" FontSize="10" />
                 <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding HasTraffic}" VerticalAlignment="Center">
-                  <Border Classes="flow" Classes.active="{Binding HasTraffic}" Padding="6,2" CornerRadius="2" Background="{DynamicResource ChartBackground}" ToolTip.Tip="端口转发现有数据经过">
+                  <Border Classes="flow" Classes.active="{Binding HasTraffic}" Padding="6,2" CornerRadius="{DynamicResource RadiusPill}" Background="{DynamicResource ChartBackground}" ToolTip.Tip="端口转发现有数据经过">
                     <controls:StrokeIcon Symbol="flow" Width="16" Height="16" StrokeThickness="1.4" Foreground="{DynamicResource SuccessForeground}" />
                   </Border>
                   <TextBlock Text="{Binding TrafficText}" FontSize="10" FontFamily="Consolas" Foreground="{DynamicResource SecondaryForeground}" VerticalAlignment="Center" />
