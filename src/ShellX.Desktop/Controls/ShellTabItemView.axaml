@@ -1,0 +1,18 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:ShellX.Desktop.Controls"
+             x:Class="ShellX.Desktop.Controls.ShellTabItemView">
+  <controls:ConnectionAccentBorder Name="TabBackground" Appearance="Tab" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                    BorderBrush="{DynamicResource RaisedBackground}" BorderThickness="0,0,1,0">
+    <Grid RowDefinitions="3,*">
+      <controls:ConnectionAccentBorder Name="AccentLine" Appearance="Indicator" IsHitTestVisible="False" />
+      <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="9" Margin="10,1,3,1">
+        <Ellipse Name="StatusDot" Width="7" Height="7" VerticalAlignment="Center" />
+        <TextBlock Name="TitleText" Grid.Column="1" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+        <Button Name="CloseButton" Grid.Column="2" Classes="flat icon" VerticalAlignment="Center" Width="20" Height="20">
+          <controls:StrokeIcon Symbol="close" Width="12" Height="12" />
+        </Button>
+      </Grid>
+    </Grid>
+  </controls:ConnectionAccentBorder>
+</UserControl>

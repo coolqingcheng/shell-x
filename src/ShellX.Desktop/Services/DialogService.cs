@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq.Expressions;
 using Avalonia;
 using Avalonia.Controls;
@@ -23,6 +25,7 @@ using ShellX.Desktop.Features.Settings;
 using ShellX.Desktop.Features.Shell;
 using ShellX.Infrastructure.Security;
 using ShellX.Desktop.Controls;
+using ICommand = System.Windows.Input.ICommand;
 
 namespace ShellX.Desktop.Services;
 
@@ -321,15 +324,58 @@ public sealed class DialogService(ITextCodec codec, AppLockService? appLock = nu
         }))?.TryGetLocalPath();
 
     private Window? _editorWindow;
-    private TabControl? _editorTabControl;
-    private readonly Dictionary<TabItem, EditorTabState> _editorStates = [];
+    private ListBox? _editorTabList;
+    private ContentControl? _editorContent;
+    private readonly ObservableCollection<EditorTabState> _editorTabs = [];
 
-    private sealed class EditorTabState(TextDocument document, FileEditorViewModel vm, Action detach)
+    /// <summary>编辑器标签：外观与终端、文件管理器共用同一套页签控件。</summary>
+    private sealed class EditorTabState : INotifyPropertyChanged
     {
-        public TextDocument Document { get; } = document;
-        public FileEditorViewModel Vm { get; } = vm;
-        public Action Detach { get; } = detach;
+        private readonly Action _detach;
+        private bool _isActive;
+
+        public EditorTabState(TextDocument document, FileEditorViewModel vm, Action detach)
+        {
+            Document = document;
+            Vm = vm;
+            _detach = detach;
+            vm.PropertyChanged += VmChanged;
+        }
+
+        public TextDocument Document { get; }
+        public FileEditorViewModel Vm { get; }
+        /// <summary>标签对应的编辑器内容。</summary>
+        public Control Content { get; set; } = null!;
         public string Name => System.IO.Path.GetFileName(Document.Path);
+        /// <summary>有未保存修改时，标签上显示提示点。</summary>
+        public bool IsDirty => Vm.IsDirty;
+        /// <summary>当前选中的标签。</summary>
+        public bool IsActive
+        {
+            get => _isActive;
+            set
+            {
+                if (_isActive == value) return;
+                _isActive = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsActive)));
+            }
+        }
+        /// <summary>关闭标签。</summary>
+        public ICommand CloseCommand { get; set; } = null!;
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        private void VmChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(FileEditorViewModel.IsDirty)) PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsDirty)));
+        }
+
+        /// <summary>关闭标签时释放订阅与外部资源。</summary>
+        public void Release()
+        {
+            Vm.PropertyChanged -= VmChanged;
+            try { _detach(); }
+            catch (Exception) { }
+        }
     }
 
     /// <summary>
@@ -339,10 +385,10 @@ public sealed class DialogService(ITextCodec codec, AppLockService? appLock = nu
     public async Task EditFileAsync(TextDocument document, Func<TextDocument, string, Task<TextDocument>> save)
     {
         TextEditorLimits.ValidateContent(document.Content);
-        if (_editorWindow is { } existing && existing.IsVisible && _editorTabControl is { } existingTabs)
+        if (_editorWindow is { } existing && existing.IsVisible && _editorTabList is { } existingTabs)
         {
-            var opened = _editorStates.FirstOrDefault(pair => Equals(pair.Value.Document.Path, document.Path));
-            if (opened.Value != null) existingTabs.SelectedItem = opened.Key;
+            var opened = _editorTabs.FirstOrDefault(state => Equals(state.Document.Path, document.Path));
+            if (opened != null) existingTabs.SelectedItem = opened;
             else AddEditorTab(existing, existingTabs, document, save);
             await Task.CompletedTask;
             return;
@@ -350,10 +396,27 @@ public sealed class DialogService(ITextCodec codec, AppLockService? appLock = nu
 
         var window = Window("编辑 · " + document.Path, 1050, 720);
         window.MinWidth = 780;
-        var tabs = new TabControl();
-        window.Content = tabs;
+        var layout = new DockPanel();
+        var tabs = new ListBox { Name = "EditorTabs", Classes = { "shelltabs" }, ItemsSource = _editorTabs };
+        tabs.ItemTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<EditorTabState>((state, _) =>
+        {
+            var view = new ShellTabItemView { TitleMaxWidth = 210 };
+            view.Bind(ShellTabItemView.TitleProperty, CompiledBinding.Create((EditorTabState x) => x.Name));
+            view.Bind(ShellTabItemView.IsActiveProperty, CompiledBinding.Create((EditorTabState x) => x.IsActive));
+            view.Bind(ShellTabItemView.IsDirtyProperty, CompiledBinding.Create((EditorTabState x) => x.IsDirty));
+            view.Bind(ShellTabItemView.CloseCommandProperty, CompiledBinding.Create((EditorTabState x) => x.CloseCommand));
+            view.Bind(ShellTabItemView.TitleToolTipProperty, CompiledBinding.Create((EditorTabState x) => x.Document.Path));
+            return view;
+        });
+        ThemeService.Bind(tabs, ListBox.BackgroundProperty, "HeaderBackground");
+        DockPanel.SetDock(tabs, Dock.Top);
+        var content = new ContentControl { Name = "EditorContent" };
+        layout.Children.Add(tabs);
+        layout.Children.Add(content);
+        window.Content = layout;
         _editorWindow = window;
-        _editorTabControl = tabs;
+        _editorTabList = tabs;
+        _editorContent = content;
         AddEditorTab(window, tabs, document, save);
         tabs.SelectionChanged += (_, _) => ActivateEditorTab(window, tabs);
 
@@ -361,7 +424,7 @@ public sealed class DialogService(ITextCodec codec, AppLockService? appLock = nu
         window.Closing += async (_, e) =>
         {
             if (approved) { DetachEditorTabs(); return; }
-            var dirty = _editorStates.Values.Count(state => state.Vm.IsDirty);
+            var dirty = _editorTabs.Count(state => state.Vm.IsDirty);
             if (dirty == 0) { DetachEditorTabs(); return; }
             e.Cancel = true;
             var message = dirty == 1
@@ -369,7 +432,7 @@ public sealed class DialogService(ITextCodec codec, AppLockService? appLock = nu
                 : $"有 {dirty} 个文件尚未保存，关闭将放弃这些修改，是否继续？";
             if (await ConfirmOwnedAsync(window, "未保存的修改", message)) { approved = true; window.Close(); }
         };
-        window.Closed += (_, _) => { DetachEditorTabs(); _editorWindow = null; _editorTabControl = null; UntrackOwnerWindow(window); };
+        window.Closed += (_, _) => { DetachEditorTabs(); _editorWindow = null; _editorTabList = null; _editorContent = null; UntrackOwnerWindow(window); };
         window.KeyBindings.Add(new KeyBinding
         {
             Gesture = new KeyGesture(Key.S, KeyModifiers.Control),
@@ -380,60 +443,35 @@ public sealed class DialogService(ITextCodec codec, AppLockService? appLock = nu
         await Task.CompletedTask;
     }
 
-    private EditorTabState? ActiveEditorTab(TabControl tabs)
-        => tabs.SelectedItem is TabItem selected && _editorStates.TryGetValue(selected, out var state)
-            ? state
-            : _editorStates.Values.LastOrDefault();
+    private EditorTabState? ActiveEditorTab(ListBox tabs)
+        => tabs.SelectedItem as EditorTabState ?? _editorTabs.LastOrDefault();
 
-    private void ActivateEditorTab(Window window, TabControl tabs)
+    private void ActivateEditorTab(Window window, ListBox tabs)
     {
         if (ActiveEditorTab(tabs) is not { } state) return;
+        foreach (var tab in _editorTabs) tab.IsActive = ReferenceEquals(tab, state);
+        if (_editorContent is { } content) content.Content = state.Content;
         window.Title = "编辑 · " + state.Document.Path;
         window.DataContext = state.Vm;
     }
 
     private void DetachEditorTabs()
     {
-        foreach (var state in _editorStates.Values.ToArray())
-        {
-            try { state.Detach(); }
-            catch (Exception) { }
-        }
-        _editorStates.Clear();
+        foreach (var state in _editorTabs.ToArray()) state.Release();
+        _editorTabs.Clear();
     }
 
-    private Control BuildEditorTabHeader(Window window, TabControl tabs, TabItem tab, FileEditorViewModel vm, TextDocument document)
+    /// <summary>关闭单个标签：有未保存修改时先确认。</summary>
+    private async Task CloseEditorTabAsync(Window window, ListBox tabs, EditorTabState state)
     {
-        var label = new TextBlock
-        {
-            Text = System.IO.Path.GetFileName(document.Path),
-            VerticalAlignment = VerticalAlignment.Center,
-            MaxWidth = 210,
-            TextTrimming = TextTrimming.CharacterEllipsis
-        };
-        ToolTip.SetTip(label, document.Path);
-        var close = new Button { Padding = new Thickness(4, 2) };
-        close.Classes.Add("flat");
-        close.Content = new StrokeIcon { Symbol = "close", Width = 11, Height = 11 };
-        ToolTip.SetTip(close, "关闭标签");
-        close.Click += async (_, _) =>
-        {
-            if (!_editorStates.TryGetValue(tab, out var state)) return;
-            if (state.Vm.IsDirty && !await ConfirmOwnedAsync(window, "未保存的修改", $"关闭将放弃 {state.Name} 的未保存修改，是否继续？")) return;
-            _editorStates.Remove(tab);
-            try { state.Detach(); }
-            catch (Exception) { }
-            tabs.Items.Remove(tab);
-            if (tabs.Items.Count == 0) window.Close();
-            else ActivateEditorTab(window, tabs);
-        };
-        var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-        panel.Children.Add(label);
-        panel.Children.Add(close);
-        return panel;
+        if (state.Vm.IsDirty && !await ConfirmOwnedAsync(window, "未保存的修改", $"关闭将放弃 {state.Name} 的未保存修改，是否继续？")) return;
+        _editorTabs.Remove(state);
+        state.Release();
+        if (_editorTabs.Count == 0) window.Close();
+        else ActivateEditorTab(window, tabs);
     }
 
-    private void AddEditorTab(Window window, TabControl tabs, TextDocument document, Func<TextDocument, string, Task<TextDocument>> save)
+    private void AddEditorTab(Window window, ListBox tabs, TextDocument document, Func<TextDocument, string, Task<TextDocument>> save)
     {
         var vm = new FileEditorViewModel(document, save, codec);
         var root = new DockPanel();
@@ -502,12 +540,11 @@ public sealed class DialogService(ITextCodec codec, AppLockService? appLock = nu
             if (change.PropertyName == nameof(vm.SelectedSyntax)) input.SyntaxHighlighting = vm.SelectedSyntax.Highlighting;
         };
         root.Children.Add(input);
-        var tab = new TabItem { Content = root };
-        tab.Header = BuildEditorTabHeader(window, tabs, tab, vm, document);
         void Detach() { if (appLock != null) appLock.SettingsChanged -= ApplyEditorFont; }
-        _editorStates[tab] = new EditorTabState(document, vm, Detach);
-        tabs.Items.Add(tab);
-        tabs.SelectedItem = tab;
+        var state = new EditorTabState(document, vm, Detach) { Content = root };
+        state.CloseCommand = new RelayCommand(() => _ = CloseEditorTabAsync(window, tabs, state));
+        _editorTabs.Add(state);
+        tabs.SelectedItem = state;
         ActivateEditorTab(window, tabs);
     }
     private async Task<bool> ConfirmOwnedAsync(Window owner, string title, string message)

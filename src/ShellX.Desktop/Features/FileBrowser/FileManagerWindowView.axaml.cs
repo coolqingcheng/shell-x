@@ -9,12 +9,6 @@ public partial class FileManagerWindowView : UserControl
 {
     public FileManagerWindowView() => InitializeComponent();
 
-    private void CloseFileManagerTab(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Button { DataContext: FileManagerTabViewModel tab } && DataContext is MainWindowViewModel vm)
-            vm.CloseFileManagerTab(tab);
-    }
-
     private async void AddFileManagerTabClicked(object? sender, RoutedEventArgs e)
     {
         if (DataContext is MainWindowViewModel vm) await vm.AddFileManagerTabAsync();

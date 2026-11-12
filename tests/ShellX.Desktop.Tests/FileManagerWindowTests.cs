@@ -145,7 +145,7 @@ public sealed class FileManagerWindowTests
 
             var closeB = fileWindow.GetVisualDescendants().OfType<Button>()
                 .Single(b => ReferenceEquals(b.DataContext, main.SelectedFileManagerTab) && Equals(Avalonia.Controls.ToolTip.GetTip(b), "关闭文件标签"));
-            closeB.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            closeB.Command!.Execute(null);   // 统一页签的关闭按钮改用命令触发
             await Task.Delay(40);
             Assert.Equal(2, main.FileManagerTabs.Count);
             Assert.Same(tabA, main.SelectedFileManagerTab!.Connection);

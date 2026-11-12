@@ -28,6 +28,9 @@ public sealed class ConnectionAccentBorder : Border
         base.OnPropertyChanged(change);
         if (change.Property == AccentColorProperty || change.Property == AppearanceProperty || change.Property == IsActiveProperty || change.Property == Border.ChildProperty) ApplyColor();
     }
+    /// <summary>模板或主题切换后重新计算配色，让前景色与子控件同步。</summary>
+    public void Refresh() => ApplyColor();
+
     private void ApplyColor()
     {
         var light = ActualThemeVariant == ThemeVariant.Light;

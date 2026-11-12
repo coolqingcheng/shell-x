@@ -93,6 +93,8 @@ public partial class MainWindowViewModel : ObservableObject
     { foreach (var tab in Tabs) tab.IsSelected = ReferenceEquals(tab, value); }
     partial void OnSelectedFileManagerTabChanged(FileManagerTabViewModel? value)
     {
+        // 页签外观与终端标签一致，选中状态由这里同步给视图模型。
+        foreach (var tab in FileManagerTabs) tab.IsActive = ReferenceEquals(tab, value);
         // 移除当前页签时 ListBox 会先回写 null；剩余页签存在时立即恢复选择，避免内容区变空。
         if (value is null && !_disposingFileManagerTabs && FileManagerTabs.Count > 0)
         {
@@ -594,7 +596,7 @@ public partial class MainWindowViewModel : ObservableObject
     private FileManagerTabViewModel CreateFileManagerTab(WorkspaceTabViewModel connection)
     {
         var number = FileManagerTabs.Count(item => ReferenceEquals(item.Connection, connection)) + 1;
-        var fileTab = new FileManagerTabViewModel(connection, number, _dialogs, _logs, _localFiles);
+        var fileTab = new FileManagerTabViewModel(connection, number, _dialogs, _logs, _localFiles, CloseFileManagerTab);
         FileManagerTabs.Add(fileTab);
         SelectedFileManagerTab = fileTab;
         return fileTab;

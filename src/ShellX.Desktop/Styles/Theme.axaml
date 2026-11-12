@@ -126,4 +126,26 @@
     <Setter Property="Background" Value="{DynamicResource PanelBackground}" />
     <Setter Property="CornerRadius" Value="2" />
   </Style>
+  <!-- 标签栏：终端、文件管理器、文本编辑器统一使用同一套列表样式 -->
+  <Style Selector="ListBox.shelltabs">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto" />
+    <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Disabled" />
+    <Setter Property="ItemsPanel">
+      <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="ListBox.shelltabs ListBoxItem">
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Margin" Value="0" />
+    <Setter Property="MinHeight" Value="35" />
+  </Style>
+  <Style Selector="ListBox.shelltabs ListBoxItem:selected /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AppBackground}" />
+  </Style>
+  <Style Selector="ListBox.shelltabs ListBoxItem:not(:selected) /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource HeaderBackground}" />
+  </Style>
 </Styles>

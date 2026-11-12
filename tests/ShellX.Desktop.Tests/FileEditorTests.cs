@@ -7,6 +7,7 @@ using Avalonia.Media;
 using Avalonia.VisualTree;
 using AvaloniaEdit.Highlighting;
 using ShellX.Core.Files;
+using ShellX.Desktop.Controls;
 using ShellX.Desktop.Features.FileEditor;
 using ShellX.Desktop.Services;
 using ShellX.Infrastructure.Files;
@@ -109,7 +110,7 @@ public sealed class FileEditorTests
             await second.WaitAsync(TimeSpan.FromSeconds(5));
             window = Assert.Single(owner.OwnedWindows);
             await Task.Delay(40);
-            var tabs = window.GetVisualDescendants().OfType<TabItem>().ToArray();
+            var tabs = window.GetVisualDescendants().OfType<ShellTabItemView>().ToArray();
             Assert.Equal(2, tabs.Length);
             Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "nginx.conf");
             Assert.IsType<FileEditorViewModel>(window.DataContext);
@@ -118,7 +119,7 @@ public sealed class FileEditorTests
             // 同一个文件再次点击只聚焦已有标签。
             var third = dialog.EditFileAsync(new("/etc/nginx.conf", "two", 3, DateTime.UtcNow), (document, _) => Task.FromResult(document));
             await third.WaitAsync(TimeSpan.FromSeconds(5));
-            Assert.Equal(2, window.GetVisualDescendants().OfType<TabItem>().Count());
+            Assert.Equal(2, window.GetVisualDescendants().OfType<ShellTabItemView>().Count());
 
             if (Environment.GetEnvironmentVariable("SHELLX_PREVIEW_PATH") is { Length: > 0 } preview)
             {

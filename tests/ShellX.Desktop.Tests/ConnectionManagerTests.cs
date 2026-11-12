@@ -317,7 +317,7 @@ public sealed class ConnectionManagerTests
             var second = vm.SelectedTab!;
             Assert.Same(first.Monitor, second.Monitor); Assert.NotSame(first.Session, second.Session);
             Assert.Same(second.Monitor, window.GetVisualDescendants().OfType<ServerMonitorView>().Single().DataContext);
-            var header = window.GetVisualDescendants().OfType<ConnectionAccentBorder>().Single(c => c.Name == "ConnectionTabBackground" && ReferenceEquals(c.DataContext, first));
+            var header = window.GetVisualDescendants().OfType<ShellTabItemView>().Single(v => ReferenceEquals(v.DataContext, first));
             var headerPoint = header.TranslatePoint(new Point(30, header.Bounds.Height / 2), window)!.Value;
             window.MouseDown(headerPoint, MouseButton.Right); window.MouseUp(headerPoint, MouseButton.Right);
             await Until(() => header.ContextMenu!.IsOpen);
