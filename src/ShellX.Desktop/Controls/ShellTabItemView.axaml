@@ -3,7 +3,7 @@
              xmlns:controls="using:ShellX.Desktop.Controls"
              x:Class="ShellX.Desktop.Controls.ShellTabItemView">
   <controls:ConnectionAccentBorder Name="TabBackground" Appearance="Tab" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-                                    BorderBrush="{DynamicResource RaisedBackground}" BorderThickness="0,0,1,0">
+                                    BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,1,0">
     <Grid RowDefinitions="3,*">
       <controls:ConnectionAccentBorder Name="AccentLine" Appearance="Indicator" IsHitTestVisible="False" />
       <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="9" Margin="10,1,3,1">

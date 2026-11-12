@@ -147,6 +147,6 @@
     <Setter Property="Background" Value="{DynamicResource AppBackground}" />
   </Style>
   <Style Selector="ListBox.shelltabs ListBoxItem:not(:selected) /template/ ContentPresenter">
-    <Setter Property="Background" Value="{DynamicResource HeaderBackground}" />
+    <Setter Property="Background" Value="{DynamicResource RaisedBackground}" />
   </Style>
 </Styles>

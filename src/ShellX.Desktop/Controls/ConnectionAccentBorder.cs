@@ -37,12 +37,11 @@ public sealed class ConnectionAccentBorder : Border
     {
         // 页签底色必须跟着当前主题走：写死 VS Code 配色的话，换成 Nord、One Light 之后页签还是老样子。
         var surface = ThemeColor(ThemeCatalog.AppBackground, "#1E1E1E");
-        var header = ThemeColor(ThemeCatalog.HeaderBackground, "#2D2D30");
+        var raised = ThemeColor(ThemeCatalog.RaisedBackground, "#3C3C3C");
         // 自定义亮色主题的变体不等于 ThemeVariant.Light，只能按底色亮度判断深浅。
         var light = Luminance(surface) > .5;
         var marked = !string.IsNullOrEmpty(AccentColor) && AccentColor.Length == 7 && AccentColor[0] == '#' && Color.TryParse(AccentColor, out _);
         var accent = marked ? Muted(Color.Parse(AccentColor), light) : Colors.Transparent;
-        var activeFallback = ThemeColor(ThemeCatalog.SelectionBackground, "#094771");
         switch (Appearance)
         {
             case ConnectionAccentAppearance.Indicator:
@@ -54,13 +53,15 @@ public sealed class ConnectionAccentBorder : Border
             case ConnectionAccentAppearance.Tab:
                 if (IsActive)
                 {
-                    var active = marked ? AccentSurface(surface, accent) : activeFallback;
+                    // 选中的页签与下方内容区同色，顶部再压一条主题强调色，激活项一眼能认出来。
+                    var active = marked ? AccentSurface(surface, accent) : surface;
                     Background = new SolidColorBrush(active);
                     ApplyForeground(ReadableForeground(active));
                 }
                 else
                 {
-                    Background = new SolidColorBrush(marked ? Blend(header, accent, light ? .08 : .10) : header);
+                    // 未选中的页签用抬高一档的底色，别和页签条背景糊成一片。
+                    Background = new SolidColorBrush(marked ? Blend(raised, accent, light ? .10 : .12) : raised);
                     ApplyForeground(ThemeColor(ThemeCatalog.ForegroundBrush, "#CCCCCC"));
                 }
                 break;

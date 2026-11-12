@@ -106,25 +106,39 @@ public sealed class ThemeAndDragDropTests
     public async Task ConnectionTabsFollowThemeColors()
     {
         var tab = new ShellTabItemView { Title = "服务器", IsActive = true };
+        var idle = new ShellTabItemView { Title = "另一个", IsActive = false };
+        // 模拟顶部栏：页签条是标题栏底色，下方是内容区底色。
+        var strip = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal };
+        strip.Children.Add(tab);
+        strip.Children.Add(idle);
+        var header = new Border { Padding = new Thickness(6, 0, 6, 0) };
+        header.Child = strip;
+        var body = new Border { Height = 40 };
         var panel = new StackPanel { Orientation = Avalonia.Layout.Orientation.Vertical };
-        panel.Children.Add(tab);
-        var window = new Window { Width = 320, Height = 90, Content = panel };
+        panel.Children.Add(header);
+        panel.Children.Add(body);
+        var window = new Window { Width = 360, Height = 78, Content = panel };
         window.Show();
         try
         {
             var background = tab.FindControl<ConnectionAccentBorder>("TabBackground")!;
             var indicator = tab.FindControl<ConnectionAccentBorder>("AccentLine")!;
+            var idleBackground = idle.FindControl<ConnectionAccentBorder>("TabBackground")!;
             foreach (var theme in ThemeCatalog.All)
             {
                 ThemeService.Apply(theme);
                 await Task.Delay(60);
                 var palette = ThemeCatalog.Of(theme);
-                // 激活页签用主题的选中色，未激活页签跟标题栏同色。
-                Assert.Equal(Color.Parse(palette.Ui[ThemeCatalog.SelectionBackground]), ((ISolidColorBrush)background.Background!).Color);
+                header.Background = new SolidColorBrush(Color.Parse(palette.Ui[ThemeCatalog.HeaderBackground]));
+                body.Background = new SolidColorBrush(Color.Parse(palette.Ui[ThemeCatalog.AppBackground]));
+                // 激活页签与内容区同色并压强调条，未激活页签用抬高一档的底色，两者必须能分辨。
+                Assert.Equal(Color.Parse(palette.Ui[ThemeCatalog.AppBackground]), ((ISolidColorBrush)background.Background!).Color);
+                Assert.Equal(Color.Parse(palette.Ui[ThemeCatalog.RaisedBackground]), ((ISolidColorBrush)idleBackground.Background!).Color);
+                Assert.NotEqual(((ISolidColorBrush)background.Background!).Color, ((ISolidColorBrush)idleBackground.Background!).Color);
                 Assert.Equal(Color.Parse(palette.Ui[ThemeCatalog.AccentForeground]), ((ISolidColorBrush)indicator.Background!).Color);
                 tab.IsActive = false;
                 await Task.Delay(30);
-                Assert.Equal(Color.Parse(palette.Ui[ThemeCatalog.HeaderBackground]), ((ISolidColorBrush)background.Background!).Color);
+                Assert.Equal(Color.Parse(palette.Ui[ThemeCatalog.RaisedBackground]), ((ISolidColorBrush)background.Background!).Color);
                 tab.IsActive = true;
                 if (Environment.GetEnvironmentVariable("SHELLX_PREVIEW_PATH") is { Length: > 0 } preview)
                 {

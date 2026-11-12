@@ -7,6 +7,7 @@ using ShellX.Core.Settings;
 using ShellX.Desktop.Controls;
 using ShellX.Desktop.Features.Connections;
 using ShellX.Desktop.Services;
+using ShellX.Desktop.Styles;
 
 namespace ShellX.Desktop.Tests;
 
@@ -45,18 +46,21 @@ public sealed class ConnectionAccentTests
         finally { ThemeService.Apply(AppTheme.Dark); window.Close(); }
     }
     [AvaloniaFact]
-    public async Task PlainActiveTabUsesClearSelectionColorInBothThemes()
+    public async Task ActiveTabUsesContentColorAndInactiveTabIsRaised()
     {
         var active = new ConnectionAccentBorder { Appearance = ConnectionAccentAppearance.Tab, IsActive = true };
         var inactive = new ConnectionAccentBorder { Appearance = ConnectionAccentAppearance.Tab, IsActive = false };
         var window = new Window { Content = new StackPanel { Children = { active, inactive } }, Width = 240, Height = 120 }; window.Show();
         try
         {
-            foreach (var theme in new[] { AppTheme.Dark, AppTheme.Light })
+            foreach (var theme in ThemeCatalog.All)
             {
                 ThemeService.Apply(theme); await Task.Delay(40);
+                var palette = ThemeCatalog.Of(theme);
+                // 激活页签与下方内容区同色并压主题强调条，未激活页签抬高一档，两者一眼能分辨。
+                Assert.Equal(Color.Parse(palette.Ui[ThemeCatalog.AppBackground]), Solid(active.Background));
+                Assert.Equal(Color.Parse(palette.Ui[ThemeCatalog.RaisedBackground]), Solid(inactive.Background));
                 Assert.NotEqual(Solid(inactive.Background), Solid(active.Background));
-                Assert.Equal(Color.Parse(theme == AppTheme.Light ? "#CCE8FF" : "#094771"), Solid(active.Background));
             }
         }
         finally { ThemeService.Apply(AppTheme.Dark); window.Close(); }
