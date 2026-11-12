@@ -208,6 +208,8 @@ public partial class LocalFileBrowserViewModel(ILocalFileSystem files, IDialogSe
     private readonly List<FileTreeNodeViewModel> _selectedTreeNodes = [];
     /// <summary>最近点选的树节点，作为面板的主要选择。</summary>
     private FileTreeNodeViewModel? _primaryTreeNode;
+    /// <summary>当前选中的树节点路径，右键“复制路径”用它。</summary>
+    public string? SelectedPath => _primaryTreeNode?.Path;
 
     public bool ShowHiddenFiles => ShowHidden;
     public string SearchText => Search;
@@ -235,6 +237,7 @@ public partial class LocalFileBrowserViewModel(ILocalFileSystem files, IDialogSe
         }
         _primaryTreeNode = node;
         SyncTreeSelection();
+        OnPropertyChanged(nameof(SelectedPath));
     }
 
     /// <summary>Ctrl+A：选中当前可见的所有行。</summary>
@@ -245,6 +248,7 @@ public partial class LocalFileBrowserViewModel(ILocalFileSystem files, IDialogSe
         foreach (var item in nodes) { _selectedTreeNodes.Add(item); item.IsSelected = true; }
         _primaryTreeNode = nodes.Count > 0 ? nodes[^1] : null;
         SyncTreeSelection();
+        OnPropertyChanged(nameof(SelectedPath));
     }
 
     /// <summary>把树上的选择同步到面板的当前条目。</summary>

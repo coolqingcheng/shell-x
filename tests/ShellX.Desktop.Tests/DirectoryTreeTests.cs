@@ -45,9 +45,9 @@ public class DirectoryTreeTests
         Assert.True(root.IsExpanded);
         Assert.Single(root.Children);
         Assert.Equal(2, browser.FlatNodes.Count);
-        // 新出现的行先标记出来，视图据此播放高度动画。
+        // 新出现的行先标记出来，视图据此播放出现动画。
         Assert.True(browser.FlatNodes[1].IsRevealing);
-        await Task.Delay(400);
+        await Task.Delay(700);
         Assert.False(browser.FlatNodes[1].IsRevealing);
 
         await root.ToggleCommand.ExecuteAsync(null);
@@ -56,9 +56,12 @@ public class DirectoryTreeTests
         Assert.Single(browser.FlatNodes);
     }
 
-    /// <summary>展开的行是慢慢长出来的，不是直接出现；收起时再缩回去。</summary>
+    /// <summary>
+    /// 展开的行是淡入上滑出现的，不是直接出现；行高保持固定。
+    /// 动画只走渲染属性，虚拟列表不需要逐帧重新测量。
+    /// </summary>
     [AvaloniaFact]
-    public async Task TreeRowGrowsAndShrinksWithHeightAnimation()
+    public async Task TreeRowRevealsWithRenderAnimationAndKeepsRowHeight()
     {
         var tree = new Dictionary<string, IReadOnlyList<RemoteEntry>>
         {
@@ -76,16 +79,62 @@ public class DirectoryTreeTests
         {
             await Task.Delay(150);
             await root.ToggleCommand.ExecuteAsync(null);
-            await Task.Delay(60);
+            // 等虚拟列表把新行渲染出来。
+            await Task.Delay(40);
             var child = view.GetVisualDescendants().OfType<FileTreeNodeView>()
                 .FirstOrDefault(row => ReferenceEquals(row.DataContext, root.Children[0]));
             Assert.NotNull(child);
-            // 动画中间态：高度在 0 和固定高度之间。
-            Assert.InRange(child!.Height, 0.5, FileTreeNodeViewModel.RowHeight - 0.5);
-            await Task.Delay(400);
-            Assert.Equal(FileTreeNodeViewModel.RowHeight, child.Height, 1);
+            // 采样动画过程：透明度要从 0 涨到 1，中间得有中间态。
+            var samples = new List<double>();
+            for (var i = 0; i < 10; i++) { await Task.Delay(25); samples.Add(child!.Opacity); }
+            Assert.Contains(samples, value => value > 0.01 && value < 0.99);
+            // 行高始终固定，不再动画行高。
+            Assert.Equal(FileTreeNodeViewModel.RowHeight, child!.Height, 1);
+            Assert.Equal(1, child.Opacity, 2);
         }
         finally { window.Close(); }
+    }
+
+    /// <summary>右键“复制路径”拿的是选中节点的完整路径。</summary>
+    [AvaloniaFact]
+    public async Task SelectedTreeNodeExposesFullPathForCopy()
+    {
+        var tree = new Dictionary<string, IReadOnlyList<RemoteEntry>>
+        {
+            ["/"] = [Dir("etc", "/etc")],
+            ["/etc"] = []
+        };
+        using var browser = RemoteSink();
+        var root = RemoteNode(browser, tree);
+        browser.TreeRoots.Add(root);
+        browser.FlatNodes.Add(root);
+        await root.ToggleCommand.ExecuteAsync(null);
+
+        browser.Select(root.Children[0]);
+        Assert.Equal("/etc", browser.SelectedPath);
+        Assert.True(browser.SelectedIsDirectory);
+    }
+
+    /// <summary>右键“在终端打开”把目录交给外壳，由外壳新建连接。</summary>
+    [AvaloniaFact]
+    public async Task OpenInTerminalPassesDirectoryToHost()
+    {
+        var tree = new Dictionary<string, IReadOnlyList<RemoteEntry>>
+        {
+            ["/"] = [Dir("etc", "/etc")],
+            ["/etc"] = []
+        };
+        using var browser = RemoteSink();
+        var root = RemoteNode(browser, tree);
+        browser.TreeRoots.Add(root);
+        browser.FlatNodes.Add(root);
+        await root.ToggleCommand.ExecuteAsync(null);
+
+        string? requested = null;
+        browser.OpenTerminalHandler = path => { requested = path; return Task.CompletedTask; };
+        browser.Select(root.Children[0]);
+        await browser.OpenInTerminalCommand.ExecuteAsync(null);
+        Assert.Equal("/etc", requested);
     }
 
     /// <summary>目录读取慢时先显示加载中，读完才展开，避免动画高度不对。</summary>

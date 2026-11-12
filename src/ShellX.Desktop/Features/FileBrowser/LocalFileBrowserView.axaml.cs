@@ -24,6 +24,13 @@ public partial class LocalFileBrowserView : UserControl
     private async void OpenRoot(object? sender, RoutedEventArgs e)
     { if (sender is Button { Tag: string path } && DataContext is LocalFileBrowserViewModel vm) { RootsButton.Flyout?.Hide(); await vm.NavigateAsync(path); } }
 
+    /// <summary>右键“复制路径”：把选中节点的完整路径放进剪贴板。</summary>
+    private async void CopyPathClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not LocalFileBrowserViewModel vm) return;
+        await ClipboardHelper.CopyAsync(this, vm.SelectedPath);
+    }
+
     /// <summary>Ctrl+A 选中树里当前可见的所有行。</summary>
     private void SelectAllRows(object? sender, KeyEventArgs e)
     {

@@ -3,17 +3,27 @@
              xmlns:easing="using:Avalonia.Animation.Easings" xmlns:anim="using:Avalonia.Animation"
              xmlns:controls="using:ShellX.Desktop.Controls"
              x:Class="ShellX.Desktop.Features.FileBrowser.FileTreeNodeView"
-             IsVisible="{Binding IsVisible}">
-  <!-- 行高动画：新展开的行从 0 长到固定高度，收起的行归零后由面板移除 -->
+             Height="26" IsVisible="{Binding IsVisible}">
+  <!-- 出现动画只动渲染属性（透明度 + 位移），不动画行高：行高是布局属性，
+       逐行过渡会让虚拟列表每帧重新测量，卡顿明显。这里一次布局都不触发。 -->
   <UserControl.Transitions>
     <anim:Transitions>
-      <DoubleTransition Property="Height" Duration="0:0:0.2">
-        <DoubleTransition.Easing>
-          <easing:CubicEaseOut />
-        </DoubleTransition.Easing>
-      </DoubleTransition>
+      <DoubleTransition Property="Opacity" Duration="0:0:0.16" />
     </anim:Transitions>
   </UserControl.Transitions>
+  <UserControl.RenderTransform>
+    <TranslateTransform>
+      <TranslateTransform.Transitions>
+        <anim:Transitions>
+          <DoubleTransition Property="Y" Duration="0:0:0.2">
+            <DoubleTransition.Easing>
+              <easing:CubicEaseOut />
+            </DoubleTransition.Easing>
+          </DoubleTransition>
+        </anim:Transitions>
+      </TranslateTransform.Transitions>
+    </TranslateTransform>
+  </UserControl.RenderTransform>
   <UserControl.Styles>
     <Style Selector="Border.row">
       <Setter Property="Background" Value="Transparent" />

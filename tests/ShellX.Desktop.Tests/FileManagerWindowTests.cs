@@ -304,6 +304,24 @@ public sealed class FileManagerWindowTests
         Assert.True(index > 0);
         return text[..index];
     }
+    /// <summary>文件树里“在终端打开”会交给外壳，由外壳新建一个连接。</summary>
+    [AvaloniaFact]
+    public async Task OpenInTerminalInFileTreeGoesToShell()
+    {
+        WorkspaceTabViewModel? source = null;
+        string? requested = null;
+        var tab = new WorkspaceTabViewModel(
+            new ConnectionProfile { Name = "测试连接", Host = "127.0.0.1", Port = 22, Username = "root" },
+            new UnusedFactory(), new FakeDialogs(), NullLoggerFactory.Instance,
+            () => Task.FromResult<ConnectionSecret?>(null), _ => Task.FromResult(true),
+            _ => Task.CompletedTask, _ => Task.CompletedTask, new AppSettings(), new LocalFileSystem(),
+            null, null, (owner, path) => { source = owner; requested = path; return Task.CompletedTask; });
+
+        await tab.OpenTerminalAtAsync("/usr/local");
+        Assert.Same(tab, source);
+        Assert.Equal("/usr/local", requested);
+    }
+
     private sealed class UnusedFactory : IRemoteSessionFactory
     {
         public Task<IRemoteSession> ConnectAsync(ConnectionProfile profile, ConnectionSecret secret,

@@ -33,6 +33,7 @@
           </ItemsControl.ItemTemplate>
           <ItemsControl.ContextMenu><ContextMenu>
             <MenuItem Header="打开（系统默认程序）" Command="{Binding OpenCommand}" /><MenuItem Header="编辑文本" Command="{Binding EditTextCommand}" /><MenuItem Header="上传到右侧目录 →" Command="{Binding UploadCommand}" IsEnabled="{Binding IsRemoteAvailable}" /><Separator />
+            <MenuItem Header="复制路径" Click="CopyPathClick" /><Separator />
             <MenuItem Header="新建文件" Command="{Binding NewFileCommand}" /><MenuItem Header="新建文件夹" Command="{Binding NewFolderCommand}" />
             <MenuItem Header="重命名" Command="{Binding RenameCommand}" /><MenuItem Header="在系统文件管理器中打开" Command="{Binding ShowInExplorerCommand}" /><Separator /><MenuItem Header="删除    Delete" Command="{Binding DeleteCommand}" />
           </ContextMenu></ItemsControl.ContextMenu>

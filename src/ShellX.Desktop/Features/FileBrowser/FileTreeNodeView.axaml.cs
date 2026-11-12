@@ -2,6 +2,7 @@ using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -27,7 +28,7 @@ public partial class FileTreeNodeView : UserControl
         {
             if (!_pendingReveal) return;
             _pendingReveal = false;
-            StartReveal();
+            _ = StartRevealAsync();
         };
         // 拖放是附加事件，只能在代码里挂；每一行都是独立的放置目标。
         DragDrop.SetAllowDrop(Row, true);
@@ -36,54 +37,73 @@ public partial class FileTreeNodeView : UserControl
         DragDrop.AddDropHandler(Row, RowDrop);
     }
 
+    /// <summary>位移变换：出现动画靠它上滑，属于渲染属性，不触发布局。</summary>
+    private TranslateTransform? Slide => RenderTransform as TranslateTransform;
+
     private void AttachNode()
     {
         if (_node != null) _node.PropertyChanged -= NodePropertyChanged;
         _node = DataContext as FileTreeNodeViewModel;
         if (_node != null) _node.PropertyChanged += NodePropertyChanged;
-        ApplyHeight();
+        ApplyVisualState();
     }
 
     private void NodePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(FileTreeNodeViewModel.IsCollapsing) or nameof(FileTreeNodeViewModel.IsRevealing))
-            ApplyHeight();
+            ApplyVisualState();
     }
 
-    /// <summary>新展开的行从 0 长出来，收起的行缩回 0。</summary>
-    private void ApplyHeight()
+    /// <summary>按节点状态切换动画：出现时淡入上滑，收起时淡出上移。</summary>
+    private void ApplyVisualState()
     {
         if (_node == null) return;
-        if (_node.IsCollapsing) { Height = 0; return; }
+        if (_node.IsCollapsing) { StartCollapse(); return; }
         if (_node.IsRevealing)
         {
-            SetHeightImmediate(0);
-            // 过渡要在行挂到视觉树上之后启动，否则会直接跳到最终高度。
+            // 过渡要在行挂到视觉树上之后启动，否则会直接跳到最终状态。
             if (!this.IsAttachedToVisualTree()) { _pendingReveal = true; return; }
-            StartReveal();
+            _ = StartRevealAsync();
             return;
         }
-        SetHeightImmediate(FileTreeNodeViewModel.RowHeight);
+        Opacity = 1;
+        if (Slide is { } slide) slide.Y = 0;
     }
 
-    /// <summary>播放出现动画：先压到 0，再在下一帧过渡到固定高度。</summary>
-    private void StartReveal()
+    /// <summary>
+    /// 出现动画：先藏到起点，再按顺序错峰淡入上滑。
+    /// 只改透明度和位移，行高始终固定，虚拟列表不需要重新测量。
+    /// </summary>
+    private async Task StartRevealAsync()
     {
-        SetHeightImmediate(0);
-        Dispatcher.UIThread.Post(() =>
-        {
-            if (_node == null) return;
-            Height = FileTreeNodeViewModel.RowHeight;
-        }, DispatcherPriority.Render);
+        var node = _node; if (node == null) return;
+        SetVisualImmediate(0, -FileTreeNodeViewModel.RowHeight);
+        var delay = Math.Clamp(node.RevealOrder, 0, 16) * 14;
+        if (delay > 0) await Task.Delay(delay);
+        if (_node == null || !_node.IsRevealing || _node.IsCollapsing) return;
+        Opacity = 1;
+        if (Slide is { } slide) slide.Y = 0;
     }
 
-    /// <summary>直接改高度而不走过渡，避免自动高度参与插值导致动画失效。</summary>
-    private void SetHeightImmediate(double value)
+    /// <summary>收起动画：淡出并轻微上移，动画结束后由面板移除这一行。</summary>
+    private void StartCollapse()
+    {
+        Opacity = 0;
+        if (Slide is { } slide) slide.Y = -8;
+    }
+
+    /// <summary>直接改渲染属性而不走过渡，避免起点被反向动画掉。</summary>
+    private void SetVisualImmediate(double opacity, double offset)
     {
         var transitions = Transitions;
+        var slide = Slide;
+        var slideTransitions = slide?.Transitions;
         Transitions = null;
-        Height = value;
+        if (slide != null) slide.Transitions = null;
+        Opacity = opacity;
+        if (slide != null) slide.Y = offset;
         Transitions = transitions;
+        if (slide != null) slide.Transitions = slideTransitions;
     }
 
     private void RowPointerPressed(object? sender, PointerPressedEventArgs e)

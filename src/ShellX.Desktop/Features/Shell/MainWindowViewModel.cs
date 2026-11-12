@@ -504,11 +504,40 @@ public partial class MainWindowViewModel : ObservableObject
         try
         {
             var secret = await SecretAsync(profile); if (secret == null) return;
-            WorkspaceTabViewModel? tab = null;
-            tab = new WorkspaceTabViewModel(profile, _sessions, _dialogs, _logs, () => SecretAsync(tab!.Profile), VerifyHostAsync,
-                SaveProfileAsync, CloseTabAsync, _settings, _localFiles, SaveProcessSortAsync, _monitors);
+            var tab = CreateWorkspaceTab(profile);
             Tabs.Add(tab); SelectedTab = tab; NotifyTabs();
             await tab.ConnectWithSecretAsync(secret);
+        }
+        catch (Exception ex) { await _dialogs.ShowErrorAsync(ex.Message); }
+    }
+
+    /// <summary>新建一个工作区标签，参数都接到外壳上。</summary>
+    private WorkspaceTabViewModel CreateWorkspaceTab(ConnectionProfile profile)
+    {
+        WorkspaceTabViewModel? tab = null;
+        tab = new WorkspaceTabViewModel(profile, _sessions, _dialogs, _logs, () => SecretAsync(tab!.Profile), VerifyHostAsync,
+            SaveProfileAsync, CloseTabAsync, _settings, _localFiles, SaveProcessSortAsync, _monitors, OpenTerminalAtAsync);
+        return tab;
+    }
+
+    /// <summary>文件树里“在终端打开”：新建一个到同一主机的连接，并把终端切到该目录。</summary>
+    private async Task OpenTerminalAtAsync(WorkspaceTabViewModel source, string path)
+    {
+        if (_applicationLock.IsLocked || string.IsNullOrWhiteSpace(path)) return;
+        var profile = source.Profile;
+        try
+        {
+            // 优先复用当前会话的密钥，必要时才重新要一次。
+            var secret = source.CurrentSecret ?? await SecretAsync(profile);
+            if (secret == null) return;
+            var tab = CreateWorkspaceTab(profile);
+            tab.SetTemporaryName(profile.Name + " · " + path);
+            Tabs.Add(tab); SelectedTab = tab; NotifyTabs();
+            await tab.ConnectWithSecretAsync(secret);
+            if (!tab.IsConnected) return;
+            await tab.ChangeDirectoryAsync(path);
+            // 文件面板也跟着切到同一个目录，新标签打开就是那个地方。
+            try { await tab.Files.NavigateAsync(path); } catch (Exception) { }
         }
         catch (Exception ex) { await _dialogs.ShowErrorAsync(ex.Message); }
     }

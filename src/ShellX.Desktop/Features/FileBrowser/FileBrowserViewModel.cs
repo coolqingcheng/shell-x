@@ -87,6 +87,13 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable, IFile
     /// <summary>用户请求查看某个远程日志文件，由界面负责开窗口。</summary>
     public event Action<string>? LogRequested;
 
+    /// <summary>在终端里打开某个目录：由工作区注入，文件树本身不负责建连接。</summary>
+    public Func<string, Task>? OpenTerminalHandler { get; set; }
+    /// <summary>当前选中的树节点路径，右键“复制路径”用它。</summary>
+    public string? SelectedPath => _primaryTreeNode?.Path;
+    /// <summary>当前选中的节点是不是目录，决定“在终端打开”能不能用。</summary>
+    public bool SelectedIsDirectory => _primaryTreeNode?.IsDirectory == true;
+
     public bool CanViewLog => LogReader != null && SelectedEntry is { IsDirectory: false, IsSymbolicLink: false };
     public void NotifySelectionChanged() { EditTextCommand.NotifyCanExecuteChanged(); ViewLogCommand.NotifyCanExecuteChanged(); }
 
@@ -431,6 +438,7 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable, IFile
         }
         _primaryTreeNode = node;
         SyncTreeSelection();
+        NotifyTreeSelection();
     }
 
     /// <summary>Ctrl+A：选中当前可见的所有行。</summary>
@@ -441,6 +449,14 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable, IFile
         foreach (var item in nodes) { _selectedTreeNodes.Add(item); item.IsSelected = true; }
         _primaryTreeNode = nodes.Count > 0 ? nodes[^1] : null;
         SyncTreeSelection();
+        NotifyTreeSelection();
+    }
+
+    /// <summary>选中项变了，右键菜单里跟路径、目录有关的项要跟着更新。</summary>
+    private void NotifyTreeSelection()
+    {
+        OnPropertyChanged(nameof(SelectedPath));
+        OnPropertyChanged(nameof(SelectedIsDirectory));
     }
 
     /// <summary>清掉树上的高亮：目录变了，之前的选中项就不该再留着。</summary>
@@ -451,6 +467,7 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable, IFile
         _primaryTreeNode = null;
         SelectedEntries.Clear();
         SelectedEntry = null;
+        NotifyTreeSelection();
     }
 
     /// <summary>把树上的选择同步到面板的当前条目。</summary>
@@ -463,6 +480,16 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable, IFile
         if (_primaryTreeNode is RemoteTreeNodeViewModel primary) SelectedEntry = primary.Entry;
         else if (SelectedEntries.Count > 0) SelectedEntry = SelectedEntries[^1];
         NotifySelectionChanged();
+    }
+
+    /// <summary>在终端打开：新建一个到同一主机的连接，并把终端切到当前目录。</summary>
+    [RelayCommand]
+    private async Task OpenInTerminalAsync()
+    {
+        if (_primaryTreeNode is not RemoteTreeNodeViewModel remote || !remote.Entry.IsDirectory) return;
+        var handler = OpenTerminalHandler; if (handler == null) return;
+        try { await handler(remote.Entry.FullPath); }
+        catch (Exception ex) { Error = ex.Message; await dialogs.ShowErrorAsync(ex.Message); }
     }
 
     /// <summary>展开或收起节点：把子节点插进或移出扁平行列表。</summary>

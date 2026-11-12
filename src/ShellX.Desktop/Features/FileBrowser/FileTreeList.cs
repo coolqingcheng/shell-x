@@ -30,8 +30,10 @@ public sealed class FileTreeList
         if (index < 0) return;
         // 行数不多时逐行动画，行数太多时直接显示，避免长时间卡顿；刷新内容时不重播动画。
         var animate = !node.IsRefreshing && children.Count <= 24;
-        foreach (var child in children)
+        for (var i = 0; i < children.Count; i++)
         {
+            var child = children[i];
+            child.RevealOrder = i;
             child.IsCollapsing = false;
             child.IsRevealing = animate;
         }
@@ -39,12 +41,13 @@ public sealed class FileTreeList
         if (animate) _ = ClearRevealFlagsAsync(children);
     }
 
-    /// <summary>收起节点：子节点先缩到 0 高度，动画结束后再从列表里移除。</summary>
+    /// <summary>收起节点：子节点先淡出，动画结束后再从列表里移除。</summary>
     public void CollapseDescendants(FileTreeNodeViewModel node)
     {
         var descendants = DescendantsOf(node).ToList();
         if (descendants.Count == 0) return;
-        foreach (var item in descendants) item.IsCollapsing = true;
+        // 先标记收起再取消出现，行才会直接淡出而不是先闪一下再淡出。
+        foreach (var item in descendants) { item.IsCollapsing = true; item.IsRevealing = false; }
         _ = RemoveAfterCollapseAsync(node);
     }
 
@@ -91,13 +94,14 @@ public sealed class FileTreeList
 
     private static async Task ClearRevealFlagsAsync(IReadOnlyList<FileTreeNodeViewModel> nodes)
     {
-        await Task.Delay(320);
+        // 错峰最长 224 毫秒，动画 200 毫秒，等动画结束再收标记。
+        await Task.Delay(520);
         foreach (var node in nodes) node.IsRevealing = false;
     }
 
     private async Task RemoveAfterCollapseAsync(FileTreeNodeViewModel node)
     {
-        await Task.Delay(260);
+        await Task.Delay(220);
         // 动画期间如果又展开了，就保留这些行。
         if (!node.IsExpanded)
         {

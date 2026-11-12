@@ -55,6 +55,8 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
     /// <summary>标签被关闭（会话已释放）时触发，用于同步关闭该连接的附属窗口。</summary>
     public event EventHandler? Disposed;
     public FileBrowserViewModel Files { get; }
+    /// <summary>当前会话用的密钥，只在内存里，用于再开一个同主机的连接。</summary>
+    public ConnectionSecret? CurrentSecret => _reconnectSecret;
     public SessionTerminalChannel Terminal { get; } = new();
     public ServerMonitorViewModel Monitor => _monitorLease.Monitor;
     public CommandPanelViewModel Commands { get; }
@@ -92,10 +94,13 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
     public WorkspaceTabViewModel(ConnectionProfile profile, IRemoteSessionFactory factory, IDialogService dialogs,
         ILoggerFactory logs, Func<Task<ConnectionSecret?>> getSecret, Func<HostKeyChallenge, Task<bool>> verify,
         Func<ConnectionProfile, Task> save, Func<WorkspaceTabViewModel, Task> close, AppSettings settings, ILocalFileSystem localFiles,
-        Func<ProcessSortColumn, bool, Task>? saveProcessSort = null, SharedMonitorRegistry? monitors = null)
+        Func<ProcessSortColumn, bool, Task>? saveProcessSort = null, SharedMonitorRegistry? monitors = null,
+        Func<WorkspaceTabViewModel, string, Task>? openTerminal = null)
     {
         Profile = profile; _sessions = new SessionManager(factory); _dialogs = dialogs; _getSecret = getSecret; _verify = verify; _save = save; _close = close;
         _log = logs.CreateLogger<WorkspaceTabViewModel>(); Files = new(dialogs, logs.CreateLogger<FileBrowserViewModel>(), localFiles);
+        // 文件树里“在终端打开”交给外壳处理：它要新建连接，标签自己做不到。
+        Files.OpenTerminalHandler = path => openTerminal == null ? Task.CompletedTask : openTerminal(this, path);
         _monitors = monitors ?? new SharedMonitorRegistry(dialogs, logs); _saveProcessSort = saveProcessSort;
         _monitorEndpoint = ConnectionEndpoint.From(profile);
         _monitorLease = AcquireMonitor();
@@ -331,8 +336,26 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
     private async Task TerminalDirectoryAsync()
     {
         if (!IsConnected || !Files.IsAvailable) return;
-        Commands.Input = "cd -- '" + Files.Path.Replace("'", "'\"'\"'") + "'";
+        await ChangeDirectoryAsync(Files.Path);
+    }
+
+    /// <summary>把终端切到指定目录。</summary>
+    public async Task ChangeDirectoryAsync(string path)
+    {
+        if (!IsConnected || string.IsNullOrWhiteSpace(path)) return;
+        Commands.Input = "cd -- '" + path.Replace("'", "'\"'\"'") + "'";
         await Commands.SendCommand.ExecuteAsync(null);
+    }
+
+    /// <summary>在终端打开某个目录：交给外壳新建一个连接并切到该目录。</summary>
+    public Task OpenTerminalAtAsync(string path)
+        => Files.OpenTerminalHandler == null ? Task.CompletedTask : Files.OpenTerminalHandler(path);
+
+    /// <summary>给标签临时改名，只影响当前标签，不写回连接配置。</summary>
+    public void SetTemporaryName(string? name)
+    {
+        _temporaryName = string.IsNullOrWhiteSpace(name) ? null : name.Trim();
+        OnPropertyChanged(nameof(Name));
     }
     private async Task SendRawAsync(string command)
     {

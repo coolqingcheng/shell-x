@@ -23,6 +23,8 @@ public sealed class FileManagerTabViewModel : ObservableObject, IDisposable
         _connection = connection;
         Number = number;
         _files = new FileBrowserViewModel(dialogs, logs.CreateLogger<FileBrowserViewModel>(), localFiles);
+        // 文件树里“在终端打开”交给所属连接，由它去找外壳新建标签。
+        _files.OpenTerminalHandler = path => connection.OpenTerminalAtAsync(path);
         connection.PropertyChanged += ConnectionChanged;
         connection.SessionChanged += ConnectionSessionChanged;
     }

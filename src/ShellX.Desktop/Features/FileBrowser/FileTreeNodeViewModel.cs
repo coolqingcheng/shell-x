@@ -65,6 +65,8 @@ public abstract partial class FileTreeNodeViewModel : ObservableObject
     [ObservableProperty] private bool _isCollapsing;
     /// <summary>本次是刷新内容而不是展开，重新插入的行不播出现动画。</summary>
     public bool IsRefreshing { get; private set; }
+    /// <summary>本次展开时的行序号，用于出现动画错峰，避免所有行同时动。</summary>
+    public int RevealOrder { get; internal set; }
 
     /// <summary>展开箭头角度：展开 90 度，折叠 0 度。</summary>
     public double ChevronAngle => IsExpanded ? 90 : 0;
