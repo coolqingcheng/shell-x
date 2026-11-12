@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using Microsoft.Extensions.Logging.Abstractions;
 using ShellX.Desktop.Controls;
 using ShellX.Core.Files;
 using ShellX.Desktop.Features.FileBrowser;
@@ -10,46 +11,97 @@ using ShellX.Infrastructure.Files;
 
 namespace ShellX.Desktop.Tests;
 
-/// <summary>文件管理器目录树：展开动画参数、路径定位与本地节点过滤。</summary>
+/// <summary>文件管理器整树：展开动画、加载中、路径定位、虚拟滚动与节点过滤。</summary>
 public class DirectoryTreeTests
 {
     private static RemoteEntry Dir(string name, string path)
         => new(name, path, true, false, 0, DateTime.UtcNow, 420, 1000, 1000);
 
-    private static DirectoryNodeViewModel RemoteNode(IReadOnlyDictionary<string, IReadOnlyList<RemoteEntry>> tree)
+    private static FileBrowserViewModel RemoteSink()
+        => new(new DialogService(new TextCodec()), NullLogger<FileBrowserViewModel>.Instance, new LocalFileSystem());
+
+    private static RemoteTreeNodeViewModel RemoteNode(IFileTreeSink sink,
+        IReadOnlyDictionary<string, IReadOnlyList<RemoteEntry>> tree)
     {
-        var root = new DirectoryNodeViewModel("/", "/", path => Task.FromResult(tree[path]), _ => Task.CompletedTask, _ => { });
-        return root;
+        var root = new RemoteEntry("/", "/", true, false, 0, DateTime.UtcNow, 493, 0, 0);
+        return new RemoteTreeNodeViewModel(root, new FakeRemoteFileSystem(tree), CancellationToken.None, sink);
     }
 
-    /// <summary>展开与折叠时箭头角度、透明度、位移随之变化，折叠动画结束后才真正隐藏子节点。</summary>
+    /// <summary>展开后子节点进入扁平行列表并播放出现动画，收起后动画结束才移除。</summary>
     [AvaloniaFact]
-    public async Task RemoteNodeAnimatesExpandAndCollapse()
+    public async Task RemoteNodeExpandsWithAnimationAndCollapses()
     {
         var tree = new Dictionary<string, IReadOnlyList<RemoteEntry>>
         {
             ["/"] = [Dir("etc", "/etc")],
             ["/etc"] = []
         };
-        var root = RemoteNode(tree);
+        using var browser = RemoteSink();
+        var root = RemoteNode(browser, tree);
+        browser.TreeRoots.Add(root);
+        browser.FlatNodes.Add(root);
 
         await root.ToggleCommand.ExecuteAsync(null);
         Assert.True(root.IsExpanded);
-        Assert.True(root.IsChildrenVisible);
-        Assert.Equal(90, root.ChevronAngle);
-        Assert.Equal(1, root.ExpandOpacity);
-        Assert.Equal(0, root.ExpandOffset);
         Assert.Single(root.Children);
+        Assert.Equal(2, browser.FlatNodes.Count);
+        // 新出现的行先标记出来，视图据此播放高度动画。
+        Assert.True(browser.FlatNodes[1].IsRevealing);
+        await Task.Delay(400);
+        Assert.False(browser.FlatNodes[1].IsRevealing);
 
         await root.ToggleCommand.ExecuteAsync(null);
         Assert.False(root.IsExpanded);
-        Assert.Equal(0, root.ChevronAngle);
-        Assert.Equal(0, root.ExpandOpacity);
-        Assert.Equal(-6, root.ExpandOffset);
-        // 折叠时先保留子节点，等淡出动画播完再隐藏。
-        Assert.True(root.IsChildrenVisible);
-        await Task.Delay(260);
-        Assert.False(root.IsChildrenVisible);
+        await Task.Delay(320);
+        Assert.Single(browser.FlatNodes);
+    }
+
+    /// <summary>展开的行是慢慢长出来的，不是直接出现；收起时再缩回去。</summary>
+    [AvaloniaFact]
+    public async Task TreeRowGrowsAndShrinksWithHeightAnimation()
+    {
+        var tree = new Dictionary<string, IReadOnlyList<RemoteEntry>>
+        {
+            ["/"] = [Dir("etc", "/etc")],
+            ["/etc"] = []
+        };
+        using var browser = RemoteSink();
+        var root = RemoteNode(browser, tree);
+        browser.TreeRoots.Add(root);
+        browser.FlatNodes.Add(root);
+        var view = new RemoteFileBrowserView { DataContext = browser };
+        var window = new Window { Content = view, Width = 800, Height = 600 };
+        window.Show();
+        try
+        {
+            await Task.Delay(150);
+            await root.ToggleCommand.ExecuteAsync(null);
+            await Task.Delay(60);
+            var child = view.GetVisualDescendants().OfType<FileTreeNodeView>()
+                .FirstOrDefault(row => ReferenceEquals(row.DataContext, root.Children[0]));
+            Assert.NotNull(child);
+            // 动画中间态：高度在 0 和固定高度之间。
+            Assert.InRange(child!.Height, 0.5, FileTreeNodeViewModel.RowHeight - 0.5);
+            await Task.Delay(400);
+            Assert.Equal(FileTreeNodeViewModel.RowHeight, child.Height, 1);
+        }
+        finally { window.Close(); }
+    }
+
+    /// <summary>目录读取慢时先显示加载中，读完才展开，避免动画高度不对。</summary>
+    [AvaloniaFact]
+    public async Task RemoteNodeShowsLoadingBeforeExpanding()
+    {
+        using var browser = RemoteSink();
+        var root = new RemoteTreeNodeViewModel(new RemoteEntry("/", "/", true, false, 0, DateTime.UtcNow, 493, 0, 0),
+            new SlowRemoteFileSystem(), CancellationToken.None, browser);
+        var task = root.ToggleCommand.ExecuteAsync(null);
+        await Task.Delay(80);
+        Assert.True(root.IsLoading);
+        Assert.False(root.IsExpanded);
+        await task;
+        Assert.False(root.IsLoading);
+        Assert.True(root.IsExpanded);
     }
 
     /// <summary>定位到指定路径时，沿途展开父目录并高亮目标节点。</summary>
@@ -63,7 +115,8 @@ public class DirectoryTreeTests
             ["/etc/nginx"] = [Dir("conf.d", "/etc/nginx/conf.d")],
             ["/etc/nginx/conf.d"] = []
         };
-        var root = RemoteNode(tree);
+        using var browser = RemoteSink();
+        var root = RemoteNode(browser, tree);
 
         Assert.True(await root.ExpandToAsync("/etc/nginx/conf.d"));
         Assert.True(root.IsExpanded);
@@ -88,15 +141,10 @@ public class DirectoryTreeTests
         File.SetAttributes(hidden.FullName, FileAttributes.Hidden);
         try
         {
-            var node = new LocalDirectoryNodeViewModel("root", root,
-                path => Task.FromResult<IReadOnlyList<LocalEntry>>(
-                [
-                    new LocalEntry("alpha", Path.Combine(root, "alpha"), true, false, false, 0, DateTime.UtcNow),
-                    new LocalEntry("beta", Path.Combine(root, "beta"), true, false, false, 0, DateTime.UtcNow),
-                    new LocalEntry("hidden", hidden.FullName, true, false, true, 0, DateTime.UtcNow),
-                    new LocalEntry("file.txt", Path.Combine(root, "file.txt"), false, false, false, 0, DateTime.UtcNow)
-                ]),
-                _ => Task.CompletedTask, _ => { });
+            var files = new FakeLocalFileSystem(root);
+            using var sink = new LocalFileBrowserViewModel(files, new DialogService(new TextCodec()), _ => Task.CompletedTask);
+            var entry = new LocalEntry("root", root, true, false, false, 0, DateTime.UtcNow);
+            var node = new LocalTreeNodeViewModel(entry, files, CancellationToken.None, sink);
 
             await node.ToggleCommand.ExecuteAsync(null);
             Assert.Equal(["alpha", "beta"], node.Children.Select(c => c.Name).ToArray());
@@ -108,7 +156,7 @@ public class DirectoryTreeTests
         }
     }
 
-    /// <summary>本地目录树：高亮当前目录，点击节点可以跳转过去。</summary>
+    /// <summary>本地目录树：高亮当前目录，打开节点可以跳转过去。</summary>
     [AvaloniaFact]
     public async Task LocalTreeHighlightsCurrentDirectoryAndNavigates()
     {
@@ -120,7 +168,7 @@ public class DirectoryTreeTests
             using var browser = new LocalFileBrowserViewModel(files, new DialogService(new TextCodec()), _ => Task.CompletedTask);
             await browser.InitializeAsync();
 
-            var treeRoot = Assert.Single(browser.DirectoryRoots);
+            var treeRoot = Assert.Single(browser.TreeRoots);
             Assert.True(treeRoot.IsCurrent);
 
             await treeRoot.ToggleCommand.ExecuteAsync(null);
@@ -138,8 +186,9 @@ public class DirectoryTreeTests
     [AvaloniaFact]
     public async Task TreeChevronRotatesSmoothly()
     {
-        var node = new DirectoryNodeViewModel("/", "/", _ => Task.FromResult<IReadOnlyList<RemoteEntry>>([]), _ => Task.CompletedTask, _ => { });
-        var view = new DirectoryNodeView { DataContext = node };
+        using var browser = RemoteSink();
+        var node = RemoteNode(browser, new Dictionary<string, IReadOnlyList<RemoteEntry>> { ["/"] = [] });
+        var view = new FileTreeNodeView { DataContext = node };
         var window = new Window { Content = view, Width = 200, Height = 200 };
         window.Show();
         try
@@ -170,11 +219,11 @@ public class DirectoryTreeTests
             ["/etc/nginx"] = []
         });
         using var browser = new FileBrowserViewModel(new DialogService(new TextCodec()),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<FileBrowserViewModel>.Instance, new LocalFileSystem());
+            NullLogger<FileBrowserViewModel>.Instance, new LocalFileSystem());
         browser.Attach(files, CancellationToken.None);
         await browser.NavigateAsync("/etc/nginx");
 
-        var root = Assert.Single(browser.DirectoryRoots);
+        var root = Assert.Single(browser.TreeRoots);
         Assert.True(root.IsExpanded);
         var etc = Assert.Single(root.Children);
         Assert.True(etc.IsExpanded);
@@ -182,11 +231,56 @@ public class DirectoryTreeTests
         Assert.True(nginx.IsCurrent);
     }
 
+    /// <summary>行数很多时只渲染视口内的行，滚动列表不会卡死。</summary>
+    [AvaloniaFact]
+    public async Task TreeListVirtualizesLongRows()
+    {
+        using var browser = RemoteSink();
+        var files = new FakeRemoteFileSystem(new Dictionary<string, IReadOnlyList<RemoteEntry>> { ["/"] = [] });
+        for (var i = 0; i < 2000; i++)
+        {
+            var entry = new RemoteEntry($"file{i}.txt", $"/file{i}.txt", false, false, 0, DateTime.UtcNow, 420, 1000, 1000);
+            browser.FlatNodes.Add(new RemoteTreeNodeViewModel(entry, files, CancellationToken.None, browser));
+        }
+        var view = new RemoteFileBrowserView { DataContext = browser };
+        var window = new Window { Content = view, Width = 800, Height = 600 };
+        window.Show();
+        try
+        {
+            await Task.Delay(200);
+            var realized = view.GetVisualDescendants().OfType<FileTreeNodeView>().Count();
+            Assert.True(realized > 0, "树没有渲染任何行");
+            Assert.True(realized < 200, $"虚拟滚动没有生效，实际渲染 {realized} 行");
+        }
+        finally { window.Close(); }
+    }
+
     /// <summary>远程文件系统替身：按目录返回固定条目。</summary>
     private sealed class FakeRemoteFileSystem(IReadOnlyDictionary<string, IReadOnlyList<RemoteEntry>> tree) : IRemoteFileSystem
     {
         public Task<RemoteDirectory> ListAsync(string path, CancellationToken cancellationToken = default)
             => Task.FromResult(new RemoteDirectory(path, tree.TryGetValue(path, out var entries) ? entries : []));
+        public Task CreateAsync(string path, bool directory, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task RenameAsync(string path, string newPath, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task DeleteAsync(string path, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task SetPermissionsAsync(string path, int permissions, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<TextDocument> ReadTextAsync(string path, CancellationToken cancellationToken = default)
+            => Task.FromResult(new TextDocument(path, "", 0, DateTime.UtcNow));
+        public Task<TextDocument> SaveTextAsync(TextDocument original, string content, CancellationToken cancellationToken = default)
+            => Task.FromResult(original);
+        public Task UploadAsync(string localPath, string remotePath, IProgress<long> progress, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task DownloadAsync(string remotePath, string localPath, IProgress<long> progress, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<bool> ExistsAsync(string path, CancellationToken cancellationToken = default) => Task.FromResult(false);
+    }
+
+    /// <summary>远程文件系统替身：读取很慢，用来观察加载中状态。</summary>
+    private sealed class SlowRemoteFileSystem : IRemoteFileSystem
+    {
+        public async Task<RemoteDirectory> ListAsync(string path, CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(300, cancellationToken);
+            return new RemoteDirectory(path, []);
+        }
         public Task CreateAsync(string path, bool directory, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task RenameAsync(string path, string newPath, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task DeleteAsync(string path, CancellationToken cancellationToken = default) => Task.CompletedTask;

@@ -3,34 +3,18 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using ShellX.Core.Files;
-using ShellX.Core.Settings;
-using ShellX.Desktop.Features.Shell;
 using ShellX.Desktop.Features.Logs;
 
 namespace ShellX.Desktop.Features.FileBrowser;
 
 public partial class RemoteFileBrowserView : UserControl
 {
-    private MainWindowViewModel? _layoutVm;
     [DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, typeof(RemoteEntry))]
     public RemoteFileBrowserView()
     {
         InitializeComponent();
-        FileGridInteraction.SelectOnRightClick(FileGrid); FileGridInteraction.EnableColumnSizing(FileGrid); FileDragDrop.Attach(this, FileGrid, true);
-        FileGrid.AddHandler(InputElement.KeyDownEvent, SelectAllFiles, RoutingStrategies.Tunnel);
-        DataContextChanged += (_, _) => { AttachLayout(); AttachFiles(); };
-        AttachedToVisualTree += (_, _) => AttachLayout();
-        DetachedFromVisualTree += (_, _) => DetachLayout();
-    }
-    private void AttachLayout()
-    {
-        var vm = TopLevel.GetTopLevel(this)?.DataContext as MainWindowViewModel;
-        if (ReferenceEquals(_layoutVm, vm)) return;
-        DetachLayout();
-        _layoutVm = vm;
-        if (_layoutVm == null) return;
-        _layoutVm.LayoutChanged += ApplyLayout;
-        ApplyLayout(_layoutVm.LayoutSettings);
+        AddHandler(InputElement.KeyDownEvent, SelectAllRows, RoutingStrategies.Tunnel);
+        DataContextChanged += (_, _) => AttachFiles();
     }
     private FileBrowserViewModel? _files;
 
@@ -56,43 +40,16 @@ public partial class RemoteFileBrowserView : UserControl
         else window.Show();
     }
 
-    private void DetachLayout()
-    {
-        if (_layoutVm != null) _layoutVm.LayoutChanged -= ApplyLayout;
-        _layoutVm = null;
-        if (_files != null) _files.LogRequested -= OpenLogViewer;
-        _files = null;
-    }
-    private void ApplyLayout(AppSettings settings) => RemoteTree.Width = Math.Clamp(settings.RemoteTreeWidth, 100, 320);
-    private async void RemoteTreeSplitterDragCompleted(object? sender, Avalonia.Input.VectorEventArgs e)
-    {
-        if (_layoutVm == null) return;
-        await _layoutVm.SaveRemoteTreeWidthAsync(RemoteTree.Bounds.Width > 0 ? RemoteTree.Bounds.Width : RemoteTree.Width);
-    }
-    private async void FileDoubleTapped(object? sender, TappedEventArgs e)
-    { if (FileGridInteraction.IsFileRow(e.Source) && DataContext is FileBrowserViewModel vm) await vm.OpenEntryAsync(vm.SelectedEntry); }
     private async void PathNavigate(object? sender, string path)
     { if (DataContext is FileBrowserViewModel vm) await vm.NavigateAsync(path); }
     private async void UsePathHistory(object? sender, RoutedEventArgs e)
     { if (sender is Button { Tag: string path } && DataContext is FileBrowserViewModel vm) { PathHistoryButton.Flyout?.Hide(); await vm.NavigateAsync(path); } }
-    private void SelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (DataContext is not FileBrowserViewModel vm) return;
-        vm.SelectedEntries.Clear(); vm.SelectedEntries.AddRange(FileGrid.SelectedItems.OfType<RemoteEntry>());
-        vm.NotifySelectionChanged();
-    }
-    /// <summary>Ctrl+A 全选远程列表。</summary>
-    private void SelectAllFiles(object? sender, KeyEventArgs e)
+
+    /// <summary>Ctrl+A 选中树里当前可见的所有行。</summary>
+    private void SelectAllRows(object? sender, KeyEventArgs e)
     {
         if (e.Key != Key.A || !e.KeyModifiers.HasFlag(KeyModifiers.Control)) return;
-        FileGrid.SelectionChanged -= SelectionChanged;
-        try { FileGridInteraction.SelectAll(FileGrid); }
-        finally { FileGrid.SelectionChanged += SelectionChanged; }
-        if (DataContext is FileBrowserViewModel vm)
-        {
-            vm.SelectedEntries.Clear(); vm.SelectedEntries.AddRange(FileGrid.SelectedItems.OfType<RemoteEntry>());
-            vm.NotifySelectionChanged();
-        }
+        if (DataContext is FileBrowserViewModel vm) vm.SelectAll(vm.FlatNodes.ToArray());
         e.Handled = true;
     }
 }

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Avalonia.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -11,7 +12,7 @@ using ShellX.Desktop.Services;
 
 namespace ShellX.Desktop.Features.FileBrowser;
 
-public partial class FileBrowserViewModel : ObservableObject, IDisposable
+public partial class FileBrowserViewModel : ObservableObject, IDisposable, IFileTreeSink
 {
     private readonly IDialogService dialogs;
     private readonly ILogger<FileBrowserViewModel> log;
@@ -22,7 +23,8 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
     public FileBrowserViewModel(IDialogService dialogs, ILogger<FileBrowserViewModel> log, ILocalFileSystem localFiles)
     {
         this.dialogs = dialogs; this.log = log; _localFiles = localFiles;
-        Local = new(localFiles, dialogs, UploadPathsAsync);
+        Local = new(localFiles, dialogs, paths => UploadPathsAsync(paths));
+        Local.Browser = this;
     }
     private IRemoteFileSystem? _files;
     private CancellationToken _sessionToken;
@@ -33,7 +35,12 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
     private int _navigationGeneration;
     private readonly List<Task> _transfers = [];
     public ObservableCollection<RemoteEntry> Entries { get; } = [];
-    public ObservableCollection<DirectoryNodeViewModel> DirectoryRoots { get; } = [];
+    /// <summary>树控件的扁平行列表，展开动画和虚拟滚动都靠它。</summary>
+    private readonly FileTreeList tree = new();
+    /// <summary>远程文件树的根节点。</summary>
+    public ObservableCollection<FileTreeNodeViewModel> TreeRoots => tree.Roots;
+    /// <summary>展开后的可见行，供虚拟化列表显示。</summary>
+    public ObservableCollection<FileTreeNodeViewModel> FlatNodes => tree.Flat;
     public ObservableCollection<string> RecentPaths { get; } = [];
     public ObservableCollection<TransferViewModel> Transfers { get; } = [];
     public List<RemoteEntry> SelectedEntries { get; } = [];
@@ -50,7 +57,6 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _isAvailable;
     [ObservableProperty] private bool _showTransfers;
     [ObservableProperty] private double _transferPanelHeight = 180;
-    [ObservableProperty] private bool _showTree = true;
     public bool HasActiveTransfers => Transfers.Any(t => t.IsActive);
     public bool ShowTransferTray => !ShowTransfers;
     public string TransferSummary
@@ -93,16 +99,19 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
         Session = session; LogReader = session?.Logs; LogTarget = target; ViewLogCommand.NotifyCanExecuteChanged();
         _all = []; Entries.Clear(); _history.Clear(); _historyIndex = -1; SelectedEntries.Clear(); SelectedEntry = null;
         Error = ""; IsBusy = false; Summary = files == null ? "尚未连接 SFTP" : "SFTP 已就绪";
-        DirectoryRoots.Clear(); RecentPaths.Clear();
+        tree.Clear(); RecentPaths.Clear();
         if (files != null)
         {
             var capturedToken = token;
-            DirectoryRoots.Add(new("/", "/", async path => (await files.ListAsync(path, capturedToken)).Entries,
-                path => NavigateAsync(path), error => { if (ReferenceEquals(_files, files)) Error = error; }));
+            var root = new RemoteEntry("/", "/", true, false, 0, DateTime.UtcNow, 493, 0, 0);
+            var node = new RemoteTreeNodeViewModel(root, files, capturedToken, this);
+            node.Level = 0;
+            TreeRoots.Add(node);
+            FlatNodes.Add(node);
         }
     }
-    partial void OnSearchChanged(string value) => Filter();
-    partial void OnShowHiddenChanged(bool value) => Filter();
+    partial void OnSearchChanged(string value) { Filter(); UpdateTreeVisibility(); }
+    partial void OnShowHiddenChanged(bool value) { Filter(); _ = RefreshTreeAsync(); }
     private void Filter()
     {
         Entries.Clear();
@@ -119,7 +128,7 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
         {
             var result = await files.ListAsync(path, _sessionToken);
             if (generation != _navigationGeneration || !ReferenceEquals(files, _files)) return;
-            Path = result.Path; _all = result.Entries; Filter(); SelectedEntries.Clear(); SelectedEntry = null;
+            Path = result.Path; _all = result.Entries; Filter(); ClearTreeSelection();
             await SyncTreeAsync(result.Path);
             RecentPaths.Remove(Path); RecentPaths.Insert(0, Path);
             while (RecentPaths.Count > 30) RecentPaths.RemoveAt(RecentPaths.Count - 1);
@@ -146,17 +155,10 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(HasActiveTransfers));
     }
     [RelayCommand] private void ToggleTransfers() => ShowTransfers = !ShowTransfers;
-    [RelayCommand]
-    private async Task ToggleTreeAsync()
-    {
-        ShowTree = !ShowTree;
-        if (ShowTree) await SyncTreeAsync(Path);
-    }
-
     /// <summary>目录树跟随当前路径：展开祖先目录并高亮当前目录。</summary>
     private async Task SyncTreeAsync(string path)
     {
-        var root = DirectoryRoots.FirstOrDefault();
+        var root = TreeRoots.FirstOrDefault();
         if (root == null) return;
         root.ClearCurrent();
         await root.ExpandToAsync(path);
@@ -202,7 +204,9 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
         if (_files == null) return;
         var name = await dialogs.PromptAsync(directory ? "新建文件夹" : "新建文件", "名称", directory ? "新建文件夹" : "untitled.txt");
         if (name == null) return;
-        await RunAsync(async () => { await _files.CreateAsync(RemotePath.Combine(Path, name), directory, _sessionToken); await RefreshAsync(); });
+        // 选中了目录节点就建在那里，否则建在当前路径。
+        var target = SelectedEntry is { IsDirectory: true } selected ? selected.FullPath : Path;
+        await RunAsync(async () => { await _files.CreateAsync(RemotePath.Combine(target, name), directory, _sessionToken); await RefreshAsync(); await RefreshTreeAsync(); });
     }
     [RelayCommand] private Task NewFileAsync() => CreateAsync(false);
     [RelayCommand] private Task NewFolderAsync() => CreateAsync(true);
@@ -257,9 +261,9 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
     private Task UploadAsync() => Local.UploadCommand.ExecuteAsync(null);
     public Task ReportTransferErrorAsync(string message) => dialogs.ShowErrorAsync(message);
     [RelayCommand] private async Task ChooseUploadAsync() => await UploadPathsAsync(await dialogs.PickUploadAsync());
-    public async Task UploadPathsAsync(IReadOnlyList<string> paths)
+    public async Task UploadPathsAsync(IReadOnlyList<string> paths, string? targetDirectory = null)
     {
-        var files = _files; var targetDirectory = Path; var sessionToken = _sessionToken;
+        var files = _files; targetDirectory ??= Path; var sessionToken = _sessionToken;
         if (files == null) return;
         // 勾选“保持选择”后，本次批量上传里的后续文件直接覆盖，不再逐个询问。
         var overwriteConfirmed = false;
@@ -312,8 +316,11 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
     }
     [RelayCommand] private Task DownloadAsAsync() => DownloadEntriesAsync(null);
     public RemoteFileSelection? CaptureDownloadSelection()
-        => _files == null || !IsAvailable ? null : new(this, _files, _sessionToken, SessionVersion,
-            SelectedEntries.Count > 0 ? SelectedEntries.ToArray() : SelectedEntry == null ? [] : [SelectedEntry]);
+        => CaptureDownloadSelection(SelectedEntries.Count > 0 ? SelectedEntries.ToArray() : SelectedEntry == null ? [] : [SelectedEntry]);
+
+    /// <summary>按指定条目生成拖拽用的远程选择。</summary>
+    public RemoteFileSelection? CaptureDownloadSelection(IReadOnlyList<RemoteEntry> entries)
+        => _files == null || !IsAvailable || entries.Count == 0 ? null : new(this, _files, _sessionToken, SessionVersion, entries);
 
     public bool IsCurrent(RemoteFileSelection selection)
         => ReferenceEquals(selection.Owner, this) && selection.SessionVersion == SessionVersion && ReferenceEquals(selection.Files, _files) && !selection.Token.IsCancellationRequested && IsAvailable;
@@ -377,8 +384,8 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
         finally { OnPropertyChanged(nameof(HasActiveTransfers)); }
         if (!sessionToken.IsCancellationRequested)
         {
-            if (uploading) await RefreshAsync();
-            else await Local.RefreshCommand.ExecuteAsync(null);
+            if (uploading) { await RefreshAsync(); await RefreshTreeAsync(); }
+            else { await Local.RefreshCommand.ExecuteAsync(null); await Local.RefreshTreeAsync(); }
         }
     }
     public void CancelTransfers() { foreach (var transfer in Transfers.Where(x => x.IsActive)) transfer.CancelCommand.Execute(null); }
@@ -391,6 +398,139 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(TransferSummary));
         OnPropertyChanged(nameof(HasActiveTransfers));
     }
+
+    // ---------------- 文件树宿主 ----------------
+    /// <summary>当前选中的树节点集合，支持 Ctrl 多选。</summary>
+    private readonly List<FileTreeNodeViewModel> _selectedTreeNodes = [];
+    /// <summary>最近点选的树节点，作为面板的主要选择。</summary>
+    private FileTreeNodeViewModel? _primaryTreeNode;
+
+    public bool ShowHiddenFiles => ShowHidden;
+    public string SearchText => Search;
+    /// <summary>远程树接受本地文件拖入，表示上传到该目录。</summary>
+    public bool AcceptsLocalDrop => IsAvailable;
+    /// <summary>远程树不接受远程条目拖入。</summary>
+    public bool AcceptsRemoteDrop => false;
+    public bool CanDownload => IsAvailable;
+    public bool CanUpload => false;
+
+    /// <summary>选中树节点：同步面板的当前条目，右键菜单据此工作。</summary>
+    public void Select(FileTreeNodeViewModel node, bool toggle = false)
+    {
+        if (toggle)
+        {
+            if (_selectedTreeNodes.Remove(node)) node.IsSelected = false;
+            else { _selectedTreeNodes.Add(node); node.IsSelected = true; }
+        }
+        else
+        {
+            foreach (var item in _selectedTreeNodes) item.IsSelected = false;
+            _selectedTreeNodes.Clear();
+            _selectedTreeNodes.Add(node);
+            node.IsSelected = true;
+        }
+        _primaryTreeNode = node;
+        SyncTreeSelection();
+    }
+
+    /// <summary>Ctrl+A：选中当前可见的所有行。</summary>
+    public void SelectAll(IReadOnlyList<FileTreeNodeViewModel> nodes)
+    {
+        foreach (var item in _selectedTreeNodes) item.IsSelected = false;
+        _selectedTreeNodes.Clear();
+        foreach (var item in nodes) { _selectedTreeNodes.Add(item); item.IsSelected = true; }
+        _primaryTreeNode = nodes.Count > 0 ? nodes[^1] : null;
+        SyncTreeSelection();
+    }
+
+    /// <summary>清掉树上的高亮：目录变了，之前的选中项就不该再留着。</summary>
+    private void ClearTreeSelection()
+    {
+        foreach (var item in _selectedTreeNodes) item.IsSelected = false;
+        _selectedTreeNodes.Clear();
+        _primaryTreeNode = null;
+        SelectedEntries.Clear();
+        SelectedEntry = null;
+    }
+
+    /// <summary>把树上的选择同步到面板的当前条目。</summary>
+    private void SyncTreeSelection()
+    {
+        SelectedEntries.Clear();
+        SelectedEntry = null;
+        foreach (var item in _selectedTreeNodes)
+            if (item is RemoteTreeNodeViewModel remote) SelectedEntries.Add(remote.Entry);
+        if (_primaryTreeNode is RemoteTreeNodeViewModel primary) SelectedEntry = primary.Entry;
+        else if (SelectedEntries.Count > 0) SelectedEntry = SelectedEntries[^1];
+        NotifySelectionChanged();
+    }
+
+    /// <summary>展开或收起节点：把子节点插进或移出扁平行列表。</summary>
+    public void NotifyExpanded(FileTreeNodeViewModel node, bool expanded)
+    {
+        if (expanded) tree.InsertDescendants(node);
+        else tree.CollapseDescendants(node);
+    }
+
+    /// <summary>双击节点：目录进入该目录，文件直接打开。</summary>
+    public async Task ActivateAsync(FileTreeNodeViewModel node)
+    {
+        if (node is not RemoteTreeNodeViewModel remote) return;
+        if (remote.Entry.IsDirectory)
+        {
+            if (!remote.IsExpanded) await remote.ToggleCommand.ExecuteAsync(null);
+            await NavigateAsync(remote.Entry.FullPath);
+        }
+        else await OpenEntryAsync(remote.Entry);
+    }
+
+    /// <summary>远程树节点可以拖到本地树下载。</summary>
+    public FileDragDrop.Payload? CreateDragPayload(FileTreeNodeViewModel node)
+    {
+        if (node is not RemoteTreeNodeViewModel remote) return null;
+        return CaptureDownloadSelection([remote.Entry]) is { } selection ? FileDragDrop.RemotePayload(selection) : null;
+    }
+
+    /// <summary>本地文件拖到远程目录节点：上传到该目录。</summary>
+    public async Task DropLocalAsync(FileTreeNodeViewModel node, IReadOnlyList<string> paths)
+    {
+        if (node is not RemoteTreeNodeViewModel remote) return;
+        await UploadPathsAsync(paths, remote.Entry.FullPath);
+    }
+
+    /// <summary>远程树不接受远程条目拖入。</summary>
+    public Task DropRemoteAsync(FileTreeNodeViewModel node, RemoteFileSelection selection) => Task.CompletedTask;
+
+    /// <summary>读取目录失败时上报。</summary>
+    public void ReportError(string message) => Error = message;
+
+    /// <summary>远程树只接收本地文件：外部资源管理器拖入，或本地树节点拖过来。</summary>
+    public bool CanAcceptDrop(IDataTransfer data) => FileDragDrop.CanDrop(this, true, data);
+
+    /// <summary>搜索过滤后重建可见行。</summary>
+    private void UpdateTreeVisibility()
+    {
+        foreach (var root in TreeRoots) root.UpdateVisibility();
+        tree.Rebuild();
+    }
+
+    /// <summary>重新读取已经展开的目录，隐藏文件开关或传输完成后调用。</summary>
+    public async Task RefreshTreeAsync()
+    {
+        foreach (var root in TreeRoots) await root.ReloadLoadedAsync();
+        UpdateTreeVisibility();
+    }
+
+    /// <summary>只刷新指定目录的树节点，没加载过就跳过。</summary>
+    public async Task RefreshTreeNodeAsync(string path)
+    {
+        foreach (var root in TreeRoots)
+        {
+            var node = root.Find(path);
+            if (node != null) { await node.ReloadAsync(); return; }
+        }
+    }
+
     public void Dispose() { CancelTransfers(); foreach (var transfer in Transfers) transfer.Dispose(); Local.Dispose(); }
 }
 

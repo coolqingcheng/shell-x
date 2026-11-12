@@ -413,8 +413,8 @@ public sealed class WorkspaceTests
             Assert.Equal("已连接", selected.Status);
             selected.Commands.Input = "pwd"; await selected.Commands.SendCommand.ExecuteAsync(null);
             await Until(() => Screen(first).Contains("received: pwd")); Assert.Equal("pwd", selected.Commands.History[0].Text);
-            await selected.Files.DirectoryRoots[0].ToggleCommand.ExecuteAsync(null);
-            Assert.Contains(selected.Files.DirectoryRoots[0].Children, node => node.Name == "folder");
+            await selected.Files.TreeRoots[0].ToggleCommand.ExecuteAsync(null);
+            Assert.Contains(selected.Files.TreeRoots[0].Children, node => node.Name == "folder");
             await vm.ConnectCommand.ExecuteAsync(profile); Assert.Equal(2, vm.Tabs.Count);
             var secondTab = vm.SelectedTab!;
             Assert.Equal(14, secondTab.FontSize);

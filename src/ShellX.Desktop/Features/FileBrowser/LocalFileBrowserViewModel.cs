@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Avalonia.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ShellX.Core.Files;
@@ -7,16 +8,22 @@ using ShellX.Desktop.Services;
 namespace ShellX.Desktop.Features.FileBrowser;
 
 public partial class LocalFileBrowserViewModel(ILocalFileSystem files, IDialogService dialogs,
-    Func<IReadOnlyList<string>, Task> upload) : ObservableObject, IDisposable
+    Func<IReadOnlyList<string>, Task> upload) : ObservableObject, IDisposable, IFileTreeSink
 {
+    /// <summary>远程面板：本地树拖拽上传、远程树拖拽下载都要用到。</summary>
+    public FileBrowserViewModel? Browser { get; set; }
     private readonly CancellationTokenSource _lifetime = new();
     private IReadOnlyList<LocalEntry> _all = [];
     private readonly List<string> _history = [];
     private int _historyIndex = -1;
     private int _navigationGeneration;
     public ObservableCollection<LocalEntry> Entries { get; } = [];
+    /// <summary>树控件的扁平行列表，展开动画和虚拟滚动都靠它。</summary>
+    private readonly FileTreeList tree = new();
     /// <summary>本地目录树的根节点（磁盘）。</summary>
-    public ObservableCollection<LocalDirectoryNodeViewModel> DirectoryRoots { get; } = [];
+    public ObservableCollection<FileTreeNodeViewModel> TreeRoots => tree.Roots;
+    /// <summary>展开后的可见行，供虚拟化列表显示。</summary>
+    public ObservableCollection<FileTreeNodeViewModel> FlatNodes => tree.Flat;
     public ObservableCollection<string> RecentPaths { get; } = [];
     public IReadOnlyList<string> Roots { get; } = files.Roots;
     public List<LocalEntry> SelectedEntries { get; } = [];
@@ -27,8 +34,6 @@ public partial class LocalFileBrowserViewModel(ILocalFileSystem files, IDialogSe
     [ObservableProperty] private string _error = "";
     [ObservableProperty] private string _summary = "本地文件";
     [ObservableProperty] private bool _showHidden;
-    /// <summary>是否显示本地目录树。</summary>
-    [ObservableProperty] private bool _showTree = true;
     [ObservableProperty] private bool _isBusy;
     /// <summary>删除进行中：期间禁止重复触发删除。</summary>
     [ObservableProperty] private bool _isDeleting;
@@ -40,36 +45,36 @@ public partial class LocalFileBrowserViewModel(ILocalFileSystem files, IDialogSe
     /// </summary>
     private void InitializeTree()
     {
-        DirectoryRoots.Clear();
-        async Task<IReadOnlyList<LocalEntry>> LoadAsync(string path) => (await files.ListAsync(path, _lifetime.Token)).Entries;
-        async Task GoAsync(string path) => await NavigateAsync(path);
-        void Report(string message) => Error = message;
+        tree.Clear();
         foreach (var root in files.Roots)
-            DirectoryRoots.Add(new LocalDirectoryNodeViewModel(root.TrimEnd('\\'), root, LoadAsync, GoAsync, Report));
+        {
+            var entry = new LocalEntry(root.TrimEnd('\\'), root, true, false, false, 0, DateTime.UtcNow);
+            var node = new LocalTreeNodeViewModel(entry, files, _lifetime.Token, this);
+            node.Level = 0;
+            TreeRoots.Add(node);
+            FlatNodes.Add(node);
+        }
     }
 
     /// <summary>在已经展开的目录树里高亮当前目录，不会额外读取磁盘。</summary>
     private void MarkCurrent(string path)
     {
-        if (DirectoryRoots.Count == 0 || string.IsNullOrEmpty(path)) return;
-        foreach (var root in DirectoryRoots) root.ClearCurrent();
-        foreach (var root in DirectoryRoots)
+        if (TreeRoots.Count == 0 || string.IsNullOrEmpty(path)) return;
+        foreach (var root in TreeRoots) root.ClearCurrent();
+        foreach (var root in TreeRoots)
         {
             if (root.MarkCurrent(path)) return;
         }
     }
-
-    [RelayCommand]
-    private void ToggleTree() => ShowTree = !ShowTree;
     public bool CanEditText => !IsEditingText && SelectedEntries.Count <= 1 && SelectedEntry is { IsDirectory: false, IsSymbolicLink: false };
     public void NotifySelectionChanged() => EditTextCommand.NotifyCanExecuteChanged();
     partial void OnErrorChanged(string value) => OnPropertyChanged(nameof(HasError));
-    partial void OnSearchChanged(string value) => Filter();
-    partial void OnShowHiddenChanged(bool value) => Filter();
+    partial void OnSearchChanged(string value) { Filter(); UpdateTreeVisibility(); }
+    partial void OnShowHiddenChanged(bool value) { Filter(); _ = RefreshTreeAsync(); }
 
     public Task InitializeAsync()
     {
-        if (DirectoryRoots.Count == 0) InitializeTree();
+        if (TreeRoots.Count == 0) InitializeTree();
         return Path.Length > 0 || IsBusy ? Task.CompletedTask : NavigateAsync(files.HomeDirectory);
     }
     public async Task NavigateAsync(string path, bool addHistory = true)
@@ -136,9 +141,11 @@ public partial class LocalFileBrowserViewModel(ILocalFileSystem files, IDialogSe
     [RelayCommand] private Task NewFolderAsync() => CreateAsync(true);
     private async Task CreateAsync(bool folder)
     {
-        var directory = Path; if (directory.Length == 0) return;
+        if (Path.Length == 0) return;
+        // 选中了目录节点就建在那里，否则建在当前路径。
+        var directory = SelectedEntry is { IsDirectory: true } selected ? selected.FullPath : Path;
         var name = await dialogs.PromptAsync(folder ? "新建本地文件夹" : "新建本地文件", "名称", folder ? "新建文件夹" : "untitled.txt");
-        if (name != null) await RunAsync(async () => { await files.CreateAsync(directory, name, folder); await RefreshAsync(); });
+        if (name != null) await RunAsync(async () => { await files.CreateAsync(directory, name, folder); await RefreshAsync(); await RefreshTreeAsync(); });
     }
     [RelayCommand]
     private async Task RenameAsync()
@@ -195,5 +202,118 @@ public partial class LocalFileBrowserViewModel(ILocalFileSystem files, IDialogSe
         catch (OperationCanceledException) { Error = "操作已取消"; }
         catch (Exception ex) { Error = ex.Message; await dialogs.ShowErrorAsync(ex.Message); }
     }
+
+    // ---------------- 文件树宿主 ----------------
+    /// <summary>当前选中的树节点集合，支持 Ctrl 多选。</summary>
+    private readonly List<FileTreeNodeViewModel> _selectedTreeNodes = [];
+    /// <summary>最近点选的树节点，作为面板的主要选择。</summary>
+    private FileTreeNodeViewModel? _primaryTreeNode;
+
+    public bool ShowHiddenFiles => ShowHidden;
+    public string SearchText => Search;
+    /// <summary>本地树不接受本地文件拖入。</summary>
+    public bool AcceptsLocalDrop => false;
+    /// <summary>本地树接受远程条目拖入，表示下载到该目录。</summary>
+    public bool AcceptsRemoteDrop => IsRemoteAvailable;
+    public bool CanDownload => false;
+    public bool CanUpload => IsRemoteAvailable;
+
+    /// <summary>选中树节点：同步面板的当前条目，右键菜单据此工作。</summary>
+    public void Select(FileTreeNodeViewModel node, bool toggle = false)
+    {
+        if (toggle)
+        {
+            if (_selectedTreeNodes.Remove(node)) node.IsSelected = false;
+            else { _selectedTreeNodes.Add(node); node.IsSelected = true; }
+        }
+        else
+        {
+            foreach (var item in _selectedTreeNodes) item.IsSelected = false;
+            _selectedTreeNodes.Clear();
+            _selectedTreeNodes.Add(node);
+            node.IsSelected = true;
+        }
+        _primaryTreeNode = node;
+        SyncTreeSelection();
+    }
+
+    /// <summary>Ctrl+A：选中当前可见的所有行。</summary>
+    public void SelectAll(IReadOnlyList<FileTreeNodeViewModel> nodes)
+    {
+        foreach (var item in _selectedTreeNodes) item.IsSelected = false;
+        _selectedTreeNodes.Clear();
+        foreach (var item in nodes) { _selectedTreeNodes.Add(item); item.IsSelected = true; }
+        _primaryTreeNode = nodes.Count > 0 ? nodes[^1] : null;
+        SyncTreeSelection();
+    }
+
+    /// <summary>把树上的选择同步到面板的当前条目。</summary>
+    private void SyncTreeSelection()
+    {
+        SelectedEntries.Clear();
+        SelectedEntry = null;
+        foreach (var item in _selectedTreeNodes)
+            if (item is LocalTreeNodeViewModel local) SelectedEntries.Add(local.Entry);
+        if (_primaryTreeNode is LocalTreeNodeViewModel primary) SelectedEntry = primary.Entry;
+        else if (SelectedEntries.Count > 0) SelectedEntry = SelectedEntries[^1];
+        NotifySelectionChanged();
+    }
+
+    /// <summary>展开或收起节点：把子节点插进或移出扁平行列表。</summary>
+    public void NotifyExpanded(FileTreeNodeViewModel node, bool expanded)
+    {
+        if (expanded) tree.InsertDescendants(node);
+        else tree.CollapseDescendants(node);
+    }
+
+    /// <summary>双击节点：目录进入该目录，文件直接打开。</summary>
+    public async Task ActivateAsync(FileTreeNodeViewModel node)
+    {
+        if (node is not LocalTreeNodeViewModel local) return;
+        if (local.Entry.IsDirectory)
+        {
+            if (!local.IsExpanded) await local.ToggleCommand.ExecuteAsync(null);
+            await NavigateAsync(local.Entry.FullPath);
+        }
+        else await OpenEntryAsync(local.Entry);
+    }
+
+    /// <summary>本地树节点可以拖到远程树上传。</summary>
+    public FileDragDrop.Payload? CreateDragPayload(FileTreeNodeViewModel node)
+    {
+        if (node is not LocalTreeNodeViewModel local || Browser == null) return null;
+        return FileDragDrop.LocalPayload(Browser, [local.Entry.FullPath]);
+    }
+
+    /// <summary>本地树不接受本地文件拖入。</summary>
+    public Task DropLocalAsync(FileTreeNodeViewModel node, IReadOnlyList<string> paths) => Task.CompletedTask;
+
+    /// <summary>远程条目拖到本地目录节点：下载到该目录。</summary>
+    public async Task DropRemoteAsync(FileTreeNodeViewModel node, RemoteFileSelection selection)
+    {
+        if (node is not LocalTreeNodeViewModel local || Browser == null) return;
+        await Browser.DownloadEntriesAsync(selection, local.Entry.FullPath);
+    }
+
+    /// <summary>读取目录失败时上报。</summary>
+    public void ReportError(string message) => Error = message;
+
+    /// <summary>本地树只接收远程条目：远程树节点拖过来就是下载到该目录。</summary>
+    public bool CanAcceptDrop(IDataTransfer data) => Browser != null && FileDragDrop.CanDrop(Browser, false, data);
+
+    /// <summary>搜索过滤后重建可见行。</summary>
+    private void UpdateTreeVisibility()
+    {
+        foreach (var root in TreeRoots) root.UpdateVisibility();
+        tree.Rebuild();
+    }
+
+    /// <summary>重新读取已经展开的目录。</summary>
+    public async Task RefreshTreeAsync()
+    {
+        foreach (var root in TreeRoots) await root.ReloadLoadedAsync();
+        UpdateTreeVisibility();
+    }
+
     public void Dispose() { ++_navigationGeneration; _lifetime.Cancel(); _lifetime.Dispose(); }
 }

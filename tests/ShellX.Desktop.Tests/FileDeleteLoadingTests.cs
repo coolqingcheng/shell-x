@@ -80,18 +80,18 @@ public sealed class FileDeleteLoadingTests
         {
             using var browser = new FileBrowserViewModel(new Dialogs(), NullLogger<FileBrowserViewModel>.Instance, new LocalFileSystem(root));
             browser.IsAvailable = true;
-            browser.Entries.Add(new RemoteEntry("a.txt", "/a.txt", false, false, 12, DateTime.UtcNow, 420, 1000, 1000) { IsDeleting = true });
+            var entry = new RemoteEntry("a.txt", "/a.txt", false, false, 12, DateTime.UtcNow, 420, 1000, 1000) { IsDeleting = true };
+            browser.FlatNodes.Add(new RemoteTreeNodeViewModel(entry, new BlockingRemoteFileSystem(Task.CompletedTask), CancellationToken.None, browser));
             var view = new RemoteFileBrowserView { DataContext = browser };
             var window = new Window { Content = view, Width = 560, Height = 360 };
             window.Show();
             try
             {
                 await Task.Delay(150);
-                var grid = view.FindControl<DataGrid>("FileGrid")!;
-                var spinner = grid.GetVisualDescendants().OfType<BusySpinner>().FirstOrDefault();
+                var row = view.GetVisualDescendants().OfType<FileTreeNodeView>().Single();
+                var spinner = row.GetVisualDescendants().OfType<BusySpinner>().FirstOrDefault(item => item.IsVisible);
                 Assert.NotNull(spinner);
-                Assert.True(spinner!.IsVisible);
-                Assert.DoesNotContain(grid.GetVisualDescendants().OfType<FileIconView>(), icon => icon.IsVisible);
+                Assert.DoesNotContain(row.GetVisualDescendants().OfType<FileIconView>(), icon => icon.IsVisible);
             }
             finally { window.Close(); }
         }

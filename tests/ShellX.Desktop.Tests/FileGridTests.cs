@@ -18,22 +18,18 @@ namespace ShellX.Desktop.Tests;
 
 public sealed class FileGridTests
 {
+    /// <summary>路径栏在两个面板里都保持垂直居中，编辑态也不会偏。</summary>
     [AvaloniaTheory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task NarrowFilePanesSupportDraggingAndDoubleClickingColumnEdges(bool remote)
+    public async Task PathBarStaysVerticallyCenteredInBothPanes(bool remote)
     {
         var name = "一个需要较宽列才能完整显示的配置文件-nginx.conf";
         var root = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "shellx-columns-" + Guid.NewGuid().ToString("N"))).FullName;
         await File.WriteAllTextAsync(Path.Combine(root, name), "test");
         using var browser = new FileBrowserViewModel(new DialogService(new TextCodec()), NullLogger<FileBrowserViewModel>.Instance, new LocalFileSystem(root));
         browser.IsAvailable = true;
-        browser.Entries.Add(new RemoteEntry(name, "/" + name, false, false, 4321, DateTime.UtcNow, 420, 1000, 1000));
-        // 目录树会占用左侧宽度，这里隐藏它，保持窄表栏布局的原始布局假设。
-        browser.ShowTree = false;
-        browser.Local.ShowTree = false;
         UserControl view = remote ? new RemoteFileBrowserView { DataContext = browser } : new LocalFileBrowserView { DataContext = browser.Local };
-        var grid = view.FindControl<DataGrid>(remote ? "FileGrid" : "LocalGrid")!;
         var window = new Window { Content = view, Width = 560, Height = 360 }; window.Show();
         try
         {
@@ -59,59 +55,71 @@ public sealed class FileGridTests
                 }
             }
             ThemeService.Apply(AppTheme.Dark);
-            Assert.True(grid.CanUserResizeColumns);
-            var column = grid.Columns[0];
-            var header = grid.GetVisualDescendants().OfType<DataGridColumnHeader>().Single(h => Equals(h.Content, "名称"));
-            var original = column.ActualWidth;
-            Assert.True(original > 200);
-            var edge = header.TranslatePoint(new Point(header.Bounds.Width - 2, header.Bounds.Height / 2), window)!.Value;
-            window.MouseMove(edge); window.MouseDown(edge, MouseButton.Left);
-            window.MouseMove(edge + new Vector(-65, 0)); window.MouseUp(edge + new Vector(-65, 0), MouseButton.Left);
-            await Task.Delay(30);
-            Assert.True(column.ActualWidth < original - 40, $"{original} -> {column.ActualWidth}");
-            var resized = column.ActualWidth;
-            // A fresh gesture after the double-click interval must reset the pixel width to content width.
-            await Task.Delay(550);
-            edge = header.TranslatePoint(new Point(header.Bounds.Width - 2, header.Bounds.Height / 2), window)!.Value;
-            window.MouseMove(edge);
-            window.MouseDown(edge, MouseButton.Left); window.MouseUp(edge, MouseButton.Left);
-            window.MouseDown(edge, MouseButton.Left); window.MouseUp(edge, MouseButton.Left);
-            await Task.Delay(40);
-            Assert.True(column.Width.IsAuto);
-            Assert.True(column.ActualWidth > resized + 40);
-            if (Environment.GetEnvironmentVariable("SHELLX_PREVIEW_PATH") is { Length: > 0 } preview)
-            {
-                using var bitmap = new RenderTargetBitmap(new PixelSize(560, 360), new Vector(96, 96));
-                bitmap.Render(window); bitmap.Save(Path.Combine(Path.GetDirectoryName(preview)!, remote ? "remote-columns.png" : "local-columns.png"), PngBitmapEncoderOptions.Default);
-            }
         }
         finally { window.Close(); Directory.Delete(root, true); }
     }
 
-    /// <summary>文件列表支持 Ctrl+A 全选。</summary>
+    /// <summary>文件树支持 Ctrl+A 全选当前可见的行。</summary>
     [AvaloniaTheory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ControlASelectsAllRowsInFileGrid(bool remote)
+    public async Task ControlASelectsAllRowsInFileTree(bool remote)
     {
         var root = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "shellx-selectall-" + Guid.NewGuid().ToString("N"))).FullName;
         await File.WriteAllTextAsync(Path.Combine(root, "one.txt"), "1");
         await File.WriteAllTextAsync(Path.Combine(root, "two.txt"), "2");
         using var browser = new FileBrowserViewModel(new DialogService(new TextCodec()), NullLogger<FileBrowserViewModel>.Instance, new LocalFileSystem(root));
         browser.IsAvailable = true;
-        browser.Entries.Add(new RemoteEntry("one.txt", "/one.txt", false, false, 1, DateTime.UtcNow, 420, 1000, 1000));
-        browser.Entries.Add(new RemoteEntry("two.txt", "/two.txt", false, false, 2, DateTime.UtcNow, 420, 1000, 1000));
         UserControl view = remote ? new RemoteFileBrowserView { DataContext = browser } : new LocalFileBrowserView { DataContext = browser.Local };
-        var grid = view.FindControl<DataGrid>(remote ? "FileGrid" : "LocalGrid")!;
         var window = new Window { Content = view, Width = 560, Height = 360 }; window.Show();
         try
         {
             await browser.Local.InitializeAsync();
             await Task.Delay(60);
-            grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.A, KeyModifiers = KeyModifiers.Control });
+            if (remote)
+            {
+                browser.FlatNodes.Clear();
+                browser.FlatNodes.Add(new RemoteTreeNodeViewModel(
+                    new RemoteEntry("one.txt", "/one.txt", false, false, 1, DateTime.UtcNow, 420, 1000, 1000),
+                    new StubRemoteFileSystem(), CancellationToken.None, browser));
+                browser.FlatNodes.Add(new RemoteTreeNodeViewModel(
+                    new RemoteEntry("two.txt", "/two.txt", false, false, 2, DateTime.UtcNow, 420, 1000, 1000),
+                    new StubRemoteFileSystem(), CancellationToken.None, browser));
+            }
+            else
+            {
+                browser.Local.FlatNodes.Clear();
+                var local = new LocalFileSystem(root);
+                browser.Local.FlatNodes.Add(new LocalTreeNodeViewModel(
+                    new LocalEntry("one.txt", Path.Combine(root, "one.txt"), false, false, false, 1, DateTime.UtcNow),
+                    local, CancellationToken.None, browser.Local));
+                browser.Local.FlatNodes.Add(new LocalTreeNodeViewModel(
+                    new LocalEntry("two.txt", Path.Combine(root, "two.txt"), false, false, false, 2, DateTime.UtcNow),
+                    local, CancellationToken.None, browser.Local));
+            }
+            view.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.A, KeyModifiers = KeyModifiers.Control });
             await Task.Delay(40);
-            Assert.Equal(2, grid.SelectedItems.Count);
+            var selected = remote ? browser.SelectedEntries.Count : browser.Local.SelectedEntries.Count;
+            Assert.Equal(2, selected);
         }
         finally { window.Close(); Directory.Delete(root, true); }
+    }
+
+    /// <summary>远程文件系统替身：树节点用不到真实读取。</summary>
+    private sealed class StubRemoteFileSystem : IRemoteFileSystem
+    {
+        public Task<RemoteDirectory> ListAsync(string path, CancellationToken cancellationToken = default)
+            => Task.FromResult(new RemoteDirectory(path, []));
+        public Task CreateAsync(string path, bool directory, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task RenameAsync(string path, string newPath, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task DeleteAsync(string path, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task SetPermissionsAsync(string path, int permissions, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<TextDocument> ReadTextAsync(string path, CancellationToken cancellationToken = default)
+            => Task.FromResult(new TextDocument(path, "", 0, DateTime.UtcNow));
+        public Task<TextDocument> SaveTextAsync(TextDocument original, string content, CancellationToken cancellationToken = default)
+            => Task.FromResult(original);
+        public Task UploadAsync(string localPath, string remotePath, IProgress<long> progress, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task DownloadAsync(string remotePath, string localPath, IProgress<long> progress, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<bool> ExistsAsync(string path, CancellationToken cancellationToken = default) => Task.FromResult(false);
     }
 }
