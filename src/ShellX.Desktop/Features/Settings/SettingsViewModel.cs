@@ -60,7 +60,7 @@ public partial class SettingsViewModel : ObservableObject
     public string PasswordSummary => HasPassword ? "已设置锁定密码" : "尚未设置锁定密码";
     public bool ShowPasswordFields => ChangePassword || RemovePassword;
     public bool ShowNewPassword => ChangePassword && !RemovePassword;
-    public string[] Themes { get; } = ["暗色", "亮色", "One Dark Pro", "Dracula", "Solarized Light"];
+    public string[] Themes { get; } = ThemeCatalog.All.Select(ThemeCatalog.DisplayName).ToArray();
     [ObservableProperty] private int _themeIndex;
     public string[] DurationUnits { get; } = ["分钟", "小时"];
     public bool SystemSessionSupported { get; }

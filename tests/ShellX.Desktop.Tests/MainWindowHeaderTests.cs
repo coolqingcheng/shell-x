@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Headless.XUnit;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.VisualTree;
@@ -15,6 +16,7 @@ using ShellX.Desktop.Features.Security;
 using ShellX.Desktop.Features.Shell;
 using ShellX.Desktop.Features.Workspace;
 using ShellX.Desktop.Services;
+using ShellX.Desktop.Styles;
 using ShellX.Infrastructure.Files;
 using ShellX.Infrastructure.Persistence;
 using ShellX.Infrastructure.Security;
@@ -143,6 +145,57 @@ public sealed class MainWindowHeaderTests
             probe.Close();
         }
         finally { if (vm != null) await vm.ShutdownAsync(); window?.Close(); Directory.Delete(root, true); }
+    }
+
+    /// <summary>右上角水滴按钮：列出全部主题，选中后立即切换并写回配置。</summary>
+    [AvaloniaFact]
+    public async Task ThemeSwitchButtonListsEveryThemeAndAppliesTheSelectedOne()
+    {
+        var root = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "shellx-theme-switch-" + Guid.NewGuid().ToString("N"))).FullName;
+        MainWindowViewModel? vm = null;
+        Window? window = null;
+        var store = new Settings();
+        try
+        {
+            var profile = new ConnectionProfile { Name = "短名字", Host = "127.0.0.1", Port = 22, Username = "root" };
+            var dialogs = new Dialogs();
+            vm = new MainWindowViewModel(new Connections(profile), new Credentials(), new Hosts(), store, new SshSessionFactory(NullLoggerFactory.Instance),
+                dialogs, NullLoggerFactory.Instance, new LocalFileSystem(root), new AppLockService(new LockPasswordHasher()), new JsonConfigurationExporter(new(root)));
+            window = new MainWindow { DataContext = vm, Width = 1380, Height = 900 };
+            window.Show();
+            await Task.Delay(120);
+
+            var button = window.FindControl<Button>("ThemeSwitch");
+            Assert.NotNull(button);
+            // 主题按钮在设置按钮左边，位置不能互相压住。
+            var settings = window.GetVisualDescendants().OfType<Button>()
+                .First(b => b.Command == vm.SettingsCommand);
+            Assert.True(button!.TranslatePoint(new Point(0, 0), window)!.Value.X < settings.TranslatePoint(new Point(0, 0), window)!.Value.X);
+
+            button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await Task.Delay(80);
+            var menu = button.ContextMenu;
+            Assert.NotNull(menu);
+            var menuItems = menu!.Items;
+            Assert.Equal(ThemeCatalog.All.Count, menuItems.Count);
+            // 菜单标题要写主题名，当前主题打勾。
+            Assert.Equal(ThemeCatalog.All.Select(ThemeCatalog.DisplayName),
+                menuItems.OfType<MenuItem>().Select(item => item.GetVisualDescendants().OfType<TextBlock>().First().Text!));
+
+            var target = ThemeCatalog.All[2];
+            var item = (MenuItem)menuItems[2]!;
+            item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            await Task.Delay(150);
+            Assert.Equal(target, ThemeService.Current);
+            Assert.Equal(target, store.Value.Theme);
+        }
+        finally
+        {
+            ThemeService.Apply(AppTheme.Dark);
+            if (vm != null) await vm.ShutdownAsync();
+            window?.Close();
+            Directory.Delete(root, true);
+        }
     }
 
     private sealed class Connections(ConnectionProfile profile) : IConnectionRepository

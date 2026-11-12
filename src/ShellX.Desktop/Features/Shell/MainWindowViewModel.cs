@@ -15,6 +15,7 @@ using ShellX.Desktop.Features.Workspace;
 using ShellX.Desktop.Features.Monitoring;
 using ShellX.Desktop.Features.Security;
 using ShellX.Desktop.Services;
+using ShellX.Desktop.Styles;
 
 namespace ShellX.Desktop.Features.Shell;
 
@@ -794,6 +795,23 @@ public partial class MainWindowViewModel : ObservableObject
             RemoteTreeWidth = defaults.RemoteTreeWidth,
             LocalTreeWidth = defaults.LocalTreeWidth
         });
+    }
+
+    /// <summary>切换主题：立即生效并保存到配置，下次启动沿用。</summary>
+    public async Task ApplyThemeAsync(AppTheme theme)
+    {
+        if (_settings.Theme == theme) return;
+        try
+        {
+            var settings = _settings with { Theme = theme };
+            await _settingsStore.SaveAsync(settings);
+            _settings = settings;
+            ThemeService.Apply(theme);
+            foreach (var tab in Tabs) tab.ApplySettings(settings);
+            LayoutChanged?.Invoke(settings);
+            Status = "主题已切换：" + ThemeCatalog.DisplayName(theme);
+        }
+        catch (Exception ex) { Status = "主题切换失败：" + ex.Message; }
     }
 
     [RelayCommand]

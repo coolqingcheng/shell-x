@@ -30,7 +30,7 @@
       </Grid>
     </Border>
     <Border Grid.Column="1" Grid.ColumnSpan="2" Background="{DynamicResource HeaderBackground}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1">
-      <Grid ColumnDefinitions="42,*,32,32,Auto,32">
+      <Grid ColumnDefinitions="42,*,32,32,Auto,32,32">
         <Button Name="OpenConnectionManager" Classes="flat icon" Command="{Binding ToggleConnectionsCommand}" ToolTip.Tip="打开连接管理  Ctrl+B" Foreground="{DynamicResource AccentForeground}" Width="28" Height="28" Margin="7,0" HorizontalAlignment="Center" VerticalAlignment="Center"><controls:StrokeIcon Symbol="connections" Width="20" Height="20" Foreground="{DynamicResource AccentForeground}" /></Button>
         <ListBox Name="ConnectionTabs" Grid.Column="1" ItemsSource="{Binding Tabs}" SelectedItem="{Binding SelectedTab, Mode=TwoWay}" Classes="shelltabs">
           <ListBox.ItemTemplate>
@@ -45,7 +45,7 @@
           </ListBox.ItemTemplate>
         </ListBox>
         <Button Grid.Column="2" Classes="flat icon" Command="{Binding NewConnectionCommand}" ToolTip.Tip="新建连接  Ctrl+N" Width="28" Height="28" Margin="2,0" HorizontalAlignment="Center" VerticalAlignment="Center"><controls:StrokeIcon Symbol="plus" Width="20" Height="20" /></Button>
-        <Button Name="ResetLayout" Grid.Column="3" Classes="flat icon" Command="{Binding ResetLayoutCommand}" ToolTip.Tip="恢复默认布局" Width="28" Height="28" Margin="2,0" HorizontalAlignment="Center" VerticalAlignment="Center"><controls:StrokeIcon Symbol="layout" Width="18" Height="18" /></Button><Button Name="OpenMcpLog" Grid.Column="4" Content="MCP 日志" IsVisible="{Binding HasMcpConnections}" MinWidth="72" Click="ShowMcpLog" ToolTip.Tip="查看 MCP 命令执行日志" Padding="3,0" FontSize="10" /><Button Grid.Column="5" Classes="flat icon" Command="{Binding SettingsCommand}" ToolTip.Tip="设置" Width="28" Height="28" Margin="2,0" HorizontalAlignment="Center" VerticalAlignment="Center"><controls:StrokeIcon Symbol="settings" Width="18" Height="18" /></Button>
+        <Button Name="ResetLayout" Grid.Column="3" Classes="flat icon" Command="{Binding ResetLayoutCommand}" ToolTip.Tip="恢复默认布局" Width="28" Height="28" Margin="2,0" HorizontalAlignment="Center" VerticalAlignment="Center"><controls:StrokeIcon Symbol="layout" Width="18" Height="18" /></Button><Button Name="OpenMcpLog" Grid.Column="4" Content="MCP 日志" IsVisible="{Binding HasMcpConnections}" MinWidth="72" Click="ShowMcpLog" ToolTip.Tip="查看 MCP 命令执行日志" Padding="3,0" FontSize="10" /><Button Name="ThemeSwitch" Grid.Column="5" Classes="flat icon" Click="ShowThemeMenu" ToolTip.Tip="切换主题" Width="28" Height="28" Margin="2,0" HorizontalAlignment="Center" VerticalAlignment="Center"><controls:StrokeIcon Symbol="palette" Width="18" Height="18" /></Button><Button Grid.Column="6" Classes="flat icon" Command="{Binding SettingsCommand}" ToolTip.Tip="设置" Width="28" Height="28" Margin="2,0" HorizontalAlignment="Center" VerticalAlignment="Center"><controls:StrokeIcon Symbol="settings" Width="18" Height="18" /></Button>
       </Grid>
     </Border>
     <Grid Grid.Row="1" Background="{DynamicResource PanelBackground}">

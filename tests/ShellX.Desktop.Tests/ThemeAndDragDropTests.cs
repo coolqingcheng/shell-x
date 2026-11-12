@@ -44,7 +44,7 @@ public sealed class ThemeAndDragDropTests
         try
         {
             await browser.Local.InitializeAsync();
-            foreach (var theme in new[] { AppTheme.Dark, AppTheme.Light, AppTheme.OneDark, AppTheme.Dracula, AppTheme.SolarizedLight, AppTheme.Dark })
+            foreach (var theme in ThemeCatalog.All.Append(AppTheme.Dark))
             {
                 ThemeService.Apply(theme); await Task.Delay(60);
                 var palette = ThemeCatalog.Of(theme);
@@ -88,7 +88,7 @@ public sealed class ThemeAndDragDropTests
         var window = new Window { Width = 900, Height = 600, Content = grid }; window.Show();
         try
         {
-            foreach (var theme in new[] { AppTheme.OneDark, AppTheme.Dracula, AppTheme.SolarizedLight, AppTheme.Dark })
+            foreach (var theme in ThemeCatalog.All.Append(AppTheme.Dark))
             {
                 ThemeService.Apply(theme); await Task.Delay(80);
                 var palette = ThemeCatalog.Of(theme);
@@ -102,6 +102,57 @@ public sealed class ThemeAndDragDropTests
         }
         finally { ThemeService.Apply(AppTheme.Dark); window.Close(); }
     }
+    [Fact]
+    public void EveryThemeProvidesCompletePaletteAndRoundTripsThroughIndex()
+    {
+        var required = new[]
+        {
+            ThemeCatalog.AppBackground, ThemeCatalog.PanelBackground, ThemeCatalog.BorderColor, ThemeCatalog.ForegroundBrush,
+            ThemeCatalog.EditorForeground, ThemeCatalog.RaisedBackground, ThemeCatalog.InputBackground, ThemeCatalog.HeaderBackground,
+            ThemeCatalog.HoverBackground, ThemeCatalog.SelectionBackground, ThemeCatalog.MutedForeground, ThemeCatalog.SecondaryForeground,
+            ThemeCatalog.IconForeground, ThemeCatalog.PlaceholderForeground, ThemeCatalog.FaintForeground, ThemeCatalog.AccentForeground,
+            ThemeCatalog.LinkForeground, ThemeCatalog.FolderForeground, ThemeCatalog.CommandForeground, ThemeCatalog.SuccessForeground,
+            ThemeCatalog.ErrorForeground, ThemeCatalog.WarningForeground, ThemeCatalog.WarningBackground, ThemeCatalog.SuccessBackground,
+            ThemeCatalog.TreeBackground, ThemeCatalog.ChartBackground, ThemeCatalog.ChartGrid, ThemeCatalog.PurpleForeground,
+            ThemeCatalog.OrangeForeground, ThemeCatalog.CommentForeground
+        };
+        Assert.Equal(ThemeCatalog.All.Count, ThemeCatalog.All.Distinct().Count());
+        var signatures = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var theme in ThemeCatalog.All)
+        {
+            var palette = ThemeCatalog.Of(theme);
+            Assert.All(required, key => Assert.True(palette.Ui.ContainsKey(key), theme + " 缺少配色键 " + key));
+            Assert.All(palette.Ui.Values, hex => Color.Parse(hex));
+            // 终端 22 色与编辑器 7 种语法角色都要有值。
+            Assert.All(new[]
+            {
+                palette.Terminal.Foreground, palette.Terminal.Background, palette.Terminal.Cursor, palette.Terminal.Selection,
+                palette.Terminal.Black, palette.Terminal.Red, palette.Terminal.Green, palette.Terminal.Yellow, palette.Terminal.Blue,
+                palette.Terminal.Magenta, palette.Terminal.Cyan, palette.Terminal.White, palette.Terminal.BrightBlack,
+                palette.Terminal.BrightRed, palette.Terminal.BrightGreen, palette.Terminal.BrightYellow, palette.Terminal.BrightBlue,
+                palette.Terminal.BrightMagenta, palette.Terminal.BrightCyan, palette.Terminal.BrightWhite
+            }, hex => Color.Parse(hex));
+            Assert.All(new[]
+            {
+                palette.Syntax.Comment, palette.Syntax.String, palette.Syntax.Property, palette.Syntax.Keyword,
+                palette.Syntax.Number, palette.Syntax.Variable, palette.Syntax.Delimiter
+            }, hex => Color.Parse(hex));
+            // 终端语义着色是 24 位 RGB 的 R;G;B。
+            Assert.All(new[] { palette.Highlight.Error, palette.Highlight.Warning, palette.Highlight.Success, palette.Highlight.Ip, palette.Highlight.Link },
+                value => Assert.Equal(3, value.Split(';').Length));
+            // 下拉框索引要能来回映射，否则设置页选错主题。
+            var index = ThemeCatalog.ToIndex(theme);
+            Assert.Equal(theme, ThemeCatalog.FromIndex(index));
+            Assert.NotNull(ThemeCatalog.Variant(theme));
+            signatures.Add(string.Join("|", required.Select(key => palette.Ui[key])));
+        }
+        // 每套主题的配色都不一样，避免“换了主题看起来没换”。
+        Assert.Equal(ThemeCatalog.All.Count, signatures.Count);
+        var settings = new SettingsViewModel(new AppSettings(), new LockPasswordHasher(), ["Consolas"]);
+        Assert.Equal(ThemeCatalog.All.Count, settings.Themes.Length);
+        Assert.Equal(ThemeCatalog.All.Select(ThemeCatalog.DisplayName), settings.Themes);
+    }
+
     [AvaloniaFact]
     public async Task ExplorerAndInternalDropsTransferFilesAndFoldersWithExactBytesAndMergeConfirmation()
     {

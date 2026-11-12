@@ -1,6 +1,6 @@
 namespace ShellX.Core.Settings;
 
-public enum AppTheme { Dark, Light, OneDark, Dracula, SolarizedLight }
+public enum AppTheme { Dark, Light, OneDark, Dracula, SolarizedLight, Monokai, Nord, TokyoNight, CatppuccinMocha, GruvboxDark, OneLight, GitHubDark, GitHubLight, VitesseDark }
 
 public enum ProcessSortColumn { Cpu, Memory }
 

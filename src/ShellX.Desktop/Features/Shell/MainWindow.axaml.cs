@@ -1,9 +1,12 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using ShellX.Core.Connections;
 using ShellX.Core.Settings;
 using ShellX.Desktop.Services;
+using ShellX.Desktop.Styles;
 
 namespace ShellX.Desktop.Features.Shell;
 
@@ -69,6 +72,53 @@ ShellX.Desktop.Services.WindowTitles.ApplyVersion(this);
         if (DataContext is MainWindowViewModel vm) vm.Dialogs.TrackOwnerWindow(window);
         window.Show(this);
     }
+    /// <summary>右上角主题按钮：列出全部主题，选中后立即生效并保存。</summary>
+    private void ShowThemeMenu(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button) return;
+        var menu = new ContextMenu();
+        foreach (var theme in ThemeCatalog.All)
+        {
+            var item = new MenuItem
+            {
+                Header = BuildThemeEntry(ThemeCatalog.Of(theme)),
+                Tag = theme,
+                IsChecked = theme == ThemeService.Current
+            };
+            item.Click += async (_, _) =>
+            {
+                if (DataContext is MainWindowViewModel vm && item.Tag is AppTheme selected)
+                    await vm.ApplyThemeAsync(selected);
+            };
+            menu.Items.Add(item);
+        }
+        button.ContextMenu = menu;
+        menu.Open(button);
+    }
+
+    /// <summary>主题菜单项：左边一个取色块，右边是主题名。</summary>
+    private static Control BuildThemeEntry(ThemePalette palette)
+    {
+        var swatch = new Border
+        {
+            Width = 12,
+            Height = 12,
+            CornerRadius = new CornerRadius(3),
+            Background = new SolidColorBrush(Color.Parse(palette.Ui[ThemeCatalog.AccentForeground])),
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
+        };
+        var text = new TextBlock
+        {
+            Text = palette.DisplayName,
+            Margin = new Thickness(8, 0, 0, 0),
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
+        };
+        var panel = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal };
+        panel.Children.Add(swatch);
+        panel.Children.Add(text);
+        return panel;
+    }
+
     private async void EditConnection(object? sender, RoutedEventArgs e)
     { if (sender is MenuItem { Tag: ConnectionProfile profile } && DataContext is MainWindowViewModel vm) await vm.EditConnectionCommand.ExecuteAsync(profile); }
     private async void DeleteConnection(object? sender, RoutedEventArgs e)

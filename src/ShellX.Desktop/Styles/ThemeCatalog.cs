@@ -9,9 +9,9 @@ namespace ShellX.Desktop.Styles;
 /// <summary>自定义主题变体。继承 Dark/Light，某个键没单独定义时自动回退到对应变体。</summary>
 public static class ThemeVariants
 {
-    public static readonly ThemeVariant OneDark = new("OneDark", ThemeVariant.Dark);
-    public static readonly ThemeVariant Dracula = new("Dracula", ThemeVariant.Dark);
-    public static readonly ThemeVariant SolarizedLight = new("SolarizedLight", ThemeVariant.Light);
+    /// <summary>按主题生成变体：暗色主题继承 Dark，亮色主题继承 Light。</summary>
+    public static ThemeVariant Create(string name, bool isDark)
+        => new(name, isDark ? ThemeVariant.Dark : ThemeVariant.Light);
 }
 
 /// <summary>终端 ANSI 调色板，值是 #RRGGBB。</summary>
@@ -80,8 +80,13 @@ public static class ThemeCatalog
     public const string RoleVariable = "Variable";
     public const string RoleDelimiter = "Delimiter";
 
+    /// <summary>全部可选主题，顺序即设置页下拉框与快速切换菜单的顺序。</summary>
     public static IReadOnlyList<AppTheme> All { get; } =
-        [AppTheme.Dark, AppTheme.Light, AppTheme.OneDark, AppTheme.Dracula, AppTheme.SolarizedLight];
+    [
+        AppTheme.Dark, AppTheme.Light, AppTheme.OneDark, AppTheme.Dracula, AppTheme.SolarizedLight,
+        AppTheme.Monokai, AppTheme.Nord, AppTheme.TokyoNight, AppTheme.CatppuccinMocha, AppTheme.GruvboxDark,
+        AppTheme.OneLight, AppTheme.GitHubDark, AppTheme.GitHubLight, AppTheme.VitesseDark
+    ];
 
     // VS Code Dark+：默认暗色。
     private static readonly ThemePalette Dark = new(
@@ -198,47 +203,260 @@ public static class ThemeCatalog
         new SyntaxPalette("#93A1A1", "#2AA198", "#268BD2", "#859900", "#D33682", "#CB4B16", "#657B83"),
         new HighlightPalette("220;50;47", "181;137;0", "133;153;0", "38;139;210", "38;139;210"));
 
-    private static readonly Dictionary<(AppTheme Theme, string Role), IBrush> SyntaxBrushes = BuildSyntaxBrushes();
+    // VS Code 经典 Monokai 暗色主题。
+    private static readonly ThemePalette Monokai = new(
+        "Monokai", true,
+        new Dictionary<string, string>
+        {
+            [AppBackground] = "#272822", [PanelBackground] = "#1E1F1C", [BorderColor] = "#3E3D32", [ForegroundBrush] = "#F8F8F2",
+            [EditorForeground] = "#F8F8F2", [RaisedBackground] = "#3E3D32", [InputBackground] = "#1E1F1C", [HeaderBackground] = "#1E1F1C",
+            [HoverBackground] = "#3A3A32", [SelectionBackground] = "#49483E", [MutedForeground] = "#75715E", [SecondaryForeground] = "#A6A28C",
+            [IconForeground] = "#CFCFC2", [PlaceholderForeground] = "#75715E", [FaintForeground] = "#5A594F", [AccentForeground] = "#F92672",
+            [LinkForeground] = "#66D9EF", [FolderForeground] = "#E6DB74", [CommandForeground] = "#E6DB74", [SuccessForeground] = "#A6E22E",
+            [ErrorForeground] = "#F92672", [WarningForeground] = "#E6DB74", [WarningBackground] = "#3B3A32", [SuccessBackground] = "#2C3B22",
+            [TreeBackground] = "#1E1F1C", [ChartBackground] = "#1E1F1C", [ChartGrid] = "#3E3D32", [PurpleForeground] = "#AE81FF",
+            [OrangeForeground] = "#FD971F", [CommentForeground] = "#75715E",
+        },
+        new TerminalPalette(
+            "#F8F8F2", "#272822", "#F8F8F0", "#49483E",
+            "#333333", "#F92672", "#A6E22E", "#E6DB74",
+            "#66D9EF", "#AE81FF", "#A1EFE4", "#F8F8F2",
+            "#75715E", "#F92672", "#A6E22E", "#E6DB74", "#66D9EF", "#AE81FF", "#A1EFE4", "#F9F8F5"),
+        new SyntaxPalette("#75715E", "#E6DB74", "#F92672", "#F92672", "#AE81FF", "#FD971F", "#F8F8F2"),
+        new HighlightPalette("249;38;114", "230;219;116", "166;226;46", "102;217;239", "249;38;114"));
 
-    public static ThemePalette Of(AppTheme theme) => theme switch
+    // 冷色调 Nord 暗色主题。
+    private static readonly ThemePalette Nord = new(
+        "Nord", true,
+        new Dictionary<string, string>
+        {
+            [AppBackground] = "#2E3440", [PanelBackground] = "#292E39", [BorderColor] = "#3B4252", [ForegroundBrush] = "#D8DEE9",
+            [EditorForeground] = "#D8DEE9", [RaisedBackground] = "#3B4252", [InputBackground] = "#292E39", [HeaderBackground] = "#292E39",
+            [HoverBackground] = "#3B4252", [SelectionBackground] = "#434C5E", [MutedForeground] = "#616E88", [SecondaryForeground] = "#81A1C1",
+            [IconForeground] = "#D8DEE9", [PlaceholderForeground] = "#616E88", [FaintForeground] = "#4C566A", [AccentForeground] = "#88C0D0",
+            [LinkForeground] = "#88C0D0", [FolderForeground] = "#88C0D0", [CommandForeground] = "#81A1C1", [SuccessForeground] = "#A3BE8C",
+            [ErrorForeground] = "#BF616A", [WarningForeground] = "#EBCB8B", [WarningBackground] = "#43402F", [SuccessBackground] = "#30392F",
+            [TreeBackground] = "#292E39", [ChartBackground] = "#292E39", [ChartGrid] = "#3B4252", [PurpleForeground] = "#B48EAD",
+            [OrangeForeground] = "#D08770", [CommentForeground] = "#616E88",
+        },
+        new TerminalPalette(
+            "#D8DEE9", "#2E3440", "#D8DEE9", "#434C5E",
+            "#3B4252", "#BF616A", "#A3BE8C", "#EBCB8B",
+            "#81A1C1", "#B48EAD", "#88C0D0", "#E5E9F0",
+            "#4C566A", "#BF616A", "#A3BE8C", "#EBCB8B", "#81A1C1", "#B48EAD", "#8FBCBB", "#ECEFF4"),
+        new SyntaxPalette("#616E88", "#A3BE8C", "#8FBCBB", "#81A1C1", "#B48EAD", "#D8DEE9", "#ECEFF4"),
+        new HighlightPalette("191;97;106", "235;203;139", "163;190;140", "136;192;208", "136;192;208"));
+
+    // 蓝紫色调 Tokyo Night 暗色主题。
+    private static readonly ThemePalette TokyoNight = new(
+        "Tokyo Night", true,
+        new Dictionary<string, string>
+        {
+            [AppBackground] = "#1A1B26", [PanelBackground] = "#16161E", [BorderColor] = "#2A2C41", [ForegroundBrush] = "#C0CAF5",
+            [EditorForeground] = "#C0CAF5", [RaisedBackground] = "#292E42", [InputBackground] = "#16161E", [HeaderBackground] = "#16161E",
+            [HoverBackground] = "#292E42", [SelectionBackground] = "#283457", [MutedForeground] = "#565F89", [SecondaryForeground] = "#7982A9",
+            [IconForeground] = "#A9B1D6", [PlaceholderForeground] = "#565F89", [FaintForeground] = "#414868", [AccentForeground] = "#7AA2F7",
+            [LinkForeground] = "#7DCFFF", [FolderForeground] = "#7AA2F7", [CommandForeground] = "#BB9AF7", [SuccessForeground] = "#9ECE6A",
+            [ErrorForeground] = "#F7768E", [WarningForeground] = "#E0AF68", [WarningBackground] = "#3D2B1E", [SuccessBackground] = "#1F3324",
+            [TreeBackground] = "#16161E", [ChartBackground] = "#16161E", [ChartGrid] = "#292E42", [PurpleForeground] = "#BB9AF7",
+            [OrangeForeground] = "#FF9E64", [CommentForeground] = "#565F89",
+        },
+        new TerminalPalette(
+            "#C0CAF5", "#1A1B26", "#C0CAF5", "#33467C",
+            "#15161E", "#F7768E", "#9ECE6A", "#E0AF68",
+            "#7AA2F7", "#BB9AF7", "#7DCFFF", "#A9B1D6",
+            "#414868", "#F7768E", "#9ECE6A", "#E0AF68", "#7AA2F7", "#BB9AF7", "#7DCFFF", "#C0CAF5"),
+        new SyntaxPalette("#565F89", "#9ECE6A", "#7DCFFF", "#BB9AF7", "#FF9E64", "#C0CAF5", "#89DDFF"),
+        new HighlightPalette("247;118;142", "224;175;104", "158;206;106", "125;207;255", "122;162;247"));
+
+    // 柔和粉紫调 Catppuccin Mocha 暗色主题。
+    private static readonly ThemePalette CatppuccinMocha = new(
+        "Catppuccin Mocha", true,
+        new Dictionary<string, string>
+        {
+            [AppBackground] = "#1E1E2E", [PanelBackground] = "#181825", [BorderColor] = "#313244", [ForegroundBrush] = "#CDD6F4",
+            [EditorForeground] = "#CDD6F4", [RaisedBackground] = "#45475A", [InputBackground] = "#181825", [HeaderBackground] = "#181825",
+            [HoverBackground] = "#313244", [SelectionBackground] = "#45475A", [MutedForeground] = "#6C7086", [SecondaryForeground] = "#A6ADC8",
+            [IconForeground] = "#A6ADC8", [PlaceholderForeground] = "#6C7086", [FaintForeground] = "#45475A", [AccentForeground] = "#89B4FA",
+            [LinkForeground] = "#89DCEB", [FolderForeground] = "#89B4FA", [CommandForeground] = "#CBA6F7", [SuccessForeground] = "#A6E3A1",
+            [ErrorForeground] = "#F38BA8", [WarningForeground] = "#F9E2AF", [WarningBackground] = "#45333C", [SuccessBackground] = "#263A2F",
+            [TreeBackground] = "#181825", [ChartBackground] = "#181825", [ChartGrid] = "#313244", [PurpleForeground] = "#CBA6F7",
+            [OrangeForeground] = "#FAB387", [CommentForeground] = "#6C7086",
+        },
+        new TerminalPalette(
+            "#CDD6F4", "#1E1E2E", "#F5E0DC", "#585B70",
+            "#45475A", "#F38BA8", "#A6E3A1", "#F9E2AF",
+            "#89B4FA", "#F5C2E7", "#94E2D5", "#BAC2DE",
+            "#585B70", "#F38BA8", "#A6E3A1", "#F9E2AF", "#89B4FA", "#F5C2E7", "#94E2D5", "#A6ADC8"),
+        new SyntaxPalette("#6C7086", "#A6E3A1", "#89DCEB", "#CBA6F7", "#FAB387", "#F5C2E7", "#89B4FA"),
+        new HighlightPalette("243;139;168", "249;226;175", "166;227;161", "137;220;235", "137;180;250"));
+
+    // 复古暖褐调 Gruvbox Dark 主题。
+    private static readonly ThemePalette GruvboxDark = new(
+        "Gruvbox Dark", true,
+        new Dictionary<string, string>
+        {
+            [AppBackground] = "#282828", [PanelBackground] = "#1D2021", [BorderColor] = "#3C3836", [ForegroundBrush] = "#EBDBB2",
+            [EditorForeground] = "#EBDBB2", [RaisedBackground] = "#504945", [InputBackground] = "#1D2021", [HeaderBackground] = "#1D2021",
+            [HoverBackground] = "#3C3836", [SelectionBackground] = "#504945", [MutedForeground] = "#928374", [SecondaryForeground] = "#BDAE93",
+            [IconForeground] = "#A89984", [PlaceholderForeground] = "#928374", [FaintForeground] = "#7C6F64", [AccentForeground] = "#FE8019",
+            [LinkForeground] = "#83A598", [FolderForeground] = "#FABD2F", [CommandForeground] = "#FABD2F", [SuccessForeground] = "#B8BB26",
+            [ErrorForeground] = "#FB4934", [WarningForeground] = "#FABD2F", [WarningBackground] = "#3B2B1F", [SuccessBackground] = "#2C3116",
+            [TreeBackground] = "#1D2021", [ChartBackground] = "#1D2021", [ChartGrid] = "#3C3836", [PurpleForeground] = "#D3869B",
+            [OrangeForeground] = "#FE8019", [CommentForeground] = "#928374",
+        },
+        new TerminalPalette(
+            "#EBDBB2", "#282828", "#FBF1C7", "#504945",
+            "#282828", "#CC241D", "#98971A", "#D79921",
+            "#458588", "#B16286", "#689D6A", "#A89984",
+            "#928374", "#FB4934", "#B8BB26", "#FABD2F", "#83A598", "#D3869B", "#8EC07C", "#EBDBB2"),
+        new SyntaxPalette("#928374", "#B8BB26", "#FE8019", "#FB4934", "#D3869B", "#83A598", "#EBDBB2"),
+        new HighlightPalette("251;73;52", "250;189;47", "184;187;38", "131;165;152", "254;128;25"));
+
+    // 清爽白底 One Light 亮色主题。
+    private static readonly ThemePalette OneLight = new(
+        "One Light", false,
+        new Dictionary<string, string>
+        {
+            [AppBackground] = "#FAFAFA", [PanelBackground] = "#EAEAEA", [BorderColor] = "#D0D0D0", [ForegroundBrush] = "#383A42",
+            [EditorForeground] = "#383A42", [RaisedBackground] = "#DCDCDC", [InputBackground] = "#FFFFFF", [HeaderBackground] = "#EAEAEA",
+            [HoverBackground] = "#E3E3E3", [SelectionBackground] = "#D0DCF0", [MutedForeground] = "#9D9D9F", [SecondaryForeground] = "#696969",
+            [IconForeground] = "#5F5F5F", [PlaceholderForeground] = "#A0A0A0", [FaintForeground] = "#B5B5B5", [AccentForeground] = "#526FFF",
+            [LinkForeground] = "#4078F2", [FolderForeground] = "#C18401", [CommandForeground] = "#986801", [SuccessForeground] = "#50A14F",
+            [ErrorForeground] = "#CA1243", [WarningForeground] = "#986801", [WarningBackground] = "#FBEBC8", [SuccessBackground] = "#E6F4DE",
+            [TreeBackground] = "#F3F3F3", [ChartBackground] = "#FAFAFA", [ChartGrid] = "#E0E0E0", [PurpleForeground] = "#A626A4",
+            [OrangeForeground] = "#986801", [CommentForeground] = "#A0A0A0",
+        },
+        new TerminalPalette(
+            "#383A42", "#FAFAFA", "#383A42", "#C9D0D9",
+            "#383A42", "#CA1243", "#50A14F", "#986801",
+            "#0184BC", "#A626A4", "#0997B3", "#383A42",
+            "#696969", "#CA1243", "#50A14F", "#986801", "#0184BC", "#A626A4", "#0997B3", "#696969"),
+        new SyntaxPalette("#A0A0A0", "#50A14F", "#986801", "#CA1243", "#986801", "#4078F2", "#383A42"),
+        new HighlightPalette("202;18;67", "152;104;1", "80;161;79", "64;120;242", "82;111;255"));
+
+    // GitHub 官方暗色主题。
+    private static readonly ThemePalette GitHubDark = new(
+        "GitHub Dark", true,
+        new Dictionary<string, string>
+        {
+            [AppBackground] = "#0D1117", [PanelBackground] = "#161B22", [BorderColor] = "#30363D", [ForegroundBrush] = "#C9D1D9",
+            [EditorForeground] = "#C9D1D9", [RaisedBackground] = "#21262D", [InputBackground] = "#0D1117", [HeaderBackground] = "#161B22",
+            [HoverBackground] = "#21262D", [SelectionBackground] = "#264F78", [MutedForeground] = "#8B949E", [SecondaryForeground] = "#B1BAC4",
+            [IconForeground] = "#8B949E", [PlaceholderForeground] = "#6E7681", [FaintForeground] = "#484F58", [AccentForeground] = "#58A6FF",
+            [LinkForeground] = "#58A6FF", [FolderForeground] = "#D29922", [CommandForeground] = "#D2A8FF", [SuccessForeground] = "#3FB950",
+            [ErrorForeground] = "#F85149", [WarningForeground] = "#D29922", [WarningBackground] = "#2D2416", [SuccessBackground] = "#12261E",
+            [TreeBackground] = "#0D1117", [ChartBackground] = "#161B22", [ChartGrid] = "#30363D", [PurpleForeground] = "#D2A8FF",
+            [OrangeForeground] = "#FFA657", [CommentForeground] = "#8B949E",
+        },
+        new TerminalPalette(
+            "#C9D1D9", "#0D1117", "#C9D1D9", "#264F78",
+            "#484F58", "#FF7B72", "#3FB950", "#D29922",
+            "#58A6FF", "#BC8CFF", "#39C5CF", "#B1BAC4",
+            "#6E7681", "#FFA198", "#56D364", "#E3B341", "#79C0FF", "#D2A8FF", "#56D4DD", "#F0F6FC"),
+        new SyntaxPalette("#8B949E", "#A5D6FF", "#79C0FF", "#FF7B72", "#79C0FF", "#FFA657", "#C9D1D9"),
+        new HighlightPalette("248;81;73", "210;153;34", "63;185;80", "88;166;255", "88;166;255"));
+
+    // GitHub 官方亮色主题。
+    private static readonly ThemePalette GitHubLight = new(
+        "GitHub Light", false,
+        new Dictionary<string, string>
+        {
+            [AppBackground] = "#FFFFFF", [PanelBackground] = "#F6F8FA", [BorderColor] = "#D0D7DE", [ForegroundBrush] = "#24292F",
+            [EditorForeground] = "#24292F", [RaisedBackground] = "#EAEEF2", [InputBackground] = "#FFFFFF", [HeaderBackground] = "#F6F8FA",
+            [HoverBackground] = "#EFF2F5", [SelectionBackground] = "#B6D7FF", [MutedForeground] = "#57606A", [SecondaryForeground] = "#6E7781",
+            [IconForeground] = "#57606A", [PlaceholderForeground] = "#8C959F", [FaintForeground] = "#AFB8C1", [AccentForeground] = "#0969DA",
+            [LinkForeground] = "#0969DA", [FolderForeground] = "#BC4C00", [CommandForeground] = "#953800", [SuccessForeground] = "#1A7F37",
+            [ErrorForeground] = "#CF222E", [WarningForeground] = "#9A6700", [WarningBackground] = "#FFF8C5", [SuccessBackground] = "#DAFBE1",
+            [TreeBackground] = "#F6F8FA", [ChartBackground] = "#FFFFFF", [ChartGrid] = "#EAEEF2", [PurpleForeground] = "#8250DF",
+            [OrangeForeground] = "#953800", [CommentForeground] = "#6E7781",
+        },
+        new TerminalPalette(
+            "#24292F", "#FFFFFF", "#24292F", "#B6D7FF",
+            "#24292F", "#CF222E", "#116329", "#4D2D00",
+            "#0550AE", "#8250DF", "#1B7C83", "#6E7781",
+            "#57606A", "#A40E26", "#1A7F37", "#633C01", "#218BFF", "#A475F9", "#3192AA", "#8C959F"),
+        new SyntaxPalette("#6E7781", "#0A3069", "#0550AE", "#CF222E", "#0550AE", "#953800", "#24292F"),
+        new HighlightPalette("207;34;46", "154;103;0", "26;127;55", "9;105;218", "9;105;218"));
+
+    // 低饱和暖灰 Vitesse Dark 主题。
+    private static readonly ThemePalette VitesseDark = new(
+        "Vitesse Dark", true,
+        new Dictionary<string, string>
+        {
+            [AppBackground] = "#121212", [PanelBackground] = "#181818", [BorderColor] = "#2E2E2E", [ForegroundBrush] = "#DBD7CA",
+            [EditorForeground] = "#DBD7CA", [RaisedBackground] = "#2E2E2E", [InputBackground] = "#1A1A1A", [HeaderBackground] = "#181818",
+            [HoverBackground] = "#262626", [SelectionBackground] = "#2E3F4E", [MutedForeground] = "#7E6E64", [SecondaryForeground] = "#91827B",
+            [IconForeground] = "#A3A3A3", [PlaceholderForeground] = "#7E6E64", [FaintForeground] = "#56534E", [AccentForeground] = "#4D9375",
+            [LinkForeground] = "#4D9375", [FolderForeground] = "#E6C07B", [CommandForeground] = "#E6C07B", [SuccessForeground] = "#8FBC8F",
+            [ErrorForeground] = "#D16D6D", [WarningForeground] = "#E6C07B", [WarningBackground] = "#3A2F1F", [SuccessBackground] = "#24301F",
+            [TreeBackground] = "#181818", [ChartBackground] = "#181818", [ChartGrid] = "#2E2E2E", [PurpleForeground] = "#A6ACCD",
+            [OrangeForeground] = "#D19A66", [CommentForeground] = "#7E6E64",
+        },
+        new TerminalPalette(
+            "#DBD7CA", "#121212", "#DBD7CA", "#2E3F4E",
+            "#121212", "#BD465B", "#8FBC8F", "#E6C07B",
+            "#6A9FB5", "#A37BAB", "#5FB3B3", "#DBD7CA",
+            "#4E4E4E", "#D16D6D", "#A6C97F", "#F0D399", "#85B6D0", "#C39AC0", "#7FD1D1", "#EDEAE2"),
+        new SyntaxPalette("#7E6E64", "#A1B187", "#E6C07B", "#CB7676", "#B3AE60", "#DBD7CA", "#A3A3A3"),
+        new HighlightPalette("209;109;109", "230;192;123", "143;188;143", "77;147;117", "77;147;117"));
+
+
+    /// <summary>主题与配色的对应表。</summary>
+    private static readonly Dictionary<AppTheme, ThemePalette> Palettes = new()
     {
-        AppTheme.Light => Light,
-        AppTheme.OneDark => OneDark,
-        AppTheme.Dracula => Dracula,
-        AppTheme.SolarizedLight => SolarizedLight,
-        _ => Dark
+        [AppTheme.Dark] = Dark,
+        [AppTheme.Light] = Light,
+        [AppTheme.OneDark] = OneDark,
+        [AppTheme.Dracula] = Dracula,
+        [AppTheme.SolarizedLight] = SolarizedLight,
+        [AppTheme.Monokai] = Monokai,
+        [AppTheme.Nord] = Nord,
+        [AppTheme.TokyoNight] = TokyoNight,
+        [AppTheme.CatppuccinMocha] = CatppuccinMocha,
+        [AppTheme.GruvboxDark] = GruvboxDark,
+        [AppTheme.OneLight] = OneLight,
+        [AppTheme.GitHubDark] = GitHubDark,
+        [AppTheme.GitHubLight] = GitHubLight,
+        [AppTheme.VitesseDark] = VitesseDark
     };
+
+    /// <summary>自定义主题的变体缓存，同一主题始终使用同一个实例。</summary>
+    private static readonly Dictionary<AppTheme, ThemeVariant> CustomVariants = BuildCustomVariants();
+
+    private static Dictionary<AppTheme, ThemeVariant> BuildCustomVariants()
+    {
+        var result = new Dictionary<AppTheme, ThemeVariant>();
+        foreach (var theme in All)
+        {
+            if (theme is AppTheme.Dark or AppTheme.Light) continue;
+            result[theme] = ThemeVariants.Create(theme.ToString(), Of(theme).IsDark);
+        }
+        return result;
+    }
+
+    public static ThemePalette Of(AppTheme theme) => Palettes.TryGetValue(theme, out var palette) ? palette : Dark;
 
     /// <summary>主题对应的 Avalonia 变体；自定义变体继承 Dark/Light。</summary>
     public static ThemeVariant Variant(AppTheme theme) => theme switch
     {
+        AppTheme.Dark => ThemeVariant.Dark,
         AppTheme.Light => ThemeVariant.Light,
-        AppTheme.OneDark => ThemeVariants.OneDark,
-        AppTheme.Dracula => ThemeVariants.Dracula,
-        AppTheme.SolarizedLight => ThemeVariants.SolarizedLight,
-        _ => ThemeVariant.Dark
+        _ => CustomVariants.TryGetValue(theme, out var variant) ? variant : ThemeVariant.Dark
     };
+
+    private static readonly Dictionary<(AppTheme Theme, string Role), IBrush> SyntaxBrushes = BuildSyntaxBrushes();
 
     public static string DisplayName(AppTheme theme) => Of(theme).DisplayName;
 
     /// <summary>设置页下拉框顺序与枚举的对应关系。</summary>
-    public static AppTheme FromIndex(int index) => index switch
-    {
-        1 => AppTheme.Light,
-        2 => AppTheme.OneDark,
-        3 => AppTheme.Dracula,
-        4 => AppTheme.SolarizedLight,
-        _ => AppTheme.Dark
-    };
+    public static AppTheme FromIndex(int index) => index >= 0 && index < All.Count ? All[index] : AppTheme.Dark;
 
-    public static int ToIndex(AppTheme theme) => theme switch
+    public static int ToIndex(AppTheme theme)
     {
-        AppTheme.Light => 1,
-        AppTheme.OneDark => 2,
-        AppTheme.Dracula => 3,
-        AppTheme.SolarizedLight => 4,
-        _ => 0
-    };
+        for (var i = 0; i < All.Count; i++) if (All[i] == theme) return i;
+        return 0;
+    }
 
     /// <summary>终端的 ANSI 配色。必须整体赋值新对象，模拟器才会重新播种调色板。</summary>
     public static ThemeOptions TerminalTheme(AppTheme theme)
