@@ -4,6 +4,8 @@ using Avalonia.Controls.Documents;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
+using ShellX.Desktop.Services;
+using ShellX.Desktop.Styles;
 
 namespace ShellX.Desktop.Controls;
 
@@ -33,18 +35,20 @@ public sealed class ConnectionAccentBorder : Border
 
     private void ApplyColor()
     {
-        var light = ActualThemeVariant == ThemeVariant.Light;
-        var surface = Color.Parse(light ? "#FFFFFF" : "#1E1E1E");
-        var header = Color.Parse(light ? "#EAEAEA" : "#2D2D30");
+        // 页签底色必须跟着当前主题走：写死 VS Code 配色的话，换成 Nord、One Light 之后页签还是老样子。
+        var surface = ThemeColor(ThemeCatalog.AppBackground, "#1E1E1E");
+        var header = ThemeColor(ThemeCatalog.HeaderBackground, "#2D2D30");
+        // 自定义亮色主题的变体不等于 ThemeVariant.Light，只能按底色亮度判断深浅。
+        var light = Luminance(surface) > .5;
         var marked = !string.IsNullOrEmpty(AccentColor) && AccentColor.Length == 7 && AccentColor[0] == '#' && Color.TryParse(AccentColor, out _);
         var accent = marked ? Muted(Color.Parse(AccentColor), light) : Colors.Transparent;
-        var activeFallback = Color.Parse(light ? "#CCE8FF" : "#094771");
+        var activeFallback = ThemeColor(ThemeCatalog.SelectionBackground, "#094771");
         switch (Appearance)
         {
             case ConnectionAccentAppearance.Indicator:
                 // 高亮条用高饱和的强调色，避免和页签底色融在一起看不出激活项。
                 Background = new SolidColorBrush(IsActive
-                    ? marked ? Bright(Color.Parse(AccentColor), light) : Color.Parse(light ? "#005FB8" : "#0078D4")
+                    ? marked ? Bright(Color.Parse(AccentColor), light) : ThemeColor(ThemeCatalog.AccentForeground, "#0078D4")
                     : Colors.Transparent);
                 break;
             case ConnectionAccentAppearance.Tab:
@@ -57,7 +61,7 @@ public sealed class ConnectionAccentBorder : Border
                 else
                 {
                     Background = new SolidColorBrush(marked ? Blend(header, accent, light ? .08 : .10) : header);
-                    ApplyForeground(Color.Parse(light ? "#333333" : "#CCCCCC"));
+                    ApplyForeground(ThemeColor(ThemeCatalog.ForegroundBrush, "#CCCCCC"));
                 }
                 break;
             case ConnectionAccentAppearance.Frame:
@@ -80,6 +84,13 @@ public sealed class ConnectionAccentBorder : Border
         else TextElement.SetForeground(control, brush);
     }
 
+    /// <summary>取当前主题的配色；页签底色跟着主题走，换主题后不会残留旧配色。</summary>
+    private static Color ThemeColor(string key, string fallback)
+    {
+        var palette = ThemeCatalog.Of(ThemeService.Current);
+        return palette.Ui.TryGetValue(key, out var hex) ? Color.Parse(hex) : Color.Parse(fallback);
+    }
+
     private static Color AccentSurface(Color surface, Color accent)
     {
         for (var weight = 1d; weight >= 0; weight -= .05)
@@ -92,10 +103,14 @@ public sealed class ConnectionAccentBorder : Border
 
     private static double Contrast(Color first, Color second)
     {
-        static double Channel(byte value) { var c = value / 255d; return c <= .04045 ? c / 12.92 : Math.Pow((c + .055) / 1.055, 2.4); }
-        static double Luminance(Color color) => .2126 * Channel(color.R) + .7152 * Channel(color.G) + .0722 * Channel(color.B);
         var a = Luminance(first); var b = Luminance(second);
         return (Math.Max(a, b) + .05) / (Math.Min(a, b) + .05);
+    }
+
+    private static double Luminance(Color color)
+    {
+        static double Channel(byte value) { var c = value / 255d; return c <= .04045 ? c / 12.92 : Math.Pow((c + .055) / 1.055, 2.4); }
+        return .2126 * Channel(color.R) + .7152 * Channel(color.G) + .0722 * Channel(color.B);
     }
 
     private static Color ReadableForeground(Color background)

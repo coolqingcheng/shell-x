@@ -102,6 +102,41 @@ public sealed class ThemeAndDragDropTests
         }
         finally { ThemeService.Apply(AppTheme.Dark); window.Close(); }
     }
+    [AvaloniaFact]
+    public async Task ConnectionTabsFollowThemeColors()
+    {
+        var tab = new ShellTabItemView { Title = "服务器", IsActive = true };
+        var panel = new StackPanel { Orientation = Avalonia.Layout.Orientation.Vertical };
+        panel.Children.Add(tab);
+        var window = new Window { Width = 320, Height = 90, Content = panel };
+        window.Show();
+        try
+        {
+            var background = tab.FindControl<ConnectionAccentBorder>("TabBackground")!;
+            var indicator = tab.FindControl<ConnectionAccentBorder>("AccentLine")!;
+            foreach (var theme in ThemeCatalog.All)
+            {
+                ThemeService.Apply(theme);
+                await Task.Delay(60);
+                var palette = ThemeCatalog.Of(theme);
+                // 激活页签用主题的选中色，未激活页签跟标题栏同色。
+                Assert.Equal(Color.Parse(palette.Ui[ThemeCatalog.SelectionBackground]), ((ISolidColorBrush)background.Background!).Color);
+                Assert.Equal(Color.Parse(palette.Ui[ThemeCatalog.AccentForeground]), ((ISolidColorBrush)indicator.Background!).Color);
+                tab.IsActive = false;
+                await Task.Delay(30);
+                Assert.Equal(Color.Parse(palette.Ui[ThemeCatalog.HeaderBackground]), ((ISolidColorBrush)background.Background!).Color);
+                tab.IsActive = true;
+                if (Environment.GetEnvironmentVariable("SHELLX_PREVIEW_PATH") is { Length: > 0 } preview)
+                {
+                    using var bitmap = new RenderTargetBitmap(new PixelSize(320, 90), new Vector(96, 96));
+                    bitmap.Render(window);
+                    bitmap.Save(Path.Combine(Path.GetDirectoryName(preview)!, $"tab-{theme.ToString().ToLowerInvariant()}.png"), PngBitmapEncoderOptions.Default);
+                }
+            }
+        }
+        finally { ThemeService.Apply(AppTheme.Dark); window.Close(); }
+    }
+
     [Fact]
     public void EveryThemeProvidesCompletePaletteAndRoundTripsThroughIndex()
     {
