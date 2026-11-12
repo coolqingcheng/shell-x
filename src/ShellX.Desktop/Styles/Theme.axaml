@@ -11,12 +11,13 @@
     <Setter Property="Background" Value="{DynamicResource BorderColor}" />
     <Setter Property="BorderThickness" Value="0" />
   </Style>
+  <!-- 主按钮与焦点描边跟随主题主色，不再固定成 VS Code 蓝 -->
   <Style Selector="Button.primary">
-    <Setter Property="Background" Value="#007ACC" />
-    <Setter Property="Foreground" Value="White" />
+    <Setter Property="Background" Value="{DynamicResource PrimaryBackground}" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryForeground}" />
   </Style>
   <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
-    <Setter Property="Background" Value="#168BD2" />
+    <Setter Property="Background" Value="{DynamicResource PrimaryHoverBackground}" />
   </Style>
   <Style Selector="Button.flat">
     <Setter Property="Background" Value="Transparent" />
@@ -77,7 +78,7 @@
     <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
   <Style Selector="TextBox:focus">
-    <Setter Property="BorderBrush" Value="#007ACC" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AccentForeground}" />
   </Style>
   <Style Selector="ComboBox">
     <Setter Property="Background" Value="{DynamicResource InputBackground}" />

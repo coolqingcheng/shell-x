@@ -114,7 +114,8 @@ public sealed class ThemeAndDragDropTests
             ThemeCatalog.LinkForeground, ThemeCatalog.FolderForeground, ThemeCatalog.CommandForeground, ThemeCatalog.SuccessForeground,
             ThemeCatalog.ErrorForeground, ThemeCatalog.WarningForeground, ThemeCatalog.WarningBackground, ThemeCatalog.SuccessBackground,
             ThemeCatalog.TreeBackground, ThemeCatalog.ChartBackground, ThemeCatalog.ChartGrid, ThemeCatalog.PurpleForeground,
-            ThemeCatalog.OrangeForeground, ThemeCatalog.CommentForeground
+            ThemeCatalog.OrangeForeground, ThemeCatalog.CommentForeground, ThemeCatalog.PrimaryBackground,
+            ThemeCatalog.PrimaryHoverBackground, ThemeCatalog.PrimaryForeground
         };
         Assert.Equal(ThemeCatalog.All.Count, ThemeCatalog.All.Distinct().Count());
         var signatures = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

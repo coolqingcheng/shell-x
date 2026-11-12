@@ -166,6 +166,7 @@ GET  http://127.0.0.1:8765/healthz
 
 - `设置 → 常规 → 界面主题` 可选 **暗色 / 亮色 / One Dark Pro / Dracula / Solarized Light / Monokai / Nord / Tokyo Night / Catppuccin Mocha / Gruvbox Dark / One Light / GitHub Dark / GitHub Light / Vitesse Dark** 共 14 套配色，全部取自 VS Code 主流主题。
 - 主窗口右上角设置图标旁新增**水滴按钮**，点击弹出主题菜单（带取色块，当前主题打勾），选中后立即生效并保存，无需打开设置页。
+- 主按钮、底部状态栏与输入框焦点描边也跟随主题主色，切换主题后不会再残留固定的 VS Code 蓝。
 - 一套主题同时覆盖三处：**界面**（面板、边框、选中态、图标与状态色）、**终端**（ANSI 16 色、前景 / 背景、光标与选中色）与**文本编辑器**（注释、字符串、键名、关键字、数字、变量等语法高亮）。切换后立即生效，随配置保存，下次启动沿用。
 ### 安全
 

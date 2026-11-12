@@ -53,7 +53,7 @@
       <Grid ColumnDefinitions="*,Auto">
         <TextBlock Grid.Column="0" Text="" IsVisible="False" />
         <Button Grid.Column="1" Classes="primary" Padding="8,5" Command="{Binding ToggleTransfersCommand}" ToolTip.Tip="展开传输任务">
-          <controls:StrokeIcon Symbol="transfer" Width="18" Height="18" Foreground="White" />
+          <controls:StrokeIcon Symbol="transfer" Width="18" Height="18" Foreground="{DynamicResource PrimaryForeground}" />
         </Button>
       </Grid>
     </Border>

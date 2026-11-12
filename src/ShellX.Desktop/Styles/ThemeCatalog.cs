@@ -70,6 +70,9 @@ public static class ThemeCatalog
     public const string PurpleForeground = "PurpleForeground";
     public const string OrangeForeground = "OrangeForeground";
     public const string CommentForeground = "CommentForeground";
+    public const string PrimaryBackground = "PrimaryBackground";
+    public const string PrimaryHoverBackground = "PrimaryHoverBackground";
+    public const string PrimaryForeground = "PrimaryForeground";
 
     // 编辑器语法角色
     public const string RoleComment = "Comment";
@@ -102,7 +105,8 @@ public static class ThemeCatalog
             [CommandForeground] = "#DCDCAA", [SuccessForeground] = "#73C991", [ErrorForeground] = "#F48771",
             [WarningForeground] = "#F4B894", [WarningBackground] = "#332823", [SuccessBackground] = "#20382B",
             [TreeBackground] = "#222223", [ChartBackground] = "#202022", [ChartGrid] = "#353539",
-            [PurpleForeground] = "#C586C0", [OrangeForeground] = "#CE9178", [CommentForeground] = "#608B4E"
+            [PurpleForeground] = "#C586C0", [OrangeForeground] = "#CE9178", [CommentForeground] = "#608B4E",
+            [PrimaryBackground] = "#007ACC", [PrimaryHoverBackground] = "#168BD2", [PrimaryForeground] = "#FFFFFF"
         },
         new TerminalPalette(
             "#CCCCCC", "#1E1E1E", "#FFFFFF", "#264F78",
@@ -125,7 +129,8 @@ public static class ThemeCatalog
             [CommandForeground] = "#795E00", [SuccessForeground] = "#16723C", [ErrorForeground] = "#BF2020",
             [WarningForeground] = "#8A3C12", [WarningBackground] = "#FFF1DE", [SuccessBackground] = "#E4F3E7",
             [TreeBackground] = "#F7F7F7", [ChartBackground] = "#FAFAFA", [ChartGrid] = "#DDDDDD",
-            [PurpleForeground] = "#8228A1", [OrangeForeground] = "#A5451B", [CommentForeground] = "#477A30"
+            [PurpleForeground] = "#8228A1", [OrangeForeground] = "#A5451B", [CommentForeground] = "#477A30",
+            [PrimaryBackground] = "#007ACC", [PrimaryHoverBackground] = "#168BD2", [PrimaryForeground] = "#FFFFFF"
         },
         new TerminalPalette(
             "#333333", "#FFFFFF", "#000000", "#ADD6FF",
@@ -148,7 +153,8 @@ public static class ThemeCatalog
             [CommandForeground] = "#E5C07B", [SuccessForeground] = "#98C379", [ErrorForeground] = "#E06C75",
             [WarningForeground] = "#E5C07B", [WarningBackground] = "#3A2E22", [SuccessBackground] = "#23331F",
             [TreeBackground] = "#21252B", [ChartBackground] = "#21252B", [ChartGrid] = "#3E4451",
-            [PurpleForeground] = "#C678DD", [OrangeForeground] = "#D19A66", [CommentForeground] = "#5C6370"
+            [PurpleForeground] = "#C678DD", [OrangeForeground] = "#D19A66", [CommentForeground] = "#5C6370",
+            [PrimaryBackground] = "#007ACC", [PrimaryHoverBackground] = "#168BD2", [PrimaryForeground] = "#FFFFFF"
         },
         new TerminalPalette(
             "#ABB2BF", "#282C34", "#528BFF", "#3E4451",
@@ -171,7 +177,8 @@ public static class ThemeCatalog
             [CommandForeground] = "#50FA7B", [SuccessForeground] = "#50FA7B", [ErrorForeground] = "#FF5555",
             [WarningForeground] = "#FFB86C", [WarningBackground] = "#3B2F3A", [SuccessBackground] = "#1E3A2B",
             [TreeBackground] = "#21222C", [ChartBackground] = "#21222C", [ChartGrid] = "#44475A",
-            [PurpleForeground] = "#BD93F9", [OrangeForeground] = "#FFB86C", [CommentForeground] = "#6272A4"
+            [PurpleForeground] = "#BD93F9", [OrangeForeground] = "#FFB86C", [CommentForeground] = "#6272A4",
+            [PrimaryBackground] = "#007ACC", [PrimaryHoverBackground] = "#168BD2", [PrimaryForeground] = "#FFFFFF"
         },
         new TerminalPalette(
             "#F8F8F2", "#282A36", "#F8F8F2", "#44475A",
@@ -194,7 +201,8 @@ public static class ThemeCatalog
             [CommandForeground] = "#CB4B16", [SuccessForeground] = "#859900", [ErrorForeground] = "#DC322F",
             [WarningForeground] = "#B58900", [WarningBackground] = "#FAF0D0", [SuccessBackground] = "#E9F0D8",
             [TreeBackground] = "#F5EFDF", [ChartBackground] = "#F5EFDF", [ChartGrid] = "#D9D2C2",
-            [PurpleForeground] = "#6C71C4", [OrangeForeground] = "#CB4B16", [CommentForeground] = "#93A1A1"
+            [PurpleForeground] = "#6C71C4", [OrangeForeground] = "#CB4B16", [CommentForeground] = "#93A1A1",
+            [PrimaryBackground] = "#007ACC", [PrimaryHoverBackground] = "#168BD2", [PrimaryForeground] = "#FFFFFF"
         },
         new TerminalPalette(
             "#657B83", "#FDF6E3", "#657B83", "#D9D2C2",
@@ -216,6 +224,7 @@ public static class ThemeCatalog
             [ErrorForeground] = "#F92672", [WarningForeground] = "#E6DB74", [WarningBackground] = "#3B3A32", [SuccessBackground] = "#2C3B22",
             [TreeBackground] = "#1E1F1C", [ChartBackground] = "#1E1F1C", [ChartGrid] = "#3E3D32", [PurpleForeground] = "#AE81FF",
             [OrangeForeground] = "#FD971F", [CommentForeground] = "#75715E",
+            [PrimaryBackground] = "#F92672", [PrimaryHoverBackground] = "#FA4A88", [PrimaryForeground] = "#FFFFFF"
         },
         new TerminalPalette(
             "#F8F8F2", "#272822", "#F8F8F0", "#49483E",
@@ -238,6 +247,7 @@ public static class ThemeCatalog
             [ErrorForeground] = "#BF616A", [WarningForeground] = "#EBCB8B", [WarningBackground] = "#43402F", [SuccessBackground] = "#30392F",
             [TreeBackground] = "#292E39", [ChartBackground] = "#292E39", [ChartGrid] = "#3B4252", [PurpleForeground] = "#B48EAD",
             [OrangeForeground] = "#D08770", [CommentForeground] = "#616E88",
+            [PrimaryBackground] = "#5E81AC", [PrimaryHoverBackground] = "#7290BC", [PrimaryForeground] = "#FFFFFF"
         },
         new TerminalPalette(
             "#D8DEE9", "#2E3440", "#D8DEE9", "#434C5E",
@@ -260,6 +270,7 @@ public static class ThemeCatalog
             [ErrorForeground] = "#F7768E", [WarningForeground] = "#E0AF68", [WarningBackground] = "#3D2B1E", [SuccessBackground] = "#1F3324",
             [TreeBackground] = "#16161E", [ChartBackground] = "#16161E", [ChartGrid] = "#292E42", [PurpleForeground] = "#BB9AF7",
             [OrangeForeground] = "#FF9E64", [CommentForeground] = "#565F89",
+            [PrimaryBackground] = "#7AA2F7", [PrimaryHoverBackground] = "#96B6FF", [PrimaryForeground] = "#1A1B26"
         },
         new TerminalPalette(
             "#C0CAF5", "#1A1B26", "#C0CAF5", "#33467C",
@@ -282,6 +293,7 @@ public static class ThemeCatalog
             [ErrorForeground] = "#F38BA8", [WarningForeground] = "#F9E2AF", [WarningBackground] = "#45333C", [SuccessBackground] = "#263A2F",
             [TreeBackground] = "#181825", [ChartBackground] = "#181825", [ChartGrid] = "#313244", [PurpleForeground] = "#CBA6F7",
             [OrangeForeground] = "#FAB387", [CommentForeground] = "#6C7086",
+            [PrimaryBackground] = "#89B4FA", [PrimaryHoverBackground] = "#A5C6FA", [PrimaryForeground] = "#1E1E2E"
         },
         new TerminalPalette(
             "#CDD6F4", "#1E1E2E", "#F5E0DC", "#585B70",
@@ -304,6 +316,7 @@ public static class ThemeCatalog
             [ErrorForeground] = "#FB4934", [WarningForeground] = "#FABD2F", [WarningBackground] = "#3B2B1F", [SuccessBackground] = "#2C3116",
             [TreeBackground] = "#1D2021", [ChartBackground] = "#1D2021", [ChartGrid] = "#3C3836", [PurpleForeground] = "#D3869B",
             [OrangeForeground] = "#FE8019", [CommentForeground] = "#928374",
+            [PrimaryBackground] = "#FE8019", [PrimaryHoverBackground] = "#FF9740", [PrimaryForeground] = "#282828"
         },
         new TerminalPalette(
             "#EBDBB2", "#282828", "#FBF1C7", "#504945",
@@ -326,6 +339,7 @@ public static class ThemeCatalog
             [ErrorForeground] = "#CA1243", [WarningForeground] = "#986801", [WarningBackground] = "#FBEBC8", [SuccessBackground] = "#E6F4DE",
             [TreeBackground] = "#F3F3F3", [ChartBackground] = "#FAFAFA", [ChartGrid] = "#E0E0E0", [PurpleForeground] = "#A626A4",
             [OrangeForeground] = "#986801", [CommentForeground] = "#A0A0A0",
+            [PrimaryBackground] = "#526FFF", [PrimaryHoverBackground] = "#6B84FF", [PrimaryForeground] = "#FFFFFF"
         },
         new TerminalPalette(
             "#383A42", "#FAFAFA", "#383A42", "#C9D0D9",
@@ -348,6 +362,7 @@ public static class ThemeCatalog
             [ErrorForeground] = "#F85149", [WarningForeground] = "#D29922", [WarningBackground] = "#2D2416", [SuccessBackground] = "#12261E",
             [TreeBackground] = "#0D1117", [ChartBackground] = "#161B22", [ChartGrid] = "#30363D", [PurpleForeground] = "#D2A8FF",
             [OrangeForeground] = "#FFA657", [CommentForeground] = "#8B949E",
+            [PrimaryBackground] = "#1F6FEB", [PrimaryHoverBackground] = "#388BFD", [PrimaryForeground] = "#FFFFFF"
         },
         new TerminalPalette(
             "#C9D1D9", "#0D1117", "#C9D1D9", "#264F78",
@@ -370,6 +385,7 @@ public static class ThemeCatalog
             [ErrorForeground] = "#CF222E", [WarningForeground] = "#9A6700", [WarningBackground] = "#FFF8C5", [SuccessBackground] = "#DAFBE1",
             [TreeBackground] = "#F6F8FA", [ChartBackground] = "#FFFFFF", [ChartGrid] = "#EAEEF2", [PurpleForeground] = "#8250DF",
             [OrangeForeground] = "#953800", [CommentForeground] = "#6E7781",
+            [PrimaryBackground] = "#0969DA", [PrimaryHoverBackground] = "#218BFF", [PrimaryForeground] = "#FFFFFF"
         },
         new TerminalPalette(
             "#24292F", "#FFFFFF", "#24292F", "#B6D7FF",
@@ -392,6 +408,7 @@ public static class ThemeCatalog
             [ErrorForeground] = "#D16D6D", [WarningForeground] = "#E6C07B", [WarningBackground] = "#3A2F1F", [SuccessBackground] = "#24301F",
             [TreeBackground] = "#181818", [ChartBackground] = "#181818", [ChartGrid] = "#2E2E2E", [PurpleForeground] = "#A6ACCD",
             [OrangeForeground] = "#D19A66", [CommentForeground] = "#7E6E64",
+            [PrimaryBackground] = "#4D9375", [PrimaryHoverBackground] = "#5FAF8C", [PrimaryForeground] = "#FFFFFF"
         },
         new TerminalPalette(
             "#DBD7CA", "#121212", "#DBD7CA", "#2E3F4E",

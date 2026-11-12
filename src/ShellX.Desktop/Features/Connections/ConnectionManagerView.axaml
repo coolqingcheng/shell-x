@@ -10,7 +10,7 @@
         <TextBlock Text="ShellX" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
         <TextBlock Name="BrandVersion" Text="{Binding VersionText}" FontSize="11" Foreground="{DynamicResource MutedForeground}" VerticalAlignment="Center" />
       </StackPanel>
-      <Button Name="NewManagedConnection" Grid.Column="1" Classes="primary" Command="{Binding NewConnectionCommand}" ToolTip.Tip="Ctrl+N" Padding="10,6"><StackPanel Orientation="Horizontal" Spacing="6"><controls:StrokeIcon Symbol="plus" Width="16" Height="16" Foreground="White" /><TextBlock Text="新建连接" VerticalAlignment="Center" /></StackPanel></Button>
+      <Button Name="NewManagedConnection" Grid.Column="1" Classes="primary" Command="{Binding NewConnectionCommand}" ToolTip.Tip="Ctrl+N" Padding="10,6"><StackPanel Orientation="Horizontal" Spacing="6"><controls:StrokeIcon Symbol="plus" Width="16" Height="16" Foreground="{DynamicResource PrimaryForeground}" /><TextBlock Text="新建连接" VerticalAlignment="Center" /></StackPanel></Button>
       <Button Name="NewConnectionFolder" Grid.Column="2" Content="新建文件夹" Command="{Binding NewFolderCommand}" ToolTip.Tip="在选中文件夹内创建 · Ctrl+Shift+N" />
       <Button Grid.Column="3" Content="重命名" Command="{Binding RenameFolderCommand}" IsEnabled="{Binding CanManageFolder}" />
       <Button Grid.Column="4" Content="删除空文件夹" Command="{Binding DeleteFolderCommand}" IsEnabled="{Binding CanManageFolder}" />

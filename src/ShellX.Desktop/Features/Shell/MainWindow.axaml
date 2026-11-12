@@ -67,6 +67,6 @@
       </StackPanel>
       <ItemsControl ItemsSource="{Binding Tabs}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><Grid /></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate x:DataType="workspace:WorkspaceTabViewModel"><workspace:WorkspaceView IsVisible="{Binding IsSelected}" /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
     </Grid>
-    <Border Grid.Row="2" Grid.ColumnSpan="3" Background="#007ACC"><Grid ColumnDefinitions="Auto,*,Auto" Margin="10,0"><TextBlock Text="{Binding Status}" Foreground="White" FontSize="11" VerticalAlignment="Center" /><TextBlock Grid.Column="1" Text="{Binding SelectedTab.Address}" Foreground="White" FontSize="11" Margin="18,0" VerticalAlignment="Center" /><TextBlock Grid.Column="2" Text="SSH / SFTP    UTF-8" Foreground="White" FontSize="11" VerticalAlignment="Center" /></Grid></Border>
+    <Border Grid.Row="2" Grid.ColumnSpan="3" Background="{DynamicResource PrimaryBackground}"><Grid ColumnDefinitions="Auto,*,Auto" Margin="10,0"><TextBlock Text="{Binding Status}" Foreground="{DynamicResource PrimaryForeground}" FontSize="11" VerticalAlignment="Center" /><TextBlock Grid.Column="1" Text="{Binding SelectedTab.Address}" Foreground="{DynamicResource PrimaryForeground}" FontSize="11" Margin="18,0" VerticalAlignment="Center" /><TextBlock Grid.Column="2" Text="SSH / SFTP    UTF-8" Foreground="{DynamicResource PrimaryForeground}" FontSize="11" VerticalAlignment="Center" /></Grid></Border>
   </Grid>
 </Window>
