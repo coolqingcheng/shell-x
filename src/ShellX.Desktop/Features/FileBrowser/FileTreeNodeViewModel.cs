@@ -35,6 +35,8 @@ public abstract partial class FileTreeNodeViewModel : ObservableObject
     public virtual bool IsDeleting => false;
     /// <summary>图标类别：目录是 folder，文件按名称判断。</summary>
     public string Icon { get; }
+    /// <summary>紧凑行：窄面板下不显示时间列。</summary>
+    public bool IsCompact => Sink.CompactRows;
     public string SizeText { get; }
     public string ModifiedText { get; }
     /// <summary>子节点：目录展开后加载，文件为空。</summary>
@@ -76,6 +78,8 @@ public abstract partial class FileTreeNodeViewModel : ObservableObject
     public bool CanDownload => Sink.CanDownload;
     /// <summary>是否支持上传。</summary>
     public bool CanUpload => Sink.CanUpload;
+    /// <summary>行内是否显示下载按钮：只有远程面板会显示，文件管理器那边用工具栏下载。</summary>
+    public bool CanDownloadItem => Sink.ShowRowDownload && !IsDirectory;
 
     partial void OnIsExpandedChanged(bool value)
     {
@@ -103,6 +107,10 @@ public abstract partial class FileTreeNodeViewModel : ObservableObject
 
     [RelayCommand]
     private Task OpenAsync() => ActivateAsync();
+
+    /// <summary>行内下载：交给宿主决定保存到哪里。</summary>
+    [RelayCommand]
+    private Task DownloadItemAsync() => Sink.DownloadItemAsync(this);
 
     /// <summary>重新读取子节点：上传或下载完成后刷新。</summary>
     public async Task ReloadAsync()

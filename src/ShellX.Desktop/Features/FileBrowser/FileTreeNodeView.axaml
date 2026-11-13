@@ -51,7 +51,7 @@
           Classes.droptarget="{Binding IsDropTarget}"
           PointerPressed="RowPointerPressed" PointerMoved="RowPointerMoved" PointerReleased="RowPointerReleased"
           RightTapped="RowRightTapped">
-    <Grid ColumnDefinitions="18,20,*,Auto,Auto" ColumnSpacing="6" Margin="{Binding Indent}">
+    <Grid ColumnDefinitions="18,20,*,Auto,Auto,Auto" ColumnSpacing="6" Margin="{Binding Indent}">
       <Button Grid.Column="0" Name="Chevron" Command="{Binding ToggleCommand}" Classes="flat icon" Width="18" Height="18"
               MinWidth="0" MinHeight="0" Padding="0" IsVisible="{Binding IsDirectory}" ToolTip.Tip="展开 / 收起">
         <Panel Width="14" Height="14">
@@ -85,7 +85,12 @@
       <TextBlock Grid.Column="3" Text="{Binding SizeText}" FontSize="11" Foreground="{DynamicResource MutedForeground}"
                  VerticalAlignment="Center" MinWidth="58" TextAlignment="Right" />
       <TextBlock Grid.Column="4" Text="{Binding ModifiedText}" FontSize="11" Foreground="{DynamicResource MutedForeground}"
-                 VerticalAlignment="Center" MinWidth="98" />
+                 VerticalAlignment="Center" MinWidth="98" IsVisible="{Binding !IsCompact}" />
+      <!-- 行内下载：点了就弹出本地保存目录选择 -->
+      <Button Grid.Column="5" Classes="flat icon" Command="{Binding DownloadItemCommand}" IsVisible="{Binding CanDownloadItem}"
+              ToolTip.Tip="下载到本地文件夹" Width="22" Height="22" Padding="0" MinWidth="0" MinHeight="0">
+        <controls:StrokeIcon Symbol="download" Width="14" Height="14" />
+      </Button>
     </Grid>
   </Border>
 </UserControl>

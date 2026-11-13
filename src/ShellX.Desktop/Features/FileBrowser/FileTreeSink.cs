@@ -18,6 +18,12 @@ public interface IFileTreeSink
     bool CanDownload { get; }
     /// <summary>节点是否支持上传。</summary>
     bool CanUpload { get; }
+    /// <summary>是否在每一行里显示下载按钮（右侧远程文件面板用）。</summary>
+    bool ShowRowDownload { get; }
+    /// <summary>是否用紧凑行：窄面板下省掉时间列，把空间让给文件名和操作按钮。</summary>
+    bool CompactRows { get; }
+    /// <summary>把节点下载到本地：保存位置由宿主决定。</summary>
+    Task DownloadItemAsync(FileTreeNodeViewModel node);
 
     /// <summary>选中节点：同步面板的当前条目，右键菜单据此工作。</summary>
     void Select(FileTreeNodeViewModel node, bool toggle = false);

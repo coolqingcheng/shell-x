@@ -25,6 +25,10 @@ public sealed record AppSettings
     public double MonitorPaneWidth { get; init; } = 220;
     /// <summary>左侧服务器状态面板是否收起。</summary>
     public bool MonitorPaneCollapsed { get; init; }
+    /// <summary>右侧远程文件面板是否收起，默认展开。</summary>
+    public bool FilePaneCollapsed { get; init; }
+    /// <summary>右侧远程文件面板宽度。</summary>
+    public double FilePaneWidth { get; init; } = 320;
     public double TerminalPaneStar { get; init; } = 1.3;
     public double LocalPaneStar { get; init; } = 1;
     public double RemoteTreeWidth { get; init; } = 150;

@@ -41,6 +41,8 @@ public partial class MainWindowViewModel : ObservableObject
     private Window? _fileWindow;
     private readonly HashSet<WorkspaceTabViewModel> _fileManagerTabSubscriptions = [];
     private bool _disposingFileManagerTabs;
+    /// <summary>右侧远程文件面板当前跟随的标签。</summary>
+    private WorkspaceTabViewModel? _filePaneTab;
     public ObservableCollection<ConnectionProfile> VisibleConnections { get; } = [];
     public event Action<ConnectionProfile>? ConnectionPicked;
     [ObservableProperty] private ConnectionGroupViewModel? _selectedGroup;
@@ -61,11 +63,15 @@ public partial class MainWindowViewModel : ObservableObject
     public Window? FileManagerWindow => _fileWindow;
     /// <summary>对话框服务：各窗口用它登记层级关系，保证弹窗落在正确的父窗口上。</summary>
     public IDialogService Dialogs => _dialogs;
+    /// <summary>右侧远程文件面板：只显示远程目录，行内可下载，本地文件拖进来就上传。</summary>
+    public RemoteFilesPaneViewModel FilePane { get; }
     [ObservableProperty] private WorkspaceTabViewModel? _selectedTab;
     [ObservableProperty] private string _search = "";
     [ObservableProperty] private string _status = "就绪";
     /// <summary>左侧服务器状态面板是否收起。</summary>
     [ObservableProperty] private bool _isMonitorPaneCollapsed;
+    /// <summary>右侧远程文件面板是否收起。</summary>
+    [ObservableProperty] private bool _isFilePaneCollapsed;
     [ObservableProperty] private int _connectionCount;
     public bool HasTabs => Tabs.Count > 0;
     public bool HasNoTabs => !HasTabs;
@@ -76,14 +82,14 @@ public partial class MainWindowViewModel : ObservableObject
 
     public MainWindowViewModel(IConnectionRepository connections, ICredentialStore credentials, IHostKeyStore hosts,
         ISettingsStore settingsStore, IRemoteSessionFactory sessions, IDialogService dialogs, ILoggerFactory logs, ILocalFileSystem localFiles, AppLockService applicationLock, IConfigurationExporter configurationExporter, IConfigurationImporter? configurationImporter = null)
-    { _connections = connections; _credentials = credentials; _hosts = hosts; _settingsStore = settingsStore; _configurationExporter = configurationExporter; _configurationImporter = configurationImporter; _sessions = sessions; _dialogs = dialogs; _logs = logs; _localFiles = localFiles; _applicationLock = applicationLock; _monitors = new(dialogs, logs); }
+    { _connections = connections; _credentials = credentials; _hosts = hosts; _settingsStore = settingsStore; _configurationExporter = configurationExporter; _configurationImporter = configurationImporter; _sessions = sessions; _dialogs = dialogs; _logs = logs; _localFiles = localFiles; _applicationLock = applicationLock; _monitors = new(dialogs, logs); FilePane = new(dialogs, logs.CreateLogger<RemoteFilesPaneViewModel>(), localFiles); }
     public async Task InitializeAsync()
     {
         try
         {
             var catalog = await _connections.LoadCatalogAsync(); _profiles = catalog.Connections.ToList(); _folders = catalog.Folders.ToList();
             _configurationLoaded = true;
-            _settings = await _settingsStore.LoadAsync(); IsMonitorPaneCollapsed = _settings.MonitorPaneCollapsed; ThemeService.Apply(_settings.Theme); _applicationLock.Configure(_settings, startup: true); RefreshGroups();
+            _settings = await _settingsStore.LoadAsync(); IsMonitorPaneCollapsed = _settings.MonitorPaneCollapsed; IsFilePaneCollapsed = _settings.FilePaneCollapsed; ThemeService.Apply(_settings.Theme); _applicationLock.Configure(_settings, startup: true); RefreshGroups();
         }
         catch (Exception ex) { _applicationLock.ConfigurationFailed(); Status = "配置加载失败"; await _dialogs.ShowErrorAsync("配置未被覆盖，请检查本地配置文件。\n" + ex.Message); }
     }
@@ -91,7 +97,26 @@ public partial class MainWindowViewModel : ObservableObject
     partial void OnSelectedGroupChanged(ConnectionGroupViewModel? value)
     { RefreshVisibleConnections(); OnPropertyChanged(nameof(CanManageFolder)); OnPropertyChanged(nameof(FolderCaption)); }
     partial void OnSelectedTabChanged(WorkspaceTabViewModel? value)
-    { foreach (var tab in Tabs) tab.IsSelected = ReferenceEquals(tab, value); }
+    { foreach (var tab in Tabs) tab.IsSelected = ReferenceEquals(tab, value); AttachFilePane(value); }
+
+    /// <summary>右侧面板跟着当前标签走：切换标签或重连都重新挂上远程文件系统。</summary>
+    private void AttachFilePane(WorkspaceTabViewModel? tab)
+    {
+        if (_filePaneTab != null) _filePaneTab.SessionChanged -= FilePaneSessionChanged;
+        _filePaneTab = tab;
+        if (tab == null) { FilePane.Attach(null, CancellationToken.None, ""); return; }
+        tab.SessionChanged += FilePaneSessionChanged;
+        ApplyFilePaneSession(tab);
+    }
+
+    private void FilePaneSessionChanged(WorkspaceTabViewModel tab, IRemoteSession? session)
+    {
+        if (!ReferenceEquals(tab, _filePaneTab)) return;
+        ApplyFilePaneSession(tab);
+    }
+
+    private void ApplyFilePaneSession(WorkspaceTabViewModel tab)
+        => FilePane.Attach(tab.Session?.Files, tab.ConnectionToken, $"{tab.Name} · {tab.Profile.Host}:{tab.Profile.Port}");
     partial void OnSelectedFileManagerTabChanged(FileManagerTabViewModel? value)
     {
         // 页签外观与终端标签一致，选中状态由这里同步给视图模型。
@@ -774,6 +799,16 @@ public partial class MainWindowViewModel : ObservableObject
     }
     public Task SaveMonitorPaneWidthAsync(double width)
         => SaveLayoutAsync(settings => settings with { MonitorPaneWidth = Math.Clamp(width, 160, 420) });
+    /// <summary>收起 / 展开右侧远程文件面板。</summary>
+    [RelayCommand]
+    private async Task ToggleFilePaneAsync()
+    {
+        var collapsed = !IsFilePaneCollapsed;
+        IsFilePaneCollapsed = collapsed;
+        await SaveLayoutAsync(settings => settings with { FilePaneCollapsed = collapsed });
+    }
+    public Task SaveFilePaneWidthAsync(double width)
+        => SaveLayoutAsync(settings => settings with { FilePaneWidth = Math.Clamp(width, 240, 520) });
     public Task SaveWorkspaceLayoutAsync(double terminalStar, double lowerStar)
         => SaveLayoutAsync(settings => settings with { TerminalPaneStar = Math.Clamp(lowerStar <= 0 ? terminalStar : terminalStar / lowerStar, 0.3, 8) });
     public Task SaveFilePaneLayoutAsync(double localStar, double remoteStar)
@@ -790,6 +825,8 @@ public partial class MainWindowViewModel : ObservableObject
         {
             MonitorPaneWidth = defaults.MonitorPaneWidth,
             MonitorPaneCollapsed = defaults.MonitorPaneCollapsed,
+            FilePaneWidth = defaults.FilePaneWidth,
+            FilePaneCollapsed = defaults.FilePaneCollapsed,
             TerminalPaneStar = defaults.TerminalPaneStar,
             LocalPaneStar = defaults.LocalPaneStar,
             RemoteTreeWidth = defaults.RemoteTreeWidth,

@@ -219,6 +219,12 @@ public partial class LocalFileBrowserViewModel(ILocalFileSystem files, IDialogSe
     public bool AcceptsRemoteDrop => IsRemoteAvailable;
     public bool CanDownload => false;
     public bool CanUpload => IsRemoteAvailable;
+    /// <summary>本地目录不支持下载，行里不放下载按钮。</summary>
+    public bool ShowRowDownload => false;
+    /// <summary>本地目录不支持下载，这里不做处理。</summary>
+    public Task DownloadItemAsync(FileTreeNodeViewModel node) => Task.CompletedTask;
+    /// <summary>文件管理器宽度足够，仍然显示时间列。</summary>
+    public bool CompactRows => false;
 
     /// <summary>选中树节点：同步面板的当前条目，右键菜单据此工作。</summary>
     public void Select(FileTreeNodeViewModel node, bool toggle = false)

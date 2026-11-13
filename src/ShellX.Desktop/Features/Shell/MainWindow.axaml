@@ -1,6 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:ShellX.Desktop.Features.Shell" x:DataType="vm:MainWindowViewModel"
         xmlns:workspace="using:ShellX.Desktop.Features.Workspace" xmlns:connections="using:ShellX.Desktop.Features.Connections"
-        xmlns:monitor="using:ShellX.Desktop.Features.Monitoring" xmlns:controls="using:ShellX.Desktop.Controls"
+        xmlns:monitor="using:ShellX.Desktop.Features.Monitoring" xmlns:controls="using:ShellX.Desktop.Controls" xmlns:browser="using:ShellX.Desktop.Features.FileBrowser"
         x:Class="ShellX.Desktop.Features.Shell.MainWindow" x:Name="Root"
         Title="ShellX" Icon="/Assets/ShellX.ico" Width="1380" Height="900" MinWidth="1050" MinHeight="680" WindowStartupLocation="CenterScreen">
   <Window.KeyBindings>
@@ -8,7 +8,7 @@
     <KeyBinding Gesture="Ctrl+B" Command="{Binding ToggleConnectionsCommand}" />
     <KeyBinding Gesture="Ctrl+W" Command="{Binding SelectedTab.CloseCommand}" />
   </Window.KeyBindings>
-  <Grid x:Name="RootLayout" RowDefinitions="36,*,24" ColumnDefinitions="220,4,*">
+  <Grid x:Name="RootLayout" RowDefinitions="36,*,24" ColumnDefinitions="220,4,*,4,320">
     <Border Background="{DynamicResource HeaderBackground}" BorderBrush="{DynamicResource RaisedBackground}" BorderThickness="0,0,1,1">
       <Grid>
         <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="12,0,6,0" IsVisible="{Binding !IsMonitorPaneCollapsed}">
@@ -29,7 +29,7 @@
         </Button>
       </Grid>
     </Border>
-    <Border Grid.Column="1" Grid.ColumnSpan="2" Background="{DynamicResource HeaderBackground}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1">
+    <Border Grid.Column="1" Grid.ColumnSpan="3" Background="{DynamicResource HeaderBackground}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1">
       <Grid ColumnDefinitions="42,*,32,32,Auto,32,32">
         <Button Name="OpenConnectionManager" Classes="flat icon" Command="{Binding ToggleConnectionsCommand}" ToolTip.Tip="打开连接管理  Ctrl+B" Foreground="{DynamicResource AccentForeground}" Width="28" Height="28" Margin="7,0" HorizontalAlignment="Center" VerticalAlignment="Center"><controls:StrokeIcon Symbol="connections" Width="20" Height="20" Foreground="{DynamicResource AccentForeground}" /></Button>
         <ListBox Name="ConnectionTabs" Grid.Column="1" ItemsSource="{Binding Tabs}" SelectedItem="{Binding SelectedTab, Mode=TwoWay}" Classes="shelltabs">
@@ -67,6 +67,29 @@
       </StackPanel>
       <ItemsControl ItemsSource="{Binding Tabs}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><Grid /></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate x:DataType="workspace:WorkspaceTabViewModel"><workspace:WorkspaceView IsVisible="{Binding IsSelected}" /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
     </Grid>
-    <Border Grid.Row="2" Grid.ColumnSpan="3" Background="{DynamicResource PrimaryBackground}"><Grid ColumnDefinitions="Auto,*,Auto" Margin="10,0"><TextBlock Text="{Binding Status}" Foreground="{DynamicResource PrimaryForeground}" FontSize="11" VerticalAlignment="Center" /><TextBlock Grid.Column="1" Text="{Binding SelectedTab.Address}" Foreground="{DynamicResource PrimaryForeground}" FontSize="11" Margin="18,0" VerticalAlignment="Center" /><TextBlock Grid.Column="2" Text="SSH / SFTP    UTF-8" Foreground="{DynamicResource PrimaryForeground}" FontSize="11" VerticalAlignment="Center" /></Grid></Border>
+    <!-- 右侧远程文件面板：默认展开，只显示远程目录，点下载选本地目录，拖进来就上传 -->
+    <GridSplitter x:Name="FileSplitter" Grid.Row="1" Grid.Column="3" ResizeDirection="Columns" Background="{DynamicResource BorderColor}" DragCompleted="FileSplitterDragCompleted" />
+    <Border Grid.Row="0" Grid.Column="4" Background="{DynamicResource HeaderBackground}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="1,0,0,0">
+      <Grid>
+        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="10,0,4,0" IsVisible="{Binding !IsFilePaneCollapsed}">
+          <TextBlock Text="远程文件" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding FilePane.Target}" FontSize="10" Foreground="{DynamicResource MutedForeground}" VerticalAlignment="Center" MaxWidth="120" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding FilePane.Target}" />
+          <Button Name="RefreshFilePane" Classes="flat icon" Command="{Binding FilePane.RefreshCommand}" ToolTip.Tip="刷新远程文件" Width="26" Height="26">
+            <controls:StrokeIcon Symbol="refresh" Width="16" Height="16" />
+          </Button>
+          <Button Name="CollapseFilePane" Classes="flat icon" Command="{Binding ToggleFilePaneCommand}" ToolTip.Tip="收起远程文件面板" Width="26" Height="26">
+            <controls:StrokeIcon Symbol="chevron-right" Width="16" Height="16" />
+          </Button>
+        </StackPanel>
+        <Button Name="ExpandFilePane" Classes="flat" IsVisible="{Binding IsFilePaneCollapsed}" Command="{Binding ToggleFilePaneCommand}"
+                ToolTip.Tip="展开远程文件面板" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="2">
+          <controls:StrokeIcon Symbol="chevron-left" Width="16" Height="16" />
+        </Button>
+      </Grid>
+    </Border>
+    <Border Name="FilePaneHost" Grid.Row="1" Grid.Column="4" Background="{DynamicResource PanelBackground}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="1,0,0,0" IsVisible="{Binding !IsFilePaneCollapsed}">
+      <browser:RemoteFilesPaneView x:Name="RemoteFilePane" DataContext="{Binding FilePane}" />
+    </Border>
+    <Border Grid.Row="2" Grid.ColumnSpan="5" Background="{DynamicResource PrimaryBackground}"><Grid ColumnDefinitions="Auto,*,Auto" Margin="10,0"><TextBlock Text="{Binding Status}" Foreground="{DynamicResource PrimaryForeground}" FontSize="11" VerticalAlignment="Center" /><TextBlock Grid.Column="1" Text="{Binding SelectedTab.Address}" Foreground="{DynamicResource PrimaryForeground}" FontSize="11" Margin="18,0" VerticalAlignment="Center" /><TextBlock Grid.Column="2" Text="SSH / SFTP    UTF-8" Foreground="{DynamicResource PrimaryForeground}" FontSize="11" VerticalAlignment="Center" /></Grid></Border>
   </Grid>
 </Window>

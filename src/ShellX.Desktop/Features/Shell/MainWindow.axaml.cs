@@ -58,6 +58,16 @@ ShellX.Desktop.Services.WindowTitles.ApplyVersion(this);
             collapsed ? CollapsedPaneWidth : Math.Clamp(settings.MonitorPaneWidth, 160, 420), GridUnitType.Pixel);
         RootLayout.ColumnDefinitions[1].Width = new GridLength(collapsed ? 0 : 4, GridUnitType.Pixel);
         MonitorSplitter.IsVisible = !collapsed;
+        // 右侧远程文件面板同样保留一条窄把手，收起后还能点开。
+        var fileCollapsed = settings.FilePaneCollapsed;
+        RootLayout.ColumnDefinitions[4].Width = new GridLength(
+            fileCollapsed ? CollapsedPaneWidth : Math.Clamp(settings.FilePaneWidth, 240, 520), GridUnitType.Pixel);
+        RootLayout.ColumnDefinitions[3].Width = new GridLength(fileCollapsed ? 0 : 4, GridUnitType.Pixel);
+        FileSplitter.IsVisible = !fileCollapsed;
+    }
+    private async void FileSplitterDragCompleted(object? sender, VectorEventArgs e)
+    {
+        if (_layoutVm != null) await _layoutVm.SaveFilePaneWidthAsync(RootLayout.ColumnDefinitions[4].Width.Value);
     }
     private async void MonitorSplitterDragCompleted(object? sender, VectorEventArgs e)
     {
