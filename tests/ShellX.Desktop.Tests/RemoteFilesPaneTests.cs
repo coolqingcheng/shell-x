@@ -20,12 +20,13 @@ using ShellX.Infrastructure.Ssh;
 namespace ShellX.Desktop.Tests;
 
 /// <summary>
-/// 主窗口右侧的远程文件面板：只显示远程目录，点下载选本地保存目录，本地文件拖进来就上传。
+/// 主窗口右侧的远程文件面板：按层级浏览，点目录进入下一层，
+/// 点下载选本地保存目录，本地文件拖进来就上传。
 /// </summary>
 public sealed class RemoteFilesPaneTests
 {
     [Fact]
-    public async Task PaneExpandsRemoteHierarchyWhenAttached()
+    public async Task PaneListsTheCurrentDirectoryOnly()
     {
         var files = new RecordingRemoteFileSystem(new Dictionary<string, IReadOnlyList<RemoteEntry>>
         {
@@ -34,16 +35,65 @@ public sealed class RemoteFilesPaneTests
         });
         using var pane = new RemoteFilesPaneViewModel(new PaneDialogs(), NullLogger<RemoteFilesPaneViewModel>.Instance, new StubLocalFileSystem());
         pane.Attach(files, CancellationToken.None, "测试服务器");
-        await WaitForAsync(() => pane.FlatNodes.Count >= 3);
+        await WaitForAsync(() => pane.Entries.Count >= 2);
 
         Assert.True(pane.IsAvailable);
-        Assert.Equal(3, pane.FlatNodes.Count);
-        Assert.Equal("/", pane.FlatNodes[0].Path);
-        Assert.Contains(pane.FlatNodes, node => node.Name == "etc");
-        Assert.Contains(pane.FlatNodes, node => node.Name == "readme.txt");
-        // 只有文件行才带下载按钮，目录行不显示。
-        Assert.False(pane.FlatNodes.Single(node => node.Name == "etc").CanDownloadItem);
-        Assert.True(pane.FlatNodes.Single(node => node.Name == "readme.txt").CanDownloadItem);
+        Assert.Equal("/", pane.CurrentPath);
+        Assert.Equal(2, pane.Entries.Count);
+        Assert.Contains(pane.Entries, node => node.Name == "etc");
+        Assert.Contains(pane.Entries, node => node.Name == "readme.txt");
+        // 按层级浏览，不是一棵树：没有展开箭头，也不缩进。
+        Assert.False(pane.Entries.Single(node => node.Name == "etc").ShowChevron);
+        Assert.False(pane.Entries.Single(node => node.Name == "etc").CanDownloadItem);
+        Assert.True(pane.Entries.Single(node => node.Name == "readme.txt").CanDownloadItem);
+    }
+
+    [Fact]
+    public async Task ClickingAFolderEntersTheNextLevel()
+    {
+        var files = new RecordingRemoteFileSystem(new Dictionary<string, IReadOnlyList<RemoteEntry>>
+        {
+            ["/"] = [Entry("etc", true), Entry("readme.txt", false)],
+            ["/etc"] = [Entry("hosts", false)]
+        });
+        using var pane = new RemoteFilesPaneViewModel(new PaneDialogs(), NullLogger<RemoteFilesPaneViewModel>.Instance, new StubLocalFileSystem());
+        pane.Attach(files, CancellationToken.None, "测试服务器");
+        await WaitForAsync(() => pane.Entries.Count >= 2);
+
+        var folder = pane.Entries.Single(node => node.Name == "etc");
+        pane.Select(folder);
+        await WaitForAsync(() => pane.CurrentPath == "/etc");
+
+        Assert.Equal("/etc", pane.CurrentPath);
+        Assert.Single(pane.Entries);
+        Assert.Equal("hosts", pane.Entries[0].Name);
+        Assert.True(pane.CanGoUp);
+
+        // 上一级回到根目录。
+        await pane.UpCommand.ExecuteAsync(null);
+        await WaitForAsync(() => pane.CurrentPath == "/");
+        Assert.Equal(2, pane.Entries.Count);
+        Assert.False(pane.CanGoUp);
+    }
+
+    [Fact]
+    public async Task RefreshingDoesNotDuplicateTheRows()
+    {
+        var files = new RecordingRemoteFileSystem(new Dictionary<string, IReadOnlyList<RemoteEntry>>
+        {
+            ["/"] = [Entry("etc", true), Entry("var", true), Entry("readme.txt", false)]
+        });
+        using var pane = new RemoteFilesPaneViewModel(new PaneDialogs(), NullLogger<RemoteFilesPaneViewModel>.Instance, new StubLocalFileSystem());
+        pane.Attach(files, CancellationToken.None, "测试服务器");
+        await WaitForAsync(() => pane.Entries.Count >= 3);
+
+        await pane.RefreshCommand.ExecuteAsync(null);
+        await WaitForAsync(() => pane.Entries.Count == 3);
+        await pane.RefreshCommand.ExecuteAsync(null);
+        await Task.Delay(120, TestContext.Current.CancellationToken);
+
+        Assert.Equal(3, pane.Entries.Count);
+        Assert.Equal(3, pane.Entries.Select(node => node.Name).Distinct().Count());
     }
 
     [Fact]
@@ -59,9 +109,9 @@ public sealed class RemoteFilesPaneTests
             var dialogs = new PaneDialogs(local);
             using var pane = new RemoteFilesPaneViewModel(dialogs, NullLogger<RemoteFilesPaneViewModel>.Instance, new StubLocalFileSystem());
             pane.Attach(files, CancellationToken.None, "测试服务器");
-            await WaitForAsync(() => pane.FlatNodes.Count >= 2);
+            await WaitForAsync(() => pane.Entries.Count >= 1);
 
-            var file = pane.FlatNodes.Single(node => node.Name == "readme.txt");
+            var file = pane.Entries.Single(node => node.Name == "readme.txt");
             pane.Select(file);
             await pane.DownloadItemAsync(file);
 
@@ -86,9 +136,9 @@ public sealed class RemoteFilesPaneTests
             });
             using var pane = new RemoteFilesPaneViewModel(new PaneDialogs(local), NullLogger<RemoteFilesPaneViewModel>.Instance, new StubLocalFileSystem());
             pane.Attach(files, CancellationToken.None, "测试服务器");
-            await WaitForAsync(() => pane.FlatNodes.Count >= 2);
+            await WaitForAsync(() => pane.Entries.Count >= 1);
 
-            var folder = pane.FlatNodes.Single(node => node.Name == "etc");
+            var folder = pane.Entries.Single(node => node.Name == "etc");
             await pane.DropLocalAsync(folder, [source]);
 
             Assert.NotNull(files.LastUpload);
@@ -102,7 +152,7 @@ public sealed class RemoteFilesPaneTests
 
     private static async Task WaitForAsync(Func<bool> condition)
     {
-        for (var i = 0; i < 60; i++)
+        for (var i = 0; i < 80; i++)
         {
             if (condition()) return;
             await Task.Delay(25);
@@ -129,7 +179,9 @@ public sealed class RemoteFilesPaneTests
 
             var files = new RecordingRemoteFileSystem(new Dictionary<string, IReadOnlyList<RemoteEntry>>
             {
-                ["/"] = [Entry("etc", true), Entry("var", true), Entry("readme.txt", false)]
+                ["/"] = [Entry("etc", true), Entry("var", true), Entry("readme.txt", false)],
+                ["/usr"] = [Entry("local", true)],
+                ["/usr/local"] = [Entry("share", true), Entry("notes.txt", false)]
             });
             vm.FilePane.Attach(files, CancellationToken.None, "测试服务器 · 10.0.0.1:22");
             await Task.Delay(300);
@@ -139,6 +191,9 @@ public sealed class RemoteFilesPaneTests
             Assert.True(pane!.IsVisible, "右侧远程文件面板没有显示");
             Assert.True(pane.Bounds.Width > 200, $"面板宽度不对：{pane.Bounds.Width}");
             Assert.True(pane.GetVisualDescendants().OfType<FileTreeNodeView>().Any(), "面板没有渲染任何远程文件行");
+            // 顶部有面包屑导航栏。
+            var pathBar = pane.FindControl<Controls.PathBar>("PathBar");
+            Assert.True(pathBar != null, "面板顶部没有面包屑导航栏");
 
             if (Environment.GetEnvironmentVariable("SHELLX_PREVIEW_PATH") is { Length: > 0 } preview)
             {
@@ -146,6 +201,14 @@ public sealed class RemoteFilesPaneTests
                     new Avalonia.PixelSize((int)window.ClientSize.Width, (int)window.ClientSize.Height), new Avalonia.Vector(96, 96));
                 bitmap.Render(window);
                 bitmap.Save(Path.Combine(Path.GetDirectoryName(preview)!, "remote-file-pane.png"), Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default);
+
+                // 进到更深的目录，面包屑上会多出几段。
+                await vm.FilePane.NavigateAsync("/usr/local");
+                await Task.Delay(300);
+                using var deep = new Avalonia.Media.Imaging.RenderTargetBitmap(
+                    new Avalonia.PixelSize((int)window.ClientSize.Width, (int)window.ClientSize.Height), new Avalonia.Vector(96, 96));
+                deep.Render(window);
+                deep.Save(Path.Combine(Path.GetDirectoryName(preview)!, "remote-file-pane-deep.png"), Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default);
             }
         }
         finally { if (vm != null) await vm.ShutdownAsync(); window?.Close(); Directory.Delete(root, true); }

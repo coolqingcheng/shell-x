@@ -10,15 +10,15 @@ using ShellX.Desktop.Services;
 namespace ShellX.Desktop.Features.FileBrowser;
 
 /// <summary>
-/// 主窗口右侧的远程文件面板：只管远程目录，用层级行展示（目录可展开收起，带动画）。
-/// 点行内下载会先选本地保存目录；把本地文件拖进来就上传到对应目录。
+/// 主窗口右侧的远程文件面板：按层级浏览远程目录，一次只显示当前这一层。
+/// 点目录行就进入下一层，顶部面包屑可以随时跳回任意层级；
+/// 行内下载会先选本地保存目录，把本地文件拖进来就上传到当前目录。
 /// </summary>
 public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTreeSink, IDisposable
 {
     private readonly IDialogService dialogs;
     private readonly ILogger log;
     private readonly ILocalFileSystem localFiles;
-    private readonly FileTreeList tree = new();
     private readonly List<FileTreeNodeViewModel> selected = [];
     private IRemoteFileSystem? files;
     private CancellationToken token;
@@ -31,8 +31,8 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
         this.dialogs = dialogs; this.log = log; this.localFiles = localFiles;
     }
 
-    /// <summary>展开后的可见行，虚拟列表直接绑定它。</summary>
-    public ObservableCollection<FileTreeNodeViewModel> FlatNodes => tree.Flat;
+    /// <summary>当前目录里的条目，一次只显示这一层。</summary>
+    public ObservableCollection<FileTreeNodeViewModel> Entries { get; } = [];
     /// <summary>当前选中的行。</summary>
     public FileTreeNodeViewModel? Selected => primary;
     /// <summary>选中项的路径，右键菜单和状态栏要用。</summary>
@@ -42,6 +42,10 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     [ObservableProperty] private string _error = "";
     [ObservableProperty] private string _summary = "连接后浏览远程文件";
     [ObservableProperty] private string _target = "";
+    /// <summary>当前所在目录，面包屑显示它。</summary>
+    [ObservableProperty] private string _currentPath = "/";
+    /// <summary>能否回到上一级。</summary>
+    [ObservableProperty] private bool _canGoUp;
     [ObservableProperty] private string _transferText = "";
     [ObservableProperty] private double _transferPercent;
     [ObservableProperty] private bool _hasTransfer;
@@ -50,41 +54,73 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     public bool HasError => !string.IsNullOrEmpty(Error);
     partial void OnErrorChanged(string value) => OnPropertyChanged(nameof(HasError));
 
-    /// <summary>切换连接或重连：重新挂上远程文件系统并展开根目录。</summary>
+    /// <summary>切换连接或重连：重新挂上远程文件系统并回到根目录。</summary>
     public void Attach(IRemoteFileSystem? remote, CancellationToken sessionToken, string target = "")
     {
         files = remote; token = sessionToken; IsAvailable = remote != null;
         Target = target; Error = ""; IsBusy = false;
         Summary = remote == null ? "尚未连接 SFTP" : "SFTP 已就绪";
-        tree.Clear(); selected.Clear(); primary = null;
+        Entries.Clear(); selected.Clear(); primary = null;
+        CurrentPath = "/"; CanGoUp = false;
         TransferText = ""; HasTransfer = false; TransferPercent = 0;
         OnPropertyChanged(nameof(Selected)); OnPropertyChanged(nameof(SelectedPath));
         if (remote == null) return;
-        var root = new RemoteEntry("/", "/", true, false, 0, DateTime.UtcNow, 493, 0, 0);
-        var node = new RemoteTreeNodeViewModel(root, remote, sessionToken, this) { Level = 0 };
-        tree.Roots.Add(node);
-        tree.Flat.Add(node);
-        // 根目录默认展开：面板一打开就能看到远程文件层级。
-        _ = ExpandRootAsync(node);
+        _ = LoadAsync("/", animate: true);
     }
 
-    private async Task ExpandRootAsync(FileTreeNodeViewModel node)
+    /// <summary>读取一个目录的内容：目录在前，文件按名称排序。</summary>
+    private async Task LoadAsync(string path, bool animate)
     {
-        try { await node.ToggleCommand.ExecuteAsync(null); }
-        catch (Exception ex) { Error = ex.Message; }
-    }
-
-    /// <summary>重新读取根目录内容。</summary>
-    [RelayCommand]
-    public async Task RefreshAsync()
-    {
-        var root = tree.Roots.FirstOrDefault();
-        if (root == null) return;
+        var remoteFiles = files; if (remoteFiles == null) return;
         IsBusy = true;
-        try { await root.ReloadAsync(); }
-        catch (Exception ex) { Error = ex.Message; }
+        try
+        {
+            var directory = await remoteFiles.ListAsync(path, token);
+            var entries = directory.Entries
+                .Where(e => !e.Name.StartsWith('.'))
+                .OrderByDescending(e => e.IsDirectory)
+                .ThenBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            Entries.Clear();
+            for (var i = 0; i < entries.Length; i++)
+            {
+                var node = new RemoteTreeNodeViewModel(entries[i], remoteFiles, token, this) { Level = 0 };
+                // 进入新目录时逐行淡入，刷新时直接显示，避免闪一下。
+                node.IsRevealing = animate && entries.Length <= 24;
+                node.RevealOrder = i;
+                Entries.Add(node);
+            }
+            CurrentPath = directory.Path ?? path;
+            CanGoUp = CurrentPath.TrimEnd('/').Length > 0;
+            Summary = $"{Entries.Count} 项";
+            selected.Clear(); primary = null;
+            OnPropertyChanged(nameof(Selected)); OnPropertyChanged(nameof(SelectedPath));
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { Error = "目录读取失败：" + ex.Message; }
         finally { IsBusy = false; }
     }
+
+    /// <summary>进入指定目录：面包屑跳转和上级按钮都走这里。</summary>
+    public async Task NavigateAsync(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return;
+        var target = path.Trim();
+        if (!target.StartsWith('/')) target = "/" + target;
+        if (target != CurrentPath) await LoadAsync(target, animate: true);
+    }
+
+    /// <summary>回到上一级目录。</summary>
+    [RelayCommand]
+    public async Task UpAsync()
+    {
+        if (!CanGoUp) return;
+        await NavigateAsync(RemotePath.Parent(CurrentPath));
+    }
+
+    /// <summary>重新读取当前目录。</summary>
+    [RelayCommand]
+    public async Task RefreshAsync() => await LoadAsync(CurrentPath, animate: false);
 
     // ---------------- 文件树宿主 ----------------
     public bool ShowHiddenFiles => false;
@@ -99,8 +135,13 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     public bool ShowRowDownload => true;
     /// <summary>面板窄，用紧凑行：省掉时间列，避免下载按钮被裁掉。</summary>
     public bool CompactRows => true;
+    /// <summary>这里按层级浏览，不是一棵树，不显示展开箭头。</summary>
+    public bool ShowRowChevron => false;
+    /// <summary>这里按层级浏览，行不缩进。</summary>
+    public bool ShowRowIndent => false;
 
-    public void Select(FileTreeNodeViewModel node, bool toggle = false)
+    /// <summary>点击目录行就进入下一层；按住 Ctrl 点击只选中。</summary>
+    public void Select(FileTreeNodeViewModel node, bool toggle = false, bool fromContextMenu = false)
     {
         if (toggle)
         {
@@ -114,6 +155,7 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
         }
         primary = node;
         OnPropertyChanged(nameof(Selected)); OnPropertyChanged(nameof(SelectedPath));
+        if (!toggle && !fromContextMenu && node.IsDirectory) _ = NavigateAsync(node.Path);
     }
 
     public void SelectAll(IReadOnlyList<FileTreeNodeViewModel> nodes)
@@ -125,17 +167,13 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
         OnPropertyChanged(nameof(Selected)); OnPropertyChanged(nameof(SelectedPath));
     }
 
-    /// <summary>展开或收起：把子行插进或移出扁平行列表，动画由行控件负责。</summary>
-    public void NotifyExpanded(FileTreeNodeViewModel node, bool expanded)
-    {
-        if (expanded) tree.InsertDescendants(node);
-        else tree.CollapseDescendants(node);
-    }
+    /// <summary>这里没有树，展开收起不做任何事。</summary>
+    public void NotifyExpanded(FileTreeNodeViewModel node, bool expanded) { }
 
-    /// <summary>双击：目录展开或收起，文件直接下载。</summary>
+    /// <summary>双击：目录进入下一层，文件直接下载。</summary>
     public async Task ActivateAsync(FileTreeNodeViewModel node)
     {
-        if (node.IsDirectory) { await node.ToggleCommand.ExecuteAsync(null); return; }
+        if (node.IsDirectory) { await NavigateAsync(node.Path); return; }
         await DownloadItemAsync(node);
     }
 
@@ -145,7 +183,7 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     /// <summary>本地文件拖到目录行：上传到该目录。</summary>
     public async Task DropLocalAsync(FileTreeNodeViewModel node, IReadOnlyList<string> paths)
     {
-        var target = node is RemoteTreeNodeViewModel remote ? remote.Entry.FullPath : "/";
+        var target = node is RemoteTreeNodeViewModel remote && remote.IsDirectory ? remote.Path : CurrentPath;
         await UploadPathsAsync(paths, target);
     }
 
@@ -200,7 +238,7 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     public async Task UploadPathsAsync(IReadOnlyList<string> paths, string? targetDirectory = null)
     {
         var remoteFiles = files; if (remoteFiles == null || paths.Count == 0) return;
-        targetDirectory ??= "/";
+        targetDirectory ??= CurrentPath;
         foreach (var local in paths)
         {
             try
@@ -238,8 +276,8 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
         await RefreshAsync();
     }
 
-    /// <summary>把本地路径拖到面板空白处：上传到根目录。</summary>
-    public async Task UploadDroppedAsync(IReadOnlyList<string> paths) => await UploadPathsAsync(paths, "/");
+    /// <summary>把本地路径拖到面板空白处：上传到当前目录。</summary>
+    public async Task UploadDroppedAsync(IReadOnlyList<string> paths) => await UploadPathsAsync(paths, CurrentPath);
 
     private void Report(long value)
     {
@@ -259,6 +297,6 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
 
     public void Dispose()
     {
-        tree.Clear(); selected.Clear(); primary = null; files = null;
+        Entries.Clear(); selected.Clear(); primary = null; files = null;
     }
 }

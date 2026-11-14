@@ -37,6 +37,10 @@ public abstract partial class FileTreeNodeViewModel : ObservableObject
     public string Icon { get; }
     /// <summary>紧凑行：窄面板下不显示时间列。</summary>
     public bool IsCompact => Sink.CompactRows;
+    /// <summary>是否显示展开箭头。</summary>
+    public bool ShowChevron => Sink.ShowRowChevron && IsDirectory;
+    /// <summary>行的左边距：树形列表按层级缩进，按层级浏览的面板不缩进。</summary>
+    public Thickness RowMargin => Sink.ShowRowIndent ? Indent : new Thickness(0, 0, 0, 0);
     public string SizeText { get; }
     public string ModifiedText { get; }
     /// <summary>子节点：目录展开后加载，文件为空。</summary>

@@ -51,9 +51,9 @@
           Classes.droptarget="{Binding IsDropTarget}"
           PointerPressed="RowPointerPressed" PointerMoved="RowPointerMoved" PointerReleased="RowPointerReleased"
           RightTapped="RowRightTapped">
-    <Grid ColumnDefinitions="18,20,*,Auto,Auto,Auto" ColumnSpacing="6" Margin="{Binding Indent}">
+    <Grid ColumnDefinitions="Auto,20,*,Auto,Auto,Auto" ColumnSpacing="6" Margin="{Binding RowMargin}">
       <Button Grid.Column="0" Name="Chevron" Command="{Binding ToggleCommand}" Classes="flat icon" Width="18" Height="18"
-              MinWidth="0" MinHeight="0" Padding="0" IsVisible="{Binding IsDirectory}" ToolTip.Tip="展开 / 收起">
+              MinWidth="0" MinHeight="0" Padding="0" IsVisible="{Binding ShowChevron}" ToolTip.Tip="展开 / 收起">
         <Panel Width="14" Height="14">
           <controls:StrokeIcon Symbol="chevron-right" Width="13" Height="13" IsVisible="{Binding !IsLoading}">
             <controls:StrokeIcon.RenderTransform>

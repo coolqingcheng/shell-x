@@ -18,6 +18,8 @@ public partial class PathBar : UserControl
         AvaloniaProperty.Register<PathBar, bool>(nameof(WindowsStyle), false);
     public static readonly StyledProperty<string> PlaceholderTextProperty =
         AvaloniaProperty.Register<PathBar, string>(nameof(PlaceholderText), string.Empty);
+    public static readonly StyledProperty<int> MaxVisibleSegmentsProperty =
+        AvaloniaProperty.Register<PathBar, int>(nameof(MaxVisibleSegments), 5);
 
     /// <summary>用户选择路径或确认编辑后的完整路径。</summary>
     public event EventHandler<string>? NavigateRequested;
@@ -41,6 +43,8 @@ public partial class PathBar : UserControl
     public string Text { get => GetValue(TextProperty); set => SetValue(TextProperty, value); }
     public bool WindowsStyle { get => GetValue(WindowsStyleProperty); set => SetValue(WindowsStyleProperty, value); }
     public string PlaceholderText { get => GetValue(PlaceholderTextProperty); set => SetValue(PlaceholderTextProperty, value); }
+    /// <summary>最多显示几段：面板窄的时候少显示几段，中间用省略号代替。</summary>
+    public int MaxVisibleSegments { get => GetValue(MaxVisibleSegmentsProperty); set => SetValue(MaxVisibleSegmentsProperty, value); }
     public bool IsEditing => _editing;
     /// <summary>路径编辑框，供测试与外部调用。</summary>
     public TextBox EditInput => EditBox;
@@ -66,14 +70,16 @@ public partial class PathBar : UserControl
     private bool IsTextUntouched => (EditBox.Text ?? string.Empty) == _editOriginal;
 
     // 路径段太多时保留根目录和最后几段，中间用省略号代替，点击省略号回到被折叠的上一层。
-    private static IReadOnlyList<PathSegment> VisibleSegments(IReadOnlyList<PathSegment> all)
+    private IReadOnlyList<PathSegment> VisibleSegments(IReadOnlyList<PathSegment> all)
     {
-        const int maxVisible = 5;
+        var maxVisible = Math.Max(3, MaxVisibleSegments);
         if (all.Count <= maxVisible) return all;
+        var trailing = maxVisible - 2;
+        var first = all.Count - trailing;
         var result = new List<PathSegment> { all[0] };
-        result.Add(new PathSegment { Name = "…", Path = all[all.Count - 4].Path, ShowSeparator = true, IsEllipsis = true });
-        for (var i = all.Count - 3; i < all.Count; i++)
-            result.Add(new PathSegment { Name = all[i].Name, Path = all[i].Path, ShowSeparator = true, IsLast = all[i].IsLast });
+        result.Add(new PathSegment { Name = "…", Path = all[first - 1].Path, ShowSeparator = true, IsEllipsis = true });
+        for (var i = first; i < all.Count; i++)
+            result.Add(new PathSegment { Name = all[i].Name, Path = all[i].Path, ShowSeparator = true, IsLast = i == all.Count - 1 });
         return result;
     }
 

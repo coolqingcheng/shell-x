@@ -5,7 +5,7 @@ using ShellX.Desktop.Services;
 
 namespace ShellX.Desktop.Features.FileBrowser;
 
-/// <summary>主窗口右侧的远程文件面板：层级行列表，行内可下载，本地文件拖进来即上传。</summary>
+/// <summary>主窗口右侧的远程文件面板：按层级浏览，点目录进入下一层，行内可下载，本地文件拖进来即上传。</summary>
 public partial class RemoteFilesPaneView : UserControl
 {
     public RemoteFilesPaneView()
@@ -29,7 +29,7 @@ public partial class RemoteFilesPaneView : UserControl
 
     private void DropAreaDragLeave(object? sender, DragEventArgs e) => e.Handled = true;
 
-    /// <summary>落在空白处：上传到远程根目录。</summary>
+    /// <summary>落在空白处：上传到当前目录。</summary>
     private async void DropAreaDrop(object? sender, DragEventArgs e)
     {
         e.Handled = true;
@@ -37,6 +37,13 @@ public partial class RemoteFilesPaneView : UserControl
         var paths = FileDragDrop.ReadLocalPaths(e.DataTransfer) ?? FileDragDrop.ReadFilePaths(e.DataTransfer);
         if (paths is not { Length: > 0 }) return;
         await vm.UploadDroppedAsync(paths);
+    }
+
+    /// <summary>面包屑跳转：点哪一段就进入哪一层，也可以直接改成路径。</summary>
+    private async void PathNavigate(object? sender, string path)
+    {
+        var vm = ViewModel; if (vm == null) return;
+        await vm.NavigateAsync(path);
     }
 
     /// <summary>右键下载：选本地保存目录后写入。</summary>

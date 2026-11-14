@@ -22,11 +22,15 @@ public interface IFileTreeSink
     bool ShowRowDownload { get; }
     /// <summary>是否用紧凑行：窄面板下省掉时间列，把空间让给文件名和操作按钮。</summary>
     bool CompactRows { get; }
+    /// <summary>是否显示展开箭头：只有树形列表才需要，按层级浏览的面板不显示。</summary>
+    bool ShowRowChevron { get; }
+    /// <summary>是否按层级缩进：树形列表要缩进，按层级浏览的面板不缩进。</summary>
+    bool ShowRowIndent { get; }
     /// <summary>把节点下载到本地：保存位置由宿主决定。</summary>
     Task DownloadItemAsync(FileTreeNodeViewModel node);
 
     /// <summary>选中节点：同步面板的当前条目，右键菜单据此工作。</summary>
-    void Select(FileTreeNodeViewModel node, bool toggle = false);
+    void Select(FileTreeNodeViewModel node, bool toggle = false, bool fromContextMenu = false);
     /// <summary>全选：Ctrl+A 选中当前可见的所有行。</summary>
     void SelectAll(IReadOnlyList<FileTreeNodeViewModel> nodes);
     /// <summary>节点展开或收起：面板负责增删展平行列表里的行。</summary>

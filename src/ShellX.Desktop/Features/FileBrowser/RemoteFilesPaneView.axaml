@@ -2,12 +2,22 @@
              xmlns:vm="using:ShellX.Desktop.Features.FileBrowser" x:DataType="vm:RemoteFilesPaneViewModel"
              xmlns:controls="using:ShellX.Desktop.Controls" xmlns:local="using:ShellX.Desktop.Features.FileBrowser"
              x:Class="ShellX.Desktop.Features.FileBrowser.RemoteFilesPaneView">
-  <Grid RowDefinitions="*,Auto">
-    <Border Name="DropArea" Grid.Row="0" Background="{DynamicResource TreeBackground}"
-           >
+  <Grid RowDefinitions="32,*,Auto">
+    <!-- 顶部：上一级 + 面包屑，点哪一段就跳到哪一层 -->
+    <Border Grid.Row="0" Background="{DynamicResource PanelBackground}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1">
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="2" Margin="4,0,6,0">
+        <Button Grid.Column="0" Name="UpButton" Classes="flat icon" Command="{Binding UpCommand}" ToolTip.Tip="上一级"
+                Width="26" Height="26" IsEnabled="{Binding CanGoUp}">
+          <controls:StrokeIcon Symbol="up" Width="16" Height="16" />
+        </Button>
+        <controls:PathBar Grid.Column="1" Name="PathBar" Text="{Binding CurrentPath}" PlaceholderText="远程路径"
+                          MaxVisibleSegments="3" NavigateRequested="PathNavigate" VerticalAlignment="Center" />
+      </Grid>
+    </Border>
+    <Border Name="DropArea" Grid.Row="1" Background="{DynamicResource TreeBackground}">
       <Grid>
         <ScrollViewer Name="TreeList" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-          <ItemsControl ItemsSource="{Binding FlatNodes}" Margin="4,2">
+          <ItemsControl ItemsSource="{Binding Entries}" Margin="4,2">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
@@ -31,7 +41,7 @@
       </Grid>
     </Border>
 
-    <Border Grid.Row="1" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,1,0,0" Background="{DynamicResource PanelBackground}">
+    <Border Grid.Row="2" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,1,0,0" Background="{DynamicResource PanelBackground}">
       <StackPanel Spacing="4">
         <Border IsVisible="{Binding HasError}" Background="{DynamicResource WarningBackground}" Padding="8,5" Margin="6,4">
           <TextBlock Text="{Binding Error}" Foreground="{DynamicResource WarningForeground}" FontSize="11" TextWrapping="Wrap" />

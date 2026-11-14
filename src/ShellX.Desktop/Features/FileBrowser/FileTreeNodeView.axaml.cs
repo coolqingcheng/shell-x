@@ -113,7 +113,7 @@ public partial class FileTreeNodeView : UserControl
         // 右键先选中节点，右键菜单才能作用到当前行；已选中时保留多选。
         if (point.Properties.IsRightButtonPressed)
         {
-            if (!_node.IsSelected) _node.Sink.Select(_node);
+            if (!_node.IsSelected) _node.Sink.Select(_node, fromContextMenu: true);
             return;
         }
         if (!point.Properties.IsLeftButtonPressed) return;
@@ -141,7 +141,7 @@ public partial class FileTreeNodeView : UserControl
 
     private void RowRightTapped(object? sender, TappedEventArgs e)
     {
-        if (_node != null && !_node.IsSelected) _node.Sink.Select(_node);
+        if (_node != null && !_node.IsSelected) _node.Sink.Select(_node, fromContextMenu: true);
     }
 
     private static bool IsChevron(object? source)
