@@ -430,6 +430,8 @@ public partial class FileBrowserViewModel : ObservableObject, IDisposable, IFile
     public bool ShowRowChevron => true;
     /// <summary>文件管理器是树形列表，按层级缩进。</summary>
     public bool ShowRowIndent => true;
+    /// <summary>树形展开时新行从下方滑上来。</summary>
+    public bool SlideReveal => true;
 
     /// <summary>选中树节点：同步面板的当前条目，右键菜单据此工作。</summary>
     public void Select(FileTreeNodeViewModel node, bool toggle = false, bool fromContextMenu = false)

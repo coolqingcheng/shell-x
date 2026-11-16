@@ -20,9 +20,13 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     private readonly ILogger log;
     private readonly ILocalFileSystem localFiles;
     private readonly List<FileTreeNodeViewModel> selected = [];
+    /// <summary>访问过的目录，配合后退、前进使用。</summary>
+    private readonly List<string> history = [];
     private IRemoteFileSystem? files;
     private CancellationToken token;
     private FileTreeNodeViewModel? primary;
+    /// <summary>历史里当前所在的位置。</summary>
+    private int historyIndex = -1;
     private long totalBytes;
     private long doneBytes;
 
@@ -46,6 +50,10 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     [ObservableProperty] private string _currentPath = "/";
     /// <summary>能否回到上一级。</summary>
     [ObservableProperty] private bool _canGoUp;
+    /// <summary>能否后退到上一个访问过的目录。</summary>
+    [ObservableProperty] private bool _canGoBack;
+    /// <summary>能否前进到下一个访问过的目录。</summary>
+    [ObservableProperty] private bool _canGoForward;
     [ObservableProperty] private string _transferText = "";
     [ObservableProperty] private double _transferPercent;
     [ObservableProperty] private bool _hasTransfer;
@@ -61,6 +69,8 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
         Target = target; Error = ""; IsBusy = false;
         Summary = remote == null ? "尚未连接 SFTP" : "SFTP 已就绪";
         Entries.Clear(); selected.Clear(); primary = null;
+        history.Clear(); historyIndex = -1;
+        CanGoBack = false; CanGoForward = false;
         CurrentPath = "/"; CanGoUp = false;
         TransferText = ""; HasTransfer = false; TransferPercent = 0;
         OnPropertyChanged(nameof(Selected)); OnPropertyChanged(nameof(SelectedPath));
@@ -82,19 +92,25 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
                 .ThenBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
             Entries.Clear();
+            var revealed = new List<FileTreeNodeViewModel>();
             for (var i = 0; i < entries.Length; i++)
             {
                 var node = new RemoteTreeNodeViewModel(entries[i], remoteFiles, token, this) { Level = 0 };
                 // 进入新目录时逐行淡入，刷新时直接显示，避免闪一下。
                 node.IsRevealing = animate && entries.Length <= 24;
                 node.RevealOrder = i;
+                if (node.IsRevealing) revealed.Add(node);
                 Entries.Add(node);
             }
+            // 动画播完必须清掉标记：行被虚拟列表复用时会重播一次动画，看起来一直在跳。
+            if (revealed.Count > 0) _ = ClearRevealFlagsAsync(revealed);
             CurrentPath = directory.Path ?? path;
             CanGoUp = CurrentPath.TrimEnd('/').Length > 0;
+            PushHistory(CurrentPath);
             Summary = $"{Entries.Count} 项";
             selected.Clear(); primary = null;
             OnPropertyChanged(nameof(Selected)); OnPropertyChanged(nameof(SelectedPath));
+            NotifySelectionCommands();
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { Error = "目录读取失败：" + ex.Message; }
@@ -108,6 +124,43 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
         var target = path.Trim();
         if (!target.StartsWith('/')) target = "/" + target;
         if (target != CurrentPath) await LoadAsync(target, animate: true);
+    }
+
+    /// <summary>记录访问过的目录：后退、前进都靠它。</summary>
+    private void PushHistory(string path)
+    {
+        if (historyIndex >= 0 && historyIndex < history.Count && history[historyIndex] == path) return;
+        if (historyIndex >= 0 && historyIndex < history.Count - 1)
+            history.RemoveRange(historyIndex + 1, history.Count - historyIndex - 1);
+        history.Add(path);
+        historyIndex = history.Count - 1;
+        UpdateHistoryState();
+    }
+
+    private void UpdateHistoryState()
+    {
+        CanGoBack = historyIndex > 0;
+        CanGoForward = historyIndex >= 0 && historyIndex < history.Count - 1;
+    }
+
+    /// <summary>后退：回到上一个访问过的目录。</summary>
+    [RelayCommand]
+    public async Task BackAsync()
+    {
+        if (!CanGoBack) return;
+        historyIndex--;
+        await LoadAsync(history[historyIndex], animate: true);
+        UpdateHistoryState();
+    }
+
+    /// <summary>前进：回到下一个访问过的目录。</summary>
+    [RelayCommand]
+    public async Task ForwardAsync()
+    {
+        if (!CanGoForward) return;
+        historyIndex++;
+        await LoadAsync(history[historyIndex], animate: true);
+        UpdateHistoryState();
     }
 
     /// <summary>回到上一级目录。</summary>
@@ -139,6 +192,8 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     public bool ShowRowChevron => false;
     /// <summary>这里按层级浏览，行不缩进。</summary>
     public bool ShowRowIndent => false;
+    /// <summary>按层级跳转不做位移动画，只淡入，避免看着一直在跳。</summary>
+    public bool SlideReveal => false;
 
     /// <summary>点击目录行就进入下一层；按住 Ctrl 点击只选中。</summary>
     public void Select(FileTreeNodeViewModel node, bool toggle = false, bool fromContextMenu = false)
@@ -155,6 +210,7 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
         }
         primary = node;
         OnPropertyChanged(nameof(Selected)); OnPropertyChanged(nameof(SelectedPath));
+        NotifySelectionCommands();
         if (!toggle && !fromContextMenu && node.IsDirectory) _ = NavigateAsync(node.Path);
     }
 
@@ -175,6 +231,101 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     {
         if (node.IsDirectory) { await NavigateAsync(node.Path); return; }
         await DownloadItemAsync(node);
+    }
+
+    /// <summary>选中的行对应的远程条目。</summary>
+    private RemoteEntry? SelectedEntry => (primary as RemoteTreeNodeViewModel)?.Entry;
+    /// <summary>只有普通文件能编辑文本。</summary>
+    public bool CanEditSelected => SelectedEntry is { IsDirectory: false, IsSymbolicLink: false };
+    /// <summary>有选中项才能下载、改权限、重命名、删除。</summary>
+    public bool CanOperateSelected => SelectedEntry != null;
+
+    /// <summary>选中项变了，右键菜单里命令的可用状态跟着更新。</summary>
+    private void NotifySelectionCommands()
+    {
+        DownloadSelectedCommand.NotifyCanExecuteChanged();
+        EditTextCommand.NotifyCanExecuteChanged();
+        PermissionsCommand.NotifyCanExecuteChanged();
+        RenameCommand.NotifyCanExecuteChanged();
+        DeleteCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>下载选中的文件或目录：先选本地保存目录。</summary>
+    [RelayCommand(CanExecute = nameof(CanOperateSelected))]
+    private async Task DownloadSelectedAsync()
+    {
+        if (primary == null) return;
+        await DownloadItemAsync(primary);
+    }
+
+    /// <summary>编辑文本：打开编辑器标签，保存后刷新当前目录。</summary>
+    [RelayCommand(CanExecute = nameof(CanEditSelected))]
+    private async Task EditTextAsync()
+    {
+        var entry = SelectedEntry; var remoteFiles = files;
+        if (entry == null || remoteFiles == null || entry.IsDirectory || entry.IsSymbolicLink) return;
+        await RunAsync(async () =>
+        {
+            TextEditorLimits.ValidateSize(entry.Size);
+            var document = await remoteFiles.ReadTextAsync(entry.FullPath, token);
+            token.ThrowIfCancellationRequested();
+            await dialogs.EditFileAsync(document, async (original, content) =>
+            {
+                var updated = await remoteFiles.SaveTextAsync(original, content, token);
+                await RefreshAsync();
+                return updated;
+            });
+        });
+    }
+
+    /// <summary>属性与权限：改完刷新当前目录。</summary>
+    [RelayCommand(CanExecute = nameof(CanOperateSelected))]
+    private async Task PermissionsAsync()
+    {
+        var entry = SelectedEntry; var remoteFiles = files; if (entry == null || remoteFiles == null) return;
+        if (entry.IsSymbolicLink) { await dialogs.ShowErrorAsync("为避免修改符号链接指向的目标，请进入目标实际目录后修改权限。"); return; }
+        if (await dialogs.PermissionsAsync(entry) is not { } permissions) return;
+        await RunAsync(async () => { await remoteFiles.SetPermissionsAsync(entry.FullPath, permissions, token); await RefreshAsync(); });
+    }
+
+    /// <summary>重命名。</summary>
+    [RelayCommand(CanExecute = nameof(CanOperateSelected))]
+    private async Task RenameAsync()
+    {
+        var entry = SelectedEntry; var remoteFiles = files; if (entry == null || remoteFiles == null) return;
+        var name = await dialogs.PromptAsync("重命名", "新名称", entry.Name);
+        if (name == null || name == entry.Name) return;
+        await RunAsync(async () =>
+        {
+            await remoteFiles.RenameAsync(entry.FullPath, RemotePath.Combine(RemotePath.Parent(entry.FullPath), name), token);
+            await RefreshAsync();
+        });
+    }
+
+    /// <summary>删除：先确认，删完刷新。</summary>
+    [RelayCommand(CanExecute = nameof(CanOperateSelected))]
+    private async Task DeleteAsync()
+    {
+        var entry = SelectedEntry; var remoteFiles = files; if (entry == null || remoteFiles == null) return;
+        var tip = entry.IsDirectory ? "目录会递归删除。" : entry.IsSymbolicLink ? "符号链接只删除链接本身。" : string.Empty;
+        if (!await dialogs.ConfirmAsync("删除远程项目", $"永久删除？{tip}\n\n{entry.FullPath}\n\n此操作不会进入回收站。", true)) return;
+        await RunAsync(async () => { await remoteFiles.DeleteAsync(entry.FullPath, token); await RefreshAsync(); });
+    }
+
+    /// <summary>新建文件。</summary>
+    [RelayCommand] private Task NewFileAsync() => CreateAsync(false);
+    /// <summary>新建文件夹。</summary>
+    [RelayCommand] private Task NewFolderAsync() => CreateAsync(true);
+    private async Task CreateAsync(bool directory)
+    {
+        var remoteFiles = files; if (remoteFiles == null) return;
+        var name = await dialogs.PromptAsync(directory ? "新建文件夹" : "新建文件", "名称", directory ? "新建文件夹" : "untitled.txt");
+        if (string.IsNullOrWhiteSpace(name)) return;
+        await RunAsync(async () =>
+        {
+            await remoteFiles.CreateAsync(RemotePath.Combine(CurrentPath, name), directory, token);
+            await RefreshAsync();
+        });
     }
 
     /// <summary>这个面板不向外拖拽，只接收本地文件。</summary>
@@ -278,6 +429,14 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
 
     /// <summary>把本地路径拖到面板空白处：上传到当前目录。</summary>
     public async Task UploadDroppedAsync(IReadOnlyList<string> paths) => await UploadPathsAsync(paths, CurrentPath);
+
+    /// <summary>出现动画播完后清掉标记，避免行被复用时反复重播。</summary>
+    private static async Task ClearRevealFlagsAsync(IReadOnlyList<FileTreeNodeViewModel> nodes)
+    {
+        // 错峰最长 224 毫秒，动画 200 毫秒，等动画结束再收标记。
+        await Task.Delay(520);
+        foreach (var node in nodes) node.IsRevealing = false;
+    }
 
     private void Report(long value)
     {

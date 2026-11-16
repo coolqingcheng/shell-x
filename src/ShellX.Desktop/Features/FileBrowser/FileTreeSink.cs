@@ -26,6 +26,8 @@ public interface IFileTreeSink
     bool ShowRowChevron { get; }
     /// <summary>是否按层级缩进：树形列表要缩进，按层级浏览的面板不缩进。</summary>
     bool ShowRowIndent { get; }
+    /// <summary>出现动画是否带位移：树形展开要上滑，按层级浏览的面板只做淡入。</summary>
+    bool SlideReveal { get; }
     /// <summary>把节点下载到本地：保存位置由宿主决定。</summary>
     Task DownloadItemAsync(FileTreeNodeViewModel node);
 

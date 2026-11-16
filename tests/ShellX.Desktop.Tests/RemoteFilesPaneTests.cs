@@ -147,6 +147,63 @@ public sealed class RemoteFilesPaneTests
         finally { Directory.Delete(local, true); }
     }
 
+    [Fact]
+    public async Task RightClickMenuOffersEditAndPermissionsForFiles()
+    {
+        var files = new RecordingRemoteFileSystem(new Dictionary<string, IReadOnlyList<RemoteEntry>>
+        {
+            ["/"] = [Entry("etc", true), Entry("readme.txt", false)]
+        });
+        using var pane = new RemoteFilesPaneViewModel(new PaneDialogs(), NullLogger<RemoteFilesPaneViewModel>.Instance, new StubLocalFileSystem());
+        pane.Attach(files, CancellationToken.None, "测试服务器");
+        await WaitForAsync(() => pane.Entries.Count >= 2);
+
+        // 选中普通文件：可以编辑文本，也可以改权限。
+        var file = pane.Entries.Single(node => node.Name == "readme.txt");
+        pane.Select(file);
+        Assert.True(pane.EditTextCommand.CanExecute(null), "文件行应该能编辑文本");
+        Assert.True(pane.PermissionsCommand.CanExecute(null), "文件行应该能改权限");
+        Assert.True(pane.RenameCommand.CanExecute(null));
+        Assert.True(pane.DeleteCommand.CanExecute(null));
+
+        // 选中目录：只能改权限、重命名、删除，不能编辑文本。
+        var folder = pane.Entries.Single(node => node.Name == "etc");
+        pane.Select(folder, toggle: true);
+        Assert.False(pane.EditTextCommand.CanExecute(null), "目录不能编辑文本");
+        Assert.True(pane.PermissionsCommand.CanExecute(null), "目录应该能改权限");
+    }
+
+    [Fact]
+    public async Task BackAndForwardWalkThroughTheVisitedFolders()
+    {
+        var files = new RecordingRemoteFileSystem(new Dictionary<string, IReadOnlyList<RemoteEntry>>
+        {
+            ["/"] = [Entry("etc", true)],
+            ["/etc"] = [Entry("hosts", false)],
+            ["/etc/hosts"] = []
+        });
+        using var pane = new RemoteFilesPaneViewModel(new PaneDialogs(), NullLogger<RemoteFilesPaneViewModel>.Instance, new StubLocalFileSystem());
+        pane.Attach(files, CancellationToken.None, "测试服务器");
+        await WaitForAsync(() => pane.Entries.Count >= 1);
+
+        await pane.NavigateAsync("/etc");
+        await WaitForAsync(() => pane.CurrentPath == "/etc");
+        Assert.True(pane.CanGoBack, "访问过根目录后应该能后退");
+        Assert.False(pane.CanGoForward);
+
+        await pane.NavigateAsync("/etc/hosts");
+        await WaitForAsync(() => pane.CurrentPath == "/etc/hosts");
+        Assert.True(pane.CanGoBack);
+        Assert.False(pane.CanGoForward);
+
+        await pane.BackCommand.ExecuteAsync(null);
+        await WaitForAsync(() => pane.CurrentPath == "/etc");
+        Assert.True(pane.CanGoForward);
+
+        await pane.ForwardCommand.ExecuteAsync(null);
+        await WaitForAsync(() => pane.CurrentPath == "/etc/hosts");
+    }
+
     private static RemoteEntry Entry(string name, bool directory, long size = 0)
         => new(name, "/" + name, directory, false, size, DateTime.UtcNow, 493, 0, 0);
 

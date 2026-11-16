@@ -2,15 +2,28 @@
              xmlns:vm="using:ShellX.Desktop.Features.FileBrowser" x:DataType="vm:RemoteFilesPaneViewModel"
              xmlns:controls="using:ShellX.Desktop.Controls" xmlns:local="using:ShellX.Desktop.Features.FileBrowser"
              x:Class="ShellX.Desktop.Features.FileBrowser.RemoteFilesPaneView">
+  <UserControl.KeyBindings>
+    <KeyBinding Gesture="Alt+Left" Command="{Binding BackCommand}" />
+    <KeyBinding Gesture="Alt+Right" Command="{Binding ForwardCommand}" />
+    <KeyBinding Gesture="Alt+Up" Command="{Binding UpCommand}" />
+  </UserControl.KeyBindings>
   <Grid RowDefinitions="32,*,Auto">
     <!-- 顶部：上一级 + 面包屑，点哪一段就跳到哪一层 -->
     <Border Grid.Row="0" Background="{DynamicResource PanelBackground}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1">
-      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="2" Margin="4,0,6,0">
-        <Button Grid.Column="0" Name="UpButton" Classes="flat icon" Command="{Binding UpCommand}" ToolTip.Tip="上一级"
+      <Grid ColumnDefinitions="Auto,Auto,Auto,*" ColumnSpacing="2" Margin="4,0,6,0">
+        <Button Grid.Column="0" Name="BackButton" Classes="flat icon" Command="{Binding BackCommand}" ToolTip.Tip="后退  Alt+←"
+                Width="26" Height="26" IsEnabled="{Binding CanGoBack}">
+          <controls:StrokeIcon Symbol="back" Width="16" Height="16" />
+        </Button>
+        <Button Grid.Column="1" Name="ForwardButton" Classes="flat icon" Command="{Binding ForwardCommand}" ToolTip.Tip="前进  Alt+→"
+                Width="26" Height="26" IsEnabled="{Binding CanGoForward}">
+          <controls:StrokeIcon Symbol="forward" Width="16" Height="16" />
+        </Button>
+        <Button Grid.Column="2" Name="UpButton" Classes="flat icon" Command="{Binding UpCommand}" ToolTip.Tip="上一级  Alt+↑"
                 Width="26" Height="26" IsEnabled="{Binding CanGoUp}">
           <controls:StrokeIcon Symbol="up" Width="16" Height="16" />
         </Button>
-        <controls:PathBar Grid.Column="1" Name="PathBar" Text="{Binding CurrentPath}" PlaceholderText="远程路径"
+        <controls:PathBar Grid.Column="3" Name="PathBar" Text="{Binding CurrentPath}" PlaceholderText="远程路径"
                           MaxVisibleSegments="3" NavigateRequested="PathNavigate" VerticalAlignment="Center" />
       </Grid>
     </Border>
@@ -26,10 +39,17 @@
             </ItemsControl.ItemTemplate>
             <ItemsControl.ContextMenu>
               <ContextMenu>
-                <MenuItem Header="下载到本地文件夹…" Click="DownloadClick" />
-                <MenuItem Header="复制路径" Click="CopyPathClick" />
+                <MenuItem Header="下载到本地文件夹…" Command="{Binding DownloadSelectedCommand}" />
+                <MenuItem Header="编辑文本" Command="{Binding EditTextCommand}" />
+                <MenuItem Header="属性与权限" Command="{Binding PermissionsCommand}" />
+                <MenuItem Header="重命名" Command="{Binding RenameCommand}" />
+                <MenuItem Header="删除" Command="{Binding DeleteCommand}" />
                 <Separator />
+                <MenuItem Header="复制路径" Click="CopyPathClick" />
                 <MenuItem Header="刷新" Command="{Binding RefreshCommand}" />
+                <Separator />
+                <MenuItem Header="新建文件" Command="{Binding NewFileCommand}" />
+                <MenuItem Header="新建文件夹" Command="{Binding NewFolderCommand}" />
               </ContextMenu>
             </ItemsControl.ContextMenu>
           </ItemsControl>

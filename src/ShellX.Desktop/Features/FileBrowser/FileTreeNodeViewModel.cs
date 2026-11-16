@@ -41,6 +41,8 @@ public abstract partial class FileTreeNodeViewModel : ObservableObject
     public bool ShowChevron => Sink.ShowRowChevron && IsDirectory;
     /// <summary>行的左边距：树形列表按层级缩进，按层级浏览的面板不缩进。</summary>
     public Thickness RowMargin => Sink.ShowRowIndent ? Indent : new Thickness(0, 0, 0, 0);
+    /// <summary>出现动画是否带位移。</summary>
+    public bool RevealSlide => Sink.SlideReveal;
     public string SizeText { get; }
     public string ModifiedText { get; }
     /// <summary>子节点：目录展开后加载，文件为空。</summary>

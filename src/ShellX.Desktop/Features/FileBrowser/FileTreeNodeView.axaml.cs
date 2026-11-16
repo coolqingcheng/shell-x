@@ -19,6 +19,8 @@ public partial class FileTreeNodeView : UserControl
     private bool _dragging;
     /// <summary>行还没挂到视觉树上，等挂上之后再播出现动画。</summary>
     private bool _pendingReveal;
+    /// <summary>出现动画正在播，播完之前不再重复触发。</summary>
+    private bool _revealRunning;
 
     public FileTreeNodeView()
     {
@@ -76,13 +78,20 @@ public partial class FileTreeNodeView : UserControl
     /// </summary>
     private async Task StartRevealAsync()
     {
-        var node = _node; if (node == null) return;
-        SetVisualImmediate(0, -FileTreeNodeViewModel.RowHeight);
-        var delay = Math.Clamp(node.RevealOrder, 0, 16) * 14;
-        if (delay > 0) await Task.Delay(delay);
-        if (_node == null || !_node.IsRevealing || _node.IsCollapsing) return;
-        Opacity = 1;
-        if (Slide is { } slide) slide.Y = 0;
+        // 已经在播就不要再起一次，否则行被复用时会不停地闪。
+        if (_revealRunning) return;
+        _revealRunning = true;
+        try
+        {
+            var node = _node; if (node == null) return;
+            SetVisualImmediate(0, node.RevealSlide ? -FileTreeNodeViewModel.RowHeight : 0);
+            var delay = Math.Clamp(node.RevealOrder, 0, 16) * 14;
+            if (delay > 0) await Task.Delay(delay);
+            if (_node == null || !_node.IsRevealing || _node.IsCollapsing) return;
+            Opacity = 1;
+            if (Slide is { } slide) slide.Y = 0;
+        }
+        finally { _revealRunning = false; }
     }
 
     /// <summary>收起动画：淡出并轻微上移，动画结束后由面板移除这一行。</summary>

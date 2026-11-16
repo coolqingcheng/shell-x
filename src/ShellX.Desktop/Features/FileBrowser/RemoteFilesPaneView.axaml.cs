@@ -46,12 +46,6 @@ public partial class RemoteFilesPaneView : UserControl
         await vm.NavigateAsync(path);
     }
 
-    /// <summary>右键下载：选本地保存目录后写入。</summary>
-    private async void DownloadClick(object? sender, RoutedEventArgs e)
-    {
-        var vm = ViewModel; if (vm?.Selected is { } node) await vm.DownloadItemAsync(node);
-    }
-
     /// <summary>复制选中项的远程路径。</summary>
     private async void CopyPathClick(object? sender, RoutedEventArgs e)
     {
