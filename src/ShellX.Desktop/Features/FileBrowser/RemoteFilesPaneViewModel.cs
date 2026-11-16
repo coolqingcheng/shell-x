@@ -38,7 +38,14 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     }
 
     /// <summary>当前目录里的条目，一次只显示这一层。</summary>
-    public ObservableCollection<FileTreeNodeViewModel> Entries { get; } = [];
+    /// <remarks>整块替换而不是先清空再逐条添加：清空会让列表塌陷一下，
+    /// 逐条添加又会触发多次布局，用户看到的就是连着闪好几下。</remarks>
+    public ObservableCollection<FileTreeNodeViewModel> Entries
+    {
+        get => entries;
+        set { if (ReferenceEquals(entries, value)) return; entries = value; OnPropertyChanged(); }
+    }
+    private ObservableCollection<FileTreeNodeViewModel> entries = [];
     /// <summary>当前选中的行。</summary>
     public FileTreeNodeViewModel? Selected => primary;
     /// <summary>选中项的路径，右键菜单和状态栏要用。</summary>
@@ -83,7 +90,7 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
         Session = session; LogReader = session?.Logs; LogTarget = target;
         Target = target; Error = ""; IsBusy = false;
         Summary = remote == null ? "尚未连接 SFTP" : "SFTP 已就绪";
-        Entries.Clear(); selected.Clear(); primary = null;
+        Entries = []; selected.Clear(); primary = null;
         history.Clear(); historyIndex = -1;
         CanGoBack = false; CanGoForward = false;
         CurrentPath = "/"; CanGoUp = false;
@@ -91,11 +98,11 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
         OnPropertyChanged(nameof(Selected)); OnPropertyChanged(nameof(SelectedPath));
         ViewLogCommand.NotifyCanExecuteChanged();
         if (remote == null) return;
-        _ = LoadAsync("/", animate: true);
+        _ = LoadAsync("/");
     }
 
     /// <summary>读取一个目录的内容：目录在前，文件按名称排序。</summary>
-    private async Task LoadAsync(string path, bool animate)
+    private async Task LoadAsync(string path)
     {
         var remoteFiles = files; if (remoteFiles == null) return;
         IsBusy = true;
@@ -107,19 +114,15 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
                 .OrderByDescending(e => e.IsDirectory)
                 .ThenBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
-            Entries.Clear();
-            var revealed = new List<FileTreeNodeViewModel>();
-            for (var i = 0; i < entries.Length; i++)
+            // 整块换掉：一次 ItemsSource 变更、一次布局，不闪。
+            var nodes = new List<FileTreeNodeViewModel>(entries.Length);
+            foreach (var entry in entries)
             {
-                var node = new RemoteTreeNodeViewModel(entries[i], remoteFiles, token, this) { Level = 0 };
-                // 进入新目录时逐行淡入，刷新时直接显示，避免闪一下。
-                node.IsRevealing = animate && entries.Length <= 24;
-                node.RevealOrder = i;
-                if (node.IsRevealing) revealed.Add(node);
-                Entries.Add(node);
+                var node = new RemoteTreeNodeViewModel(entry, remoteFiles, token, this) { Level = 0 };
+                // 层级跳转不做逐行淡入：虚拟列表会回收复用行，逐行动画会被重播，看着一直闪。
+                nodes.Add(node);
             }
-            // 动画播完必须清掉标记：行被虚拟列表复用时会重播一次动画，看起来一直在跳。
-            if (revealed.Count > 0) _ = ClearRevealFlagsAsync(revealed);
+            Entries = new ObservableCollection<FileTreeNodeViewModel>(nodes);
             CurrentPath = directory.Path ?? path;
             CanGoUp = CurrentPath.TrimEnd('/').Length > 0;
             PushHistory(CurrentPath);
@@ -139,7 +142,7 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
         if (string.IsNullOrWhiteSpace(path)) return;
         var target = path.Trim();
         if (!target.StartsWith('/')) target = "/" + target;
-        if (target != CurrentPath) await LoadAsync(target, animate: true);
+        if (target != CurrentPath) await LoadAsync(target);
     }
 
     /// <summary>记录访问过的目录：后退、前进都靠它。</summary>
@@ -165,7 +168,7 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     {
         if (!CanGoBack) return;
         historyIndex--;
-        await LoadAsync(history[historyIndex], animate: true);
+        await LoadAsync(history[historyIndex]);
         UpdateHistoryState();
     }
 
@@ -175,7 +178,7 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     {
         if (!CanGoForward) return;
         historyIndex++;
-        await LoadAsync(history[historyIndex], animate: true);
+        await LoadAsync(history[historyIndex]);
         UpdateHistoryState();
     }
 
@@ -189,7 +192,7 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
 
     /// <summary>重新读取当前目录。</summary>
     [RelayCommand]
-    public async Task RefreshAsync() => await LoadAsync(CurrentPath, animate: false);
+    public async Task RefreshAsync() => await LoadAsync(CurrentPath);
 
     // ---------------- 文件树宿主 ----------------
     public bool ShowHiddenFiles => false;
@@ -245,7 +248,14 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     /// <summary>双击：目录进入下一层，文件直接下载。</summary>
     public async Task ActivateAsync(FileTreeNodeViewModel node)
     {
+        // 目录（含指向目录的软链接）进入下一层。
         if (node.IsDirectory) { await NavigateAsync(node.Path); return; }
+        // 软链接不是实际文件，不触发下载：提示怎么找到真正的文件。
+        if (node is RemoteTreeNodeViewModel remote && remote.Entry.IsSymbolicLink)
+        {
+            await dialogs.ShowErrorAsync($"这是符号链接，不能直接下载。\n\n{remote.Entry.FullPath}\n\n请打开它指向的实际文件。");
+            return;
+        }
         await DownloadItemAsync(node);
     }
 
@@ -473,14 +483,6 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     /// <summary>把本地路径拖到面板空白处：上传到当前目录。</summary>
     public async Task UploadDroppedAsync(IReadOnlyList<string> paths) => await UploadPathsAsync(paths, CurrentPath);
 
-    /// <summary>出现动画播完后清掉标记，避免行被复用时反复重播。</summary>
-    private static async Task ClearRevealFlagsAsync(IReadOnlyList<FileTreeNodeViewModel> nodes)
-    {
-        // 错峰最长 224 毫秒，动画 200 毫秒，等动画结束再收标记。
-        await Task.Delay(520);
-        foreach (var node in nodes) node.IsRevealing = false;
-    }
-
     private void Report(long value)
     {
         doneBytes = value;
@@ -499,7 +501,7 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
 
     public void Dispose()
     {
-        Entries.Clear(); selected.Clear(); primary = null; files = null;
+        Entries = []; selected.Clear(); primary = null; files = null;
         Session = null; LogReader = null; OpenTerminalHandler = null;
     }
 }

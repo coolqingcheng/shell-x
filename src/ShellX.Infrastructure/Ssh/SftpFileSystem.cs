@@ -33,7 +33,13 @@ internal sealed class SftpFileSystem(SftpClient client) : IRemoteFileSystem
     {
         var entry = Entry(file);
         if (!file.IsSymbolicLink) return entry;
-        try { return entry with { IsDirectory = client.GetAttributes(file.FullName).IsDirectory }; }
+        // SFTP 的 stat 走 lstat，拿到的是链接自身：指向目录的软链接会被当成文件，
+        // 点进去就变成下载。这里试着打开一次目录，能打开就说明它指向目录。
+        try
+        {
+            foreach (var _ in client.ListDirectory(file.FullName)) break;
+            return entry with { IsDirectory = true };
+        }
         catch (Renci.SshNet.Common.SshException) { return entry; }
     }
 
@@ -47,10 +53,14 @@ internal sealed class SftpFileSystem(SftpClient client) : IRemoteFileSystem
         => ExecuteAsync(() =>
         {
             // 仅解析路径，不修改客户端工作目录，目录树展开不会改变文件面板的相对路径基准。
-            var directory = client.Get(string.IsNullOrWhiteSpace(path) || path == "~" ? _home : path);
-            if (!directory.IsDirectory) throw new IOException("目标不是目录。");
-            return new RemoteDirectory(directory.FullName,
-                client.ListDirectory(directory.FullName).Where(x => x.Name is not "." and not "..").Select(DisplayEntry).ToArray());
+            var requested = string.IsNullOrWhiteSpace(path) || path == "~" ? _home : path;
+            // 直接列目录：SFTP 的 opendir 会跟随符号链接，目录软链接能正常进去。
+            try
+            {
+                return new RemoteDirectory(requested,
+                    client.ListDirectory(requested).Where(x => x.Name is not "." and not "..").Select(DisplayEntry).ToArray());
+            }
+            catch (Renci.SshNet.Common.SshException ex) { throw new IOException("目标不是目录。", ex); }
         }, cancellationToken);
 
     public Task<bool> ExistsAsync(string path, CancellationToken cancellationToken = default)

@@ -29,7 +29,9 @@
     </Border>
     <Border Name="DropArea" Grid.Row="1" Background="{DynamicResource TreeBackground}">
       <Grid>
-        <ScrollViewer Name="TreeList" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+        <!-- 垂直滚动条常驻：自动显示会在条目多少变化时改变列表宽度，整列跟着横移，看着像闪。
+             水平滚动条关掉：它一出现就会挤掉列表高度，内容上下跳。 -->
+        <ScrollViewer Name="TreeList" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Visible">
           <ItemsControl ItemsSource="{Binding Entries}" Margin="4,2">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate>

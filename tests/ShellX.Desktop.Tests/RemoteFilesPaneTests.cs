@@ -98,6 +98,97 @@ public sealed class RemoteFilesPaneTests
     }
 
     [Fact]
+    public async Task NavigatingKeepsTheOldRowsUntilTheNewOnesArrive()
+    {
+        var files = new RecordingRemoteFileSystem(new Dictionary<string, IReadOnlyList<RemoteEntry>>
+        {
+            ["/"] = [Entry("etc", true), Entry("readme.txt", false)],
+            ["/etc"] = [Entry("hosts", false)]
+        });
+        using var pane = new RemoteFilesPaneViewModel(new PaneDialogs(), NullLogger<RemoteFilesPaneViewModel>.Instance, new StubLocalFileSystem());
+        pane.Attach(files, CancellationToken.None, "测试服务器");
+        await WaitForAsync(() => pane.Entries.Count >= 2);
+
+        // 先让根目录加载完，再把下一次读取卡住，模拟进子目录时的网络延迟。
+        var gate = new TaskCompletionSource();
+        files.Gate = gate;
+        var navigation = pane.NavigateAsync("/etc");
+        await WaitForAsync(() => files.IsListing);
+
+        // 目录还没读完时，旧列表要留在原地，不能先塌成空白。
+        Assert.Equal(2, pane.Entries.Count);
+        Assert.True(pane.IsBusy);
+
+        gate.SetResult();
+        await navigation;
+        await WaitForAsync(() => pane.Entries.Count == 1);
+
+        // 新内容一次换好，不是先清空再逐条冒出来。
+        Assert.Equal("hosts", pane.Entries[0].Name);
+    }
+
+    [Fact]
+    public async Task RowsDoNotReplayTheRevealAnimation()
+    {
+        var files = new RecordingRemoteFileSystem(new Dictionary<string, IReadOnlyList<RemoteEntry>>
+        {
+            ["/"] = [Entry("etc", true), Entry("readme.txt", false)],
+            ["/etc"] = [Entry("hosts", false)]
+        });
+        using var pane = new RemoteFilesPaneViewModel(new PaneDialogs(), NullLogger<RemoteFilesPaneViewModel>.Instance, new StubLocalFileSystem());
+        pane.Attach(files, CancellationToken.None, "测试服务器");
+        await WaitForAsync(() => pane.Entries.Count >= 2);
+
+        await pane.NavigateAsync("/etc");
+        await WaitForAsync(() => pane.Entries.Count == 1);
+
+        // 虚拟列表会回收复用行，行上带着出现动画就会被重播，看着一直闪。
+        Assert.All(pane.Entries, node => Assert.False(node.IsRevealing));
+    }
+
+    [Fact]
+    public async Task ASymbolicLinkToAFolderIsEnteredInsteadOfDownloaded()
+    {
+        var files = new RecordingRemoteFileSystem(new Dictionary<string, IReadOnlyList<RemoteEntry>>
+        {
+            ["/"] = [Link("share", true)],
+            ["/share"] = [Entry("notes.txt", false)]
+        });
+        using var pane = new RemoteFilesPaneViewModel(new PaneDialogs(), NullLogger<RemoteFilesPaneViewModel>.Instance, new StubLocalFileSystem());
+        pane.Attach(files, CancellationToken.None, "测试服务器");
+        await WaitForAsync(() => pane.Entries.Count >= 1);
+
+        var link = pane.Entries[0];
+        // 指向目录的软链接要当目录用：能进入下一层，不是下载。
+        Assert.True(link.IsDirectory);
+        await pane.ActivateAsync(link);
+        await WaitForAsync(() => pane.CurrentPath == "/share");
+
+        Assert.Equal("notes.txt", pane.Entries[0].Name);
+        Assert.Null(files.LastDownload);
+    }
+
+    [Fact]
+    public async Task ASymbolicLinkToAFileIsNotDownloaded()
+    {
+        var files = new RecordingRemoteFileSystem(new Dictionary<string, IReadOnlyList<RemoteEntry>>
+        {
+            ["/"] = [Link("readme.txt", false)]
+        });
+        using var pane = new RemoteFilesPaneViewModel(new PaneDialogs(), NullLogger<RemoteFilesPaneViewModel>.Instance, new StubLocalFileSystem());
+        pane.Attach(files, CancellationToken.None, "测试服务器");
+        await WaitForAsync(() => pane.Entries.Count >= 1);
+
+        var link = pane.Entries[0];
+        Assert.False(link.IsDirectory);
+        // 软链接不给行内下载按钮，点了也不会去下载。
+        Assert.False(link.CanDownloadItem);
+        await pane.ActivateAsync(link);
+
+        Assert.Null(files.LastDownload);
+    }
+
+    [Fact]
     public async Task DownloadingARemoteFileAsksForTheLocalFolderFirst()
     {
         var local = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "shellx-pane-" + Guid.NewGuid().ToString("N"))).FullName;
@@ -207,6 +298,10 @@ public sealed class RemoteFilesPaneTests
 
     private static RemoteEntry Entry(string name, bool directory, long size = 0)
         => new(name, "/" + name, directory, false, size, DateTime.UtcNow, 493, 0, 0);
+
+    /// <summary>软链接条目：isDirectory 表示它指向的是不是目录（SFTP 层解析后的结果）。</summary>
+    private static RemoteEntry Link(string name, bool isDirectory)
+        => new(name, "/" + name, isDirectory, true, 0, DateTime.UtcNow, 493, 0, 0);
 
     private static async Task WaitForAsync(Func<bool> condition)
     {
@@ -485,8 +580,17 @@ public sealed class RemoteFilesPaneTests
         public (string Local, string Remote)? LastUpload { get; private set; }
         public (string Remote, string Local)? LastDownload { get; private set; }
 
-        public Task<RemoteDirectory> ListAsync(string path, CancellationToken cancellationToken = default)
-            => Task.FromResult(new RemoteDirectory(path, tree.TryGetValue(path, out var entries) ? entries : []));
+        /// <summary>测试用闸门：卡住目录读取，模拟网络延迟。</summary>
+        public TaskCompletionSource? Gate { get; set; }
+        /// <summary>是否正在读取目录。</summary>
+        public bool IsListing { get; private set; }
+        public async Task<RemoteDirectory> ListAsync(string path, CancellationToken cancellationToken = default)
+        {
+            IsListing = true;
+            if (Gate != null) await Gate.Task;
+            IsListing = false;
+            return new RemoteDirectory(path, tree.TryGetValue(path, out var entries) ? entries : []);
+        }
         public Task CreateAsync(string path, bool directory, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task RenameAsync(string path, string newPath, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task DeleteAsync(string path, CancellationToken cancellationToken = default) => Task.CompletedTask;

@@ -85,7 +85,8 @@ public abstract partial class FileTreeNodeViewModel : ObservableObject
     /// <summary>是否支持上传。</summary>
     public bool CanUpload => Sink.CanUpload;
     /// <summary>行内是否显示下载按钮：只有远程面板会显示，文件管理器那边用工具栏下载。</summary>
-    public bool CanDownloadItem => Sink.ShowRowDownload && !IsDirectory;
+    /// <summary>行内下载按钮：符号链接不提供下载，避免点了才报错。</summary>
+    public bool CanDownloadItem => Sink.ShowRowDownload && !IsDirectory && !IsLink;
 
     partial void OnIsExpandedChanged(bool value)
     {
