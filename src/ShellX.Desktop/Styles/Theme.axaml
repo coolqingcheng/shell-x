@@ -155,7 +155,7 @@
   <Style Selector="TreeViewItem">
     <Setter Property="CornerRadius" Value="{DynamicResource RadiusSmall}" />
   </Style>
-  <!-- 标签栏：终端、文件管理器、文本编辑器统一使用同一套列表样式 -->
+  <!-- 标签栏：终端、文本编辑器统一使用同一套列表样式 -->
   <Style Selector="ListBox.shelltabs">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />

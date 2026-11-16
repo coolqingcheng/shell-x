@@ -223,22 +223,21 @@ public sealed class WorkspaceTests
             var process = selected.Monitor.Processes.Single(p => p.Pid == 123);
             Assert.Equal("0.1%", process.MemoryPercent); Assert.Contains("10 MiB", process.Description);
             var filesWorkspace = window.GetVisualDescendants().OfType<WorkspaceView>().Single(view => ReferenceEquals(view.DataContext, selected));
-            filesWorkspace.FindControl<Button>("OpenFileManagerButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            // 工具栏上的文件夹图标切换右侧的远程文件面板。
+            filesWorkspace.FindControl<Button>("ToggleFilePaneButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await Task.Delay(80);
-            var fileWindow = vm.FileManagerWindow!;
-            Assert.Null(fileWindow.Owner);
-            var browser = fileWindow.GetVisualDescendants().OfType<FileBrowserView>().Single();
+            Assert.True(vm.IsFilePaneCollapsed);
+            Assert.False(window.FindControl<Border>("FilePaneHost")!.IsVisible);
+            filesWorkspace.FindControl<Button>("ToggleFilePaneButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await Task.Delay(80);
+            Assert.False(vm.IsFilePaneCollapsed);
+            var remotePane = window.FindControl<RemoteFilesPaneView>("RemoteFilePane")!;
             foreach (var width in new[] { 1050d, 1380d })
             {
-                fileWindow.Width = width; await Task.Delay(80);
-                var left = browser.FindControl<LocalFileBrowserView>("LocalPane")!;
-                var right = browser.FindControl<RemoteFileBrowserView>("RemotePane")!;
-                Assert.Same(files.Local, left.DataContext); Assert.Same(files, right.DataContext);
-                var leftOrigin = left.TranslatePoint(default, browser)!.Value;
-                var rightOrigin = right.TranslatePoint(default, browser)!.Value;
-                Assert.True(left.Bounds.Width > 300 && right.Bounds.Width > 300);
-                Assert.True(leftOrigin.X + left.Bounds.Width <= rightOrigin.X);
-                Assert.True(rightOrigin.X + right.Bounds.Width <= browser.Bounds.Width + 1);
+                window.Width = width; await Task.Delay(80);
+                Assert.True(remotePane.Bounds.Width > 200);
+                var origin = remotePane.TranslatePoint(default, window)!.Value;
+                Assert.True(origin.X + remotePane.Bounds.Width <= window.Bounds.Width + 1);
             }
             if (Environment.GetEnvironmentVariable("SHELLX_PREVIEW_PATH") is { Length: > 0 } preview)
             {
@@ -247,8 +246,8 @@ public sealed class WorkspaceTests
                 await files.Local.NavigateAsync(localRoot); await files.NavigateAsync("/");
                 await Until(() => selected.Monitor.CpuText.EndsWith('%'));
                 await Task.Delay(60);
-                using var bitmap = new RenderTargetBitmap(new PixelSize((int)fileWindow.ClientSize.Width, (int)fileWindow.ClientSize.Height), new Vector(96, 96));
-                bitmap.Render(fileWindow); bitmap.Save(Path.Combine(Path.GetDirectoryName(preview)!, "dual-pane-layout-preview.png"), PngBitmapEncoderOptions.Default);
+                using var bitmap = new RenderTargetBitmap(new PixelSize((int)window.ClientSize.Width, (int)window.ClientSize.Height), new Vector(96, 96));
+                bitmap.Render(window); bitmap.Save(Path.Combine(Path.GetDirectoryName(preview)!, "dual-pane-layout-preview.png"), PngBitmapEncoderOptions.Default);
                 foreach (var theme in new[] { AppTheme.Light, AppTheme.Dark })
                 {
                     ThemeService.Apply(theme); await Task.Delay(80);
@@ -397,13 +396,12 @@ public sealed class WorkspaceTests
             window.MouseWheel(terminalPoint, new Vector(0, -1), RawInputModifiers.Control);
             Assert.Equal(10, first.FontSize);
             selected.FontSize = 15;
-            workspace.FindControl<Button>("OpenFileManagerButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            workspace.FindControl<Button>("ToggleFilePaneButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await Task.Delay(80);
-            var fileWindow = vm.FileManagerWindow!;
-            Assert.Null(fileWindow.Owner);
-            var localPane = fileWindow.GetVisualDescendants().OfType<LocalFileBrowserView>().Single();
-            fileWindow.MouseWheel(localPane.TranslatePoint(new Point(100, 100), fileWindow)!.Value, new Vector(0, 1), RawInputModifiers.Control);
-            Assert.Equal(15, first.FontSize);
+            Assert.True(vm.IsFilePaneCollapsed);                                 // 图标切换右侧文件面板
+            workspace.FindControl<Button>("ToggleFilePaneButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await Task.Delay(80);
+            Assert.False(vm.IsFilePaneCollapsed);
             Assert.Null(workspace.FindControl<Border>("TunnelPanel"));            // 隧道已拆成独立窗口
             Assert.Equal(Color.Parse("#F48771"), Assert.IsAssignableFrom<ISolidColorBrush>(workspace.FindControl<Button>("TunnelButton")!.Foreground).Color);
             workspace.FindControl<Button>("TunnelButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));

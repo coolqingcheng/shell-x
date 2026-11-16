@@ -179,15 +179,23 @@ public partial class FileTreeNodeView : UserControl
         finally { payload?.Dispose(); _dragging = false; }
     }
 
-    /// <summary>本地节点带上真实文件，拖到系统文件管理器可以直接落地。</summary>
+    /// <summary>拖出去时带上真实文件：本地节点直接给路径，远程条目先导出到本地缓存。</summary>
     private async Task AttachLocalFileAsync(FileDragDrop.Payload payload)
     {
-        if (_node is not LocalTreeNodeViewModel local) return;
         var provider = TopLevel.GetTopLevel(this)?.StorageProvider;
         if (provider == null) return;
+        string? path = _node is LocalTreeNodeViewModel local ? local.Entry.FullPath : null;
+        if (path == null && payload.ExportLocalPath is { } export)
+        {
+            try { path = await export(); }
+            catch (Exception) { path = null; }
+        }
+        if (string.IsNullOrEmpty(path)) return;
         try
         {
-            var item = await provider.TryGetFileFromPathAsync(local.Entry.FullPath);
+            IStorageItem? item = Directory.Exists(path)
+                ? await provider.TryGetFolderFromPathAsync(path)
+                : await provider.TryGetFileFromPathAsync(path);
             if (item != null) payload.Data.Add(DataTransferItem.CreateFile(item));
         }
         catch (Exception) { }

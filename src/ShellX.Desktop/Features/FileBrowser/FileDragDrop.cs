@@ -15,16 +15,23 @@ public static class FileDragDrop
     {
         private readonly string _id = Guid.NewGuid().ToString("N");
         public DataTransfer Data { get; } = new();
-        internal Payload(FileBrowserViewModel owner, string[]? paths, RemoteFileSelection? remote)
+        internal Payload(FileBrowserViewModel? owner, string[]? paths, RemoteFileSelection? remote,
+            Func<Task<string?>>? exportLocalPath = null)
         {
-            ActiveSelections.Add(_id, new(owner, owner.SessionVersion, paths, remote));
+            // 导出型载荷没有宿主进程内选择，拖出去时只用到本地路径。
+            if (owner != null) ActiveSelections.Add(_id, new(owner, owner.SessionVersion, paths, remote));
+            ExportLocalPath = exportLocalPath;
             Data.Add(DataTransferItem.Create(SelectionFormat, _id));
         }
+        /// <summary>导出成本地文件的回调：拖到系统文件管理器前先调用，返回本地路径。</summary>
+        public Func<Task<string?>>? ExportLocalPath { get; }
         public void Dispose() => ActiveSelections.Remove(_id);
     }
 
     public static Payload LocalPayload(FileBrowserViewModel owner, IEnumerable<string> paths) => new(owner, paths.ToArray(), null);
     public static Payload RemotePayload(RemoteFileSelection selection) => new(selection.Owner, null, selection);
+    /// <summary>导出型载荷：拖到系统文件管理器时先把远程内容落到本地。</summary>
+    public static Payload ExportPayload(Func<Task<string?>> export) => new(null, null, null, export);
 
     /// <summary>读取进程内的本地路径载荷（本地树节点拖到远程树上。。</summary>
     public static string[]? ReadLocalPaths(IDataTransfer data) => Read(data)?.LocalPaths;

@@ -169,23 +169,53 @@ public sealed class RemoteFilesPaneTests
     }
 
     [Fact]
-    public async Task ASymbolicLinkToAFileIsNotDownloaded()
+    public async Task ASymbolicLinkToAFileIsDownloadedLikeAFile()
+    {
+        var local = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "shellx-pane-link-" + Guid.NewGuid().ToString("N"))).FullName;
+        try
+        {
+            var files = new RecordingRemoteFileSystem(new Dictionary<string, IReadOnlyList<RemoteEntry>>
+            {
+                ["/"] = [Link("readme.txt", false)]
+            });
+            using var pane = new RemoteFilesPaneViewModel(new PaneDialogs(local), NullLogger<RemoteFilesPaneViewModel>.Instance, new StubLocalFileSystem());
+            pane.Attach(files, CancellationToken.None, "测试服务器");
+            await WaitForAsync(() => pane.Entries.Count >= 1);
+
+            var link = pane.Entries[0];
+            Assert.False(link.IsDirectory);
+            // 软链接指向文件时按普通文件处理：能下载，下载的是链接指向的那个文件。
+            Assert.True(link.CanDownloadItem);
+            await pane.ActivateAsync(link);
+
+            Assert.NotNull(files.LastDownload);
+            Assert.Equal("/readme.txt", files.LastDownload!.Value.Remote);
+        }
+        finally { Directory.Delete(local, true); }
+    }
+
+    [Fact]
+    public async Task DraggingARemoteFileOutExportsItToALocalPath()
     {
         var files = new RecordingRemoteFileSystem(new Dictionary<string, IReadOnlyList<RemoteEntry>>
         {
-            ["/"] = [Link("readme.txt", false)]
+            ["/"] = [Entry("readme.txt", false, size: 5)]
         });
         using var pane = new RemoteFilesPaneViewModel(new PaneDialogs(), NullLogger<RemoteFilesPaneViewModel>.Instance, new StubLocalFileSystem());
         pane.Attach(files, CancellationToken.None, "测试服务器");
         await WaitForAsync(() => pane.Entries.Count >= 1);
 
-        var link = pane.Entries[0];
-        Assert.False(link.IsDirectory);
-        // 软链接不给行内下载按钮，点了也不会去下载。
-        Assert.False(link.CanDownloadItem);
-        await pane.ActivateAsync(link);
+        var file = pane.Entries[0];
+        using var payload = pane.CreateDragPayload(file);
+        Assert.NotNull(payload);
+        Assert.NotNull(payload!.ExportLocalPath);
 
-        Assert.Null(files.LastDownload);
+        // 拖到系统文件管理器前先把远程内容落到本地缓存。
+        var exported = await payload.ExportLocalPath!();
+        Assert.NotNull(exported);
+        Assert.True(File.Exists(exported));
+        Assert.Equal("readme.txt", Path.GetFileName(exported));
+        Assert.Equal("/readme.txt", files.LastDownload!.Value.Remote);
     }
 
     [Fact]

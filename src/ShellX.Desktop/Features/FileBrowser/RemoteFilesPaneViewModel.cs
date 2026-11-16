@@ -250,21 +250,16 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     {
         // 目录（含指向目录的软链接）进入下一层。
         if (node.IsDirectory) { await NavigateAsync(node.Path); return; }
-        // 软链接不是实际文件，不触发下载：提示怎么找到真正的文件。
-        if (node is RemoteTreeNodeViewModel remote && remote.Entry.IsSymbolicLink)
-        {
-            await dialogs.ShowErrorAsync($"这是符号链接，不能直接下载。\n\n{remote.Entry.FullPath}\n\n请打开它指向的实际文件。");
-            return;
-        }
+        // 文件软链接跟普通文件一样对待：读的是链接指向的那个文件。
         await DownloadItemAsync(node);
     }
 
     /// <summary>选中的行对应的远程条目。</summary>
     private RemoteEntry? SelectedEntry => (primary as RemoteTreeNodeViewModel)?.Entry;
-    /// <summary>只有普通文件能编辑文本。</summary>
-    public bool CanEditSelected => SelectedEntry is { IsDirectory: false, IsSymbolicLink: false };
-    /// <summary>只有普通文件能当日志打开，还要求会话提供日志读取器。</summary>
-    public bool CanViewLog => LogReader != null && SelectedEntry is { IsDirectory: false, IsSymbolicLink: false };
+    /// <summary>文件能编辑文本，软链接指向文件时同样可以。</summary>
+    public bool CanEditSelected => SelectedEntry is { IsDirectory: false };
+    /// <summary>文件能当日志打开，还要求会话提供日志读取器。</summary>
+    public bool CanViewLog => LogReader != null && SelectedEntry is { IsDirectory: false };
     /// <summary>有选中项才能下载、改权限、重命名、删除。</summary>
     public bool CanOperateSelected => SelectedEntry != null;
 
@@ -316,7 +311,7 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     private async Task EditTextAsync()
     {
         var entry = SelectedEntry; var remoteFiles = files;
-        if (entry == null || remoteFiles == null || entry.IsDirectory || entry.IsSymbolicLink) return;
+        if (entry == null || remoteFiles == null || entry.IsDirectory) return;
         await RunAsync(async () =>
         {
             TextEditorLimits.ValidateSize(entry.Size);
@@ -381,8 +376,63 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
         });
     }
 
-    /// <summary>这个面板不向外拖拽，只接收本地文件。</summary>
-    public FileDragDrop.Payload? CreateDragPayload(FileTreeNodeViewModel node) => null;
+    /// <summary>往外拖：拖到系统文件管理器时先把远程内容落到本地缓存再交出去。</summary>
+    public FileDragDrop.Payload? CreateDragPayload(FileTreeNodeViewModel node)
+    {
+        if (node is not RemoteTreeNodeViewModel remote) return null;
+        var entry = remote.Entry;
+        return FileDragDrop.ExportPayload(() => ExportLocalAsync(entry));
+    }
+
+    /// <summary>把远程条目下载到本地缓存目录，返回落地后的本地路径。</summary>
+    private async Task<string?> ExportLocalAsync(RemoteEntry entry)
+    {
+        var remoteFiles = files; if (remoteFiles == null) return null;
+        var folder = Path.Combine(DragCacheRoot(), Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(folder);
+            CleanupDragCache();
+            if (entry.IsDirectory)
+            {
+                totalBytes = 0; doneBytes = 0;
+                HasTransfer = true; TransferText = "↓ 导出 " + entry.Name;
+                await new DirectoryDownloader(remoteFiles).DownloadAsync(entry, folder,
+                    _ => Task.FromResult(true), size => totalBytes = size, new Progress<long>(Report), token);
+                return DirectoryDownloader.ChildPath(folder, entry.Name);
+            }
+            var local = DirectoryDownloader.ChildPath(folder, entry.Name);
+            DirectoryDownloader.EnsureFile(local);
+            totalBytes = entry.Size; doneBytes = 0;
+            HasTransfer = true; TransferText = "↓ 导出 " + entry.Name;
+            await remoteFiles.DownloadAsync(entry.FullPath, local, new Progress<long>(Report), token);
+            return local;
+        }
+        catch (Exception ex)
+        {
+            log.LogWarning(ex, "拖拽导出失败");
+            Error = ex.Message;
+            return null;
+        }
+    }
+
+    /// <summary>拖拽缓存目录：放在本地应用数据下，重启后可以整体清掉。</summary>
+    private static string DragCacheRoot() => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ShellX", "drag-cache");
+
+    /// <summary>清理上次拖拽留下的缓存，避免越攒越多。</summary>
+    private static void CleanupDragCache()
+    {
+        var root = DragCacheRoot();
+        if (!Directory.Exists(root)) return;
+        try
+        {
+            foreach (var item in new DirectoryInfo(root).GetDirectories())
+                if (DateTime.UtcNow - item.CreationTimeUtc > TimeSpan.FromHours(2))
+                    item.Delete(true);
+        }
+        catch (Exception) { }
+    }
 
     /// <summary>本地文件拖到目录行：上传到该目录。</summary>
     public async Task DropLocalAsync(FileTreeNodeViewModel node, IReadOnlyList<string> paths)
@@ -409,7 +459,7 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     {
         if (node is not RemoteTreeNodeViewModel remote) return;
         var remoteFiles = files; if (remoteFiles == null) return;
-        if (remote.Entry.IsSymbolicLink) { await dialogs.ShowErrorAsync("暂不下载符号链接，请选择实际文件。"); return; }
+        // 软链接指向文件时下载的是目标文件的内容，指向目录时按目录下载。
         var folder = await dialogs.PickDownloadFolderAsync();
         if (string.IsNullOrEmpty(folder)) return;
         await RunAsync(async () =>
@@ -443,6 +493,8 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     {
         var remoteFiles = files; if (remoteFiles == null || paths.Count == 0) return;
         targetDirectory ??= CurrentPath;
+        // 勾选“保持选择”后，本次批量上传里的后续文件直接覆盖，不再逐个询问。
+        var remember = false;
         foreach (var local in paths)
         {
             try
@@ -466,8 +518,11 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
                     var target = RemotePath.Combine(targetDirectory, info.Name);
                     if (await remoteFiles.ExistsAsync(target, token))
                     {
-                        var answer = await dialogs.ConfirmAsync("覆盖文件", $"远程文件已存在：\n{target}\n\n是否覆盖？", true);
-                        if (!answer) continue;
+                        var outcome = remember
+                            ? new ConfirmOutcome(true, false)
+                            : await dialogs.ConfirmWithRememberAsync("覆盖文件", $"远程文件已存在：\n{target}\n\n是否覆盖？", true);
+                        if (!outcome.Confirmed) continue;
+                        remember = outcome.Remember;
                     }
                     totalBytes = info.Length; doneBytes = 0;
                     TransferText = "↑ 上传 " + info.Name; HasTransfer = true;

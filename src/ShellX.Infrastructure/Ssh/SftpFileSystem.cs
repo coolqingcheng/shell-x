@@ -33,14 +33,24 @@ internal sealed class SftpFileSystem(SftpClient client) : IRemoteFileSystem
     {
         var entry = Entry(file);
         if (!file.IsSymbolicLink) return entry;
-        // SFTP 的 stat 走 lstat，拿到的是链接自身：指向目录的软链接会被当成文件，
-        // 点进去就变成下载。这里试着打开一次目录，能打开就说明它指向目录。
+        // 软链接要按“它指向的东西”显示：指向目录就当目录，指向文件就显示目标的真实大小。
+        // 目录列表里的 lstat 只能看到链接自身，但 GetAttributes 会先把路径解析成真实路径，
+        // 拿回来的是目标的属性，正好用来判断链接指向的是目录还是文件。
+        try
+        {
+            var target = client.GetAttributes(file.FullName);
+            if (target.IsDirectory) return entry with { IsDirectory = true };
+            // 链接断了的时候解析不出目标，这时拿到的仍是链接自身，属性不要覆盖。
+            if (!target.IsSymbolicLink) return entry with { Size = target.Size, ModifiedUtc = target.LastWriteTimeUtc };
+        }
+        catch (Renci.SshNet.Common.SshException) { }
+        // 服务器解析不了链接时退回“试着当目录列一次”：能列出来就是目录。
         try
         {
             foreach (var _ in client.ListDirectory(file.FullName)) break;
             return entry with { IsDirectory = true };
         }
-        catch (Renci.SshNet.Common.SshException) { return entry; }
+        catch (Exception) { return entry; }
     }
 
     private static int Permissions(SftpFileAttributes a) =>

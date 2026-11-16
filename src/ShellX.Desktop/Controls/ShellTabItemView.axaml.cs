@@ -7,7 +7,7 @@ using Avalonia.Media;
 namespace ShellX.Desktop.Controls;
 
 /// <summary>
-/// 统一的页签外观：终端连接、文件管理器、文本编辑器共用这一套控件，
+/// 统一的页签外观：终端连接、文本编辑器共用这一套控件，
 /// 三处的强调线、状态点、标题与关闭按钮因此始终保持一致。
 /// 配色细节由 <see cref="ConnectionAccentBorder"/> 负责，这里只负责结构与状态点。
 /// </summary>

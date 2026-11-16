@@ -8,7 +8,8 @@ public sealed class DirectoryDownloader(IRemoteFileSystem remote)
     public async Task<bool> DownloadAsync(RemoteEntry source, string destination, Func<string, Task<bool>> confirmMerge,
         Action<long> setTotal, IProgress<long> progress, CancellationToken cancellationToken = default)
     {
-        if (!source.IsDirectory || source.IsSymbolicLink) throw new IOException("请选择实际远程目录。");
+        // 软链接指向目录时按目录处理：列目录会跟随链接，下载的是目标目录的内容。
+        if (!source.IsDirectory) throw new IOException("请选择实际远程目录。");
         var root = ChildPath(destination, source.Name);
         EnsureDirectory(root);
         if (Directory.Exists(root) && !await confirmMerge(root)) return false;

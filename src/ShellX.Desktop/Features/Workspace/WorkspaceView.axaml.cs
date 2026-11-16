@@ -1,7 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using ShellX.Desktop.Features.FileBrowser;
 using ShellX.Desktop.Features.Shell;
 using ShellX.Core.Services;
 using ShellX.Desktop.Features.Ports;
@@ -14,7 +13,6 @@ public partial class WorkspaceView : UserControl
 {
     private WorkspaceTabViewModel? _vm;
     private ServiceWindow? _serviceWindow;
-    private Window? _fileWindow;
     private PortUsageWindow? _portsWindow;
     private TunnelWindow? _tunnelWindow;
 
@@ -34,11 +32,10 @@ public partial class WorkspaceView : UserControl
         if (_vm != null) _vm.Disposed += VmDisposed;
     }
 
-    // 标签被关闭时会话已经释放，同步关掉该连接的服务窗口与文件管理器窗口。
+    // 标签被关闭时会话已经释放，同步关掉该连接的服务窗口与端口窗口。
     private void VmDisposed(object? sender, EventArgs e)
     {
         _serviceWindow?.Close();
-        _fileWindow?.Close();
         _portsWindow?.Close();
         _tunnelWindow?.Close();
     }
@@ -100,30 +97,11 @@ public partial class WorkspaceView : UserControl
         if (TopLevel.GetTopLevel(this) is Window owner) _tunnelWindow.Show(owner);
         else _tunnelWindow.Show();
     }
-    private async void OpenFileManager(object? sender, RoutedEventArgs e)
+    /// <summary>工具栏上的文件夹图标：显示 / 隐藏右侧的远程文件面板。</summary>
+    private void ToggleFilePane(object? sender, RoutedEventArgs e)
     {
-        if (_vm is not { Files: var files } vm) return;
-        if (_fileWindow is { IsVisible: true }) { _fileWindow.Activate(); return; }
-        var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel?.DataContext is MainWindowViewModel manager)
-        {
-            await manager.OpenFileManagerAsync(vm, topLevel as Window);
-            return;
-        }
-        if (topLevel is not Window owner) return;
-        var window = new Window
-        {
-            Title = $"文件管理 · {vm.Name} · {vm.Profile.Host}",
-            Width = 1180, Height = 760, MinWidth = 780, MinHeight = 460,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Icon = owner.Icon,
-            Content = new FileBrowserView { DataContext = files }
-        };
-        WindowTitles.ApplyVersion(window);
-        _fileWindow = window;
-        window.Closed += (_, _) => { _vm.Dialogs.UntrackOwnerWindow(window); _fileWindow = null; };
-        _vm.Dialogs.TrackOwnerWindow(window);
-        window.Show(owner);
+        if (TopLevel.GetTopLevel(this)?.DataContext is MainWindowViewModel manager)
+            manager.ToggleFilePaneCommand.Execute(null);
     }
     private async void CopyTerminal(object? sender, RoutedEventArgs e) => await Terminal.CopyAsync();
     private async void PasteTerminal(object? sender, RoutedEventArgs e) => await Terminal.PasteAsync();

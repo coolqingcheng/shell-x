@@ -26,7 +26,7 @@ namespace ShellX.Desktop.Tests;
 public sealed class ShellTabStyleTests
 {
     [AvaloniaFact]
-    public async Task TerminalFileManagerAndEditorTabsShareTheSameTabControl()
+    public async Task TerminalAndEditorTabsShareTheSameTabControl()
     {
         var root = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "shellx-sharedtabs-" + Guid.NewGuid().ToString("N"))).FullName;
         var paths = new AppPaths(root);
@@ -52,18 +52,6 @@ public sealed class ShellTabStyleTests
             Assert.Equal("终端连接", terminal.Title);
             Assert.True(terminal.IsActive);
 
-            // 文件管理器页签用同一个控件，标题带连接名与编号。
-            var fileTab = new FileManagerTabViewModel(tab, 1, dialogs, NullLoggerFactory.Instance, new LocalFileSystem(root), _ => { });
-            vm.FileManagerTabs.Add(fileTab);
-            vm.SelectedFileManagerTab = fileTab;
-            var fileView = new FileManagerWindowView { DataContext = vm };
-            var fileWindow = new Window { Content = fileView, Width = 1200, Height = 700 };
-            fileWindow.Show();
-            await Task.Delay(120);
-            var file = fileView.FindControl<ListBox>("FileTabs")!.GetVisualDescendants().OfType<ShellTabItemView>().Single();
-            Assert.Equal("终端连接 (1)", file.Title);
-            Assert.True(file.IsActive);
-
             // 文本编辑器页签同样是这个控件，文件名作为标题。
             var editor = new DialogService(new TextCodec()) { Owner = owner };
             await editor.EditFileAsync(new("/etc/app.conf", "one", 3, DateTime.UtcNow), (document, _) => Task.FromResult(document));
@@ -74,15 +62,14 @@ public sealed class ShellTabStyleTests
             Assert.Equal("app.conf", editorTab.Title);
             Assert.True(editorTab.IsActive);
 
-            // 三处页签都带强调线与关闭按钮，结构完全一致。
-            foreach (var item in new[] { terminal, file, editorTab })
+            // 两处页签都带强调线与关闭按钮，结构完全一致。
+            foreach (var item in new[] { terminal, editorTab })
             {
                 Assert.Contains(item.GetVisualDescendants().OfType<ConnectionAccentBorder>(), border => border.Appearance == ConnectionAccentAppearance.Tab);
                 Assert.Contains(item.GetVisualDescendants().OfType<ConnectionAccentBorder>(), border => border.Appearance == ConnectionAccentAppearance.Indicator);
                 Assert.Single(item.GetVisualDescendants().OfType<Button>(), button => button.Name == "CloseButton");
             }
 
-            fileWindow.Close();
             editorWindow.Close();
             await Task.Delay(40);
         }

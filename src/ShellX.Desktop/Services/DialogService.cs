@@ -33,7 +33,7 @@ public sealed class DialogService(ITextCodec codec, AppLockService? appLock = nu
     IConnectionTester? connectionTester = null, IHostKeyStore? knownHosts = null, UpdateManager? updates = null) : IDialogService
 {
     public Window Owner { get; set; } = null!;
-    // 候选父窗口：主窗口、连接管理器、文件管理器等非模态窗口都登记在这里，最近激活的窗口优先。
+    // 候选父窗口：主窗口、连接管理器等非模态窗口都登记在这里，最近激活的窗口优先。
     private readonly List<Window> _ownerWindows = [];
 
     /// <summary>
@@ -328,7 +328,7 @@ public sealed class DialogService(ITextCodec codec, AppLockService? appLock = nu
     private ContentControl? _editorContent;
     private readonly ObservableCollection<EditorTabState> _editorTabs = [];
 
-    /// <summary>编辑器标签：外观与终端、文件管理器共用同一套页签控件。</summary>
+    /// <summary>编辑器标签：外观与终端共用同一套页签控件。</summary>
     private sealed class EditorTabState : INotifyPropertyChanged
     {
         private readonly Action _detach;
