@@ -4,6 +4,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using ShellX.Core.Files;
+using ShellX.Core.Logs;
+using ShellX.Core.Sessions;
 using ShellX.Infrastructure.Files;
 using ShellX.Desktop.Services;
 
@@ -41,6 +43,18 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     public FileTreeNodeViewModel? Selected => primary;
     /// <summary>选中项的路径，右键菜单和状态栏要用。</summary>
     public string SelectedPath => primary?.Path ?? "";
+    /// <summary>当前会话：日志窗口断开连接时要用它。</summary>
+    public IRemoteSession? Session { get; private set; }
+    /// <summary>远程日志读取器：只有服务端会话提供时才可用。</summary>
+    public IRemoteLogReader? LogReader { get; private set; }
+    /// <summary>日志窗口标题里显示的连接信息。</summary>
+    public string LogTarget { get; private set; } = "";
+    /// <summary>用户请求查看某个远程日志文件，由界面负责开窗口。</summary>
+    public event Action<string>? LogRequested;
+    /// <summary>“在终端打开”：由外壳新建连接并切到该目录。</summary>
+    public Func<string, Task>? OpenTerminalHandler { get; set; }
+    /// <summary>对话框服务：界面开日志窗口时需要登记父窗口。</summary>
+    public IDialogService Dialogs => dialogs;
 
     [ObservableProperty] private bool _isAvailable;
     [ObservableProperty] private string _error = "";
@@ -63,9 +77,10 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     partial void OnErrorChanged(string value) => OnPropertyChanged(nameof(HasError));
 
     /// <summary>切换连接或重连：重新挂上远程文件系统并回到根目录。</summary>
-    public void Attach(IRemoteFileSystem? remote, CancellationToken sessionToken, string target = "")
+    public void Attach(IRemoteFileSystem? remote, CancellationToken sessionToken, string target = "", IRemoteSession? session = null)
     {
         files = remote; token = sessionToken; IsAvailable = remote != null;
+        Session = session; LogReader = session?.Logs; LogTarget = target;
         Target = target; Error = ""; IsBusy = false;
         Summary = remote == null ? "尚未连接 SFTP" : "SFTP 已就绪";
         Entries.Clear(); selected.Clear(); primary = null;
@@ -74,6 +89,7 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
         CurrentPath = "/"; CanGoUp = false;
         TransferText = ""; HasTransfer = false; TransferPercent = 0;
         OnPropertyChanged(nameof(Selected)); OnPropertyChanged(nameof(SelectedPath));
+        ViewLogCommand.NotifyCanExecuteChanged();
         if (remote == null) return;
         _ = LoadAsync("/", animate: true);
     }
@@ -237,6 +253,8 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     private RemoteEntry? SelectedEntry => (primary as RemoteTreeNodeViewModel)?.Entry;
     /// <summary>只有普通文件能编辑文本。</summary>
     public bool CanEditSelected => SelectedEntry is { IsDirectory: false, IsSymbolicLink: false };
+    /// <summary>只有普通文件能当日志打开，还要求会话提供日志读取器。</summary>
+    public bool CanViewLog => LogReader != null && SelectedEntry is { IsDirectory: false, IsSymbolicLink: false };
     /// <summary>有选中项才能下载、改权限、重命名、删除。</summary>
     public bool CanOperateSelected => SelectedEntry != null;
 
@@ -245,6 +263,9 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     {
         DownloadSelectedCommand.NotifyCanExecuteChanged();
         EditTextCommand.NotifyCanExecuteChanged();
+        ViewLogCommand.NotifyCanExecuteChanged();
+        OpenSelectedCommand.NotifyCanExecuteChanged();
+        OpenInTerminalCommand.NotifyCanExecuteChanged();
         PermissionsCommand.NotifyCanExecuteChanged();
         RenameCommand.NotifyCanExecuteChanged();
         DeleteCommand.NotifyCanExecuteChanged();
@@ -256,6 +277,28 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     {
         if (primary == null) return;
         await DownloadItemAsync(primary);
+    }
+
+    /// <summary>打开：目录进入下一层，文件用编辑器打开。</summary>
+    [RelayCommand(CanExecute = nameof(CanOperateSelected))]
+    private async Task OpenSelectedAsync()
+    {
+        var node = primary; if (node == null) return;
+        if (node.IsDirectory) { await NavigateAsync(node.Path); return; }
+        await EditTextAsync();
+    }
+
+    /// <summary>查看日志：在独立窗口里打开选中的远程日志文件。</summary>
+    [RelayCommand(CanExecute = nameof(CanViewLog))]
+    private void ViewLog() { if (SelectedEntry is { } entry) LogRequested?.Invoke(entry.FullPath); }
+
+    /// <summary>在终端打开：新建一个到同一主机的连接，并切到该目录。</summary>
+    [RelayCommand(CanExecute = nameof(CanOperateSelected))]
+    private async Task OpenInTerminalAsync()
+    {
+        var handler = OpenTerminalHandler; if (handler == null) return;
+        var entry = SelectedEntry; if (entry == null) return;
+        await handler(entry.IsDirectory ? entry.FullPath : RemotePath.Parent(entry.FullPath));
     }
 
     /// <summary>编辑文本：打开编辑器标签，保存后刷新当前目录。</summary>
@@ -457,5 +500,6 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     public void Dispose()
     {
         Entries.Clear(); selected.Clear(); primary = null; files = null;
+        Session = null; LogReader = null; OpenTerminalHandler = null;
     }
 }

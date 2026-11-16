@@ -39,12 +39,15 @@
             </ItemsControl.ItemTemplate>
             <ItemsControl.ContextMenu>
               <ContextMenu>
+                <MenuItem Header="打开" Command="{Binding OpenSelectedCommand}" />
                 <MenuItem Header="下载到本地文件夹…" Command="{Binding DownloadSelectedCommand}" />
                 <MenuItem Header="编辑文本" Command="{Binding EditTextCommand}" />
+                <MenuItem Header="查看日志…" Command="{Binding ViewLogCommand}" />
                 <MenuItem Header="属性与权限" Command="{Binding PermissionsCommand}" />
                 <MenuItem Header="重命名" Command="{Binding RenameCommand}" />
                 <MenuItem Header="删除" Command="{Binding DeleteCommand}" />
                 <Separator />
+                <MenuItem Header="在终端打开" Command="{Binding OpenInTerminalCommand}" />
                 <MenuItem Header="复制路径" Click="CopyPathClick" />
                 <MenuItem Header="刷新" Command="{Binding RefreshCommand}" />
                 <Separator />

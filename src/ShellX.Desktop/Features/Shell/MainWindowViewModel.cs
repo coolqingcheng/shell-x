@@ -104,7 +104,7 @@ public partial class MainWindowViewModel : ObservableObject
     {
         if (_filePaneTab != null) _filePaneTab.SessionChanged -= FilePaneSessionChanged;
         _filePaneTab = tab;
-        if (tab == null) { FilePane.Attach(null, CancellationToken.None, ""); return; }
+        if (tab == null) { FilePane.OpenTerminalHandler = null; FilePane.Attach(null, CancellationToken.None, "", null); return; }
         tab.SessionChanged += FilePaneSessionChanged;
         ApplyFilePaneSession(tab);
     }
@@ -116,7 +116,11 @@ public partial class MainWindowViewModel : ObservableObject
     }
 
     private void ApplyFilePaneSession(WorkspaceTabViewModel tab)
-        => FilePane.Attach(tab.Session?.Files, tab.ConnectionToken, $"{tab.Name} · {tab.Profile.Host}:{tab.Profile.Port}");
+    {
+        // 面板跟着当前标签走：会话提供日志读取器，“在终端打开”按这个标签新建连接。
+        FilePane.OpenTerminalHandler = path => OpenTerminalAtAsync(tab, path);
+        FilePane.Attach(tab.Session?.Files, tab.ConnectionToken, $"{tab.Name} · {tab.Profile.Host}:{tab.Profile.Port}", tab.Session);
+    }
     partial void OnSelectedFileManagerTabChanged(FileManagerTabViewModel? value)
     {
         // 页签外观与终端标签一致，选中状态由这里同步给视图模型。

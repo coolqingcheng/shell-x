@@ -4,6 +4,7 @@ using Avalonia.VisualTree;
 using Microsoft.Extensions.Logging.Abstractions;
 using ShellX.Core.Connections;
 using ShellX.Core.Files;
+using ShellX.Core.Logs;
 using ShellX.Core.Security;
 using ShellX.Core.Sessions;
 using ShellX.Core.Settings;
@@ -327,6 +328,157 @@ public sealed class RemoteFilesPaneTests
         public Task<AppSettings> LoadAsync(CancellationToken cancellationToken = default) => Task.FromResult(Value);
         public Task SaveAsync(AppSettings settings, CancellationToken cancellationToken = default) { Value = settings; return Task.CompletedTask; }
     }
+    [Fact]
+    public async Task ViewingALogFileRaisesTheLogRequest()
+    {
+        var files = new RecordingRemoteFileSystem(new Dictionary<string, IReadOnlyList<RemoteEntry>>
+        {
+            ["/"] = [Entry("app.log", false)]
+        });
+        using var pane = new RemoteFilesPaneViewModel(new PaneDialogs(), NullLogger<RemoteFilesPaneViewModel>.Instance, new StubLocalFileSystem());
+        pane.Attach(files, CancellationToken.None, "测试服务器", new PaneSession(new StubLogReader()));
+        await WaitForAsync(() => pane.Entries.Count >= 1);
+
+        string? requested = null;
+        pane.LogRequested += path => requested = path;
+        pane.Select(pane.Entries[0]);
+
+        Assert.True(pane.CanViewLog);
+        pane.ViewLogCommand.Execute(null);
+        Assert.Equal("/app.log", requested);
+    }
+
+    [Fact]
+    public async Task LogRequestIsDisabledWithoutALogReader()
+    {
+        var files = new RecordingRemoteFileSystem(new Dictionary<string, IReadOnlyList<RemoteEntry>>
+        {
+            ["/"] = [Entry("app.log", false)]
+        });
+        using var pane = new RemoteFilesPaneViewModel(new PaneDialogs(), NullLogger<RemoteFilesPaneViewModel>.Instance, new StubLocalFileSystem());
+        pane.Attach(files, CancellationToken.None, "测试服务器");
+        await WaitForAsync(() => pane.Entries.Count >= 1);
+
+        pane.Select(pane.Entries[0]);
+        Assert.False(pane.CanViewLog);
+    }
+
+    [Fact]
+    public async Task OpeningInTerminalUsesTheSelectedFolder()
+    {
+        var files = new RecordingRemoteFileSystem(new Dictionary<string, IReadOnlyList<RemoteEntry>>
+        {
+            ["/"] = [Entry("etc", true), Entry("readme.txt", false)]
+        });
+        using var pane = new RemoteFilesPaneViewModel(new PaneDialogs(), NullLogger<RemoteFilesPaneViewModel>.Instance, new StubLocalFileSystem());
+        pane.Attach(files, CancellationToken.None, "测试服务器");
+        await WaitForAsync(() => pane.Entries.Count >= 2);
+
+        string? opened = null;
+        pane.OpenTerminalHandler = path => { opened = path; return Task.CompletedTask; };
+
+        // 右键选中目录不会进入下一层，面板还停在当前层。
+        pane.Select(pane.Entries.Single(node => node.Name == "etc"), fromContextMenu: true);
+        await pane.OpenInTerminalCommand.ExecuteAsync(null);
+        Assert.Equal("/etc", opened);
+
+        // 选中文件时打开的是它所在的目录。
+        pane.Select(pane.Entries.Single(node => node.Name == "readme.txt"), fromContextMenu: true);
+        await pane.OpenInTerminalCommand.ExecuteAsync(null);
+        Assert.Equal("/", opened);
+    }
+
+    [AvaloniaFact]
+    public async Task ContextMenuOffersEditLogAndPermissions()
+    {
+        var files = new RecordingRemoteFileSystem(new Dictionary<string, IReadOnlyList<RemoteEntry>>
+        {
+            ["/"] = [Entry("readme.txt", false)]
+        });
+        using var pane = new RemoteFilesPaneViewModel(new PaneDialogs(), NullLogger<RemoteFilesPaneViewModel>.Instance, new StubLocalFileSystem());
+        var view = new RemoteFilesPaneView { DataContext = pane, Width = 320, Height = 480 };
+        var host = new Window { Content = view, Width = 360, Height = 520 };
+        host.Show();
+        try
+        {
+            pane.Attach(files, CancellationToken.None, "测试服务器");
+            await Task.Delay(200);
+
+            var list = view.GetVisualDescendants().OfType<ItemsControl>()
+                .First(control => ReferenceEquals(control.ItemsSource, pane.Entries));
+            var menu = (ContextMenu)list.ContextMenu!;
+            var headers = menu.Items.OfType<MenuItem>().Select(item => item.Header?.ToString()).ToArray();
+
+            // 右键菜单要有打开、编辑、查看日志、改权限这些常用操作。
+            Assert.Contains("打开", headers);
+            Assert.Contains("编辑文本", headers);
+            Assert.Contains("查看日志…", headers);
+            Assert.Contains("属性与权限", headers);
+            Assert.Contains("重命名", headers);
+            Assert.Contains("删除", headers);
+            Assert.Contains("在终端打开", headers);
+            Assert.Contains("复制路径", headers);
+            Assert.Contains("新建文件", headers);
+            Assert.Contains("新建文件夹", headers);
+
+            // 菜单项的命令是开菜单时才绑定的，打开后就能对上。
+            menu.Open(list);
+            await Task.Delay(100);
+            var viewLog = menu.Items.OfType<MenuItem>().Single(item => item.Header?.ToString() == "查看日志…");
+            Assert.Same(pane.ViewLogCommand, viewLog.Command);
+
+            // 没有会话日志能力时，“查看日志”是不可用的。
+            Assert.False(pane.ViewLogCommand.CanExecute(null));
+
+            pane.Attach(files, CancellationToken.None, "测试服务器", new PaneSession(new StubLogReader()));
+            pane.Select(pane.Entries[0], fromContextMenu: true);
+            Assert.True(pane.ViewLogCommand.CanExecute(null));
+
+            // 预览：把打开的右键菜单截下来。
+            if (Environment.GetEnvironmentVariable("SHELLX_PREVIEW_PATH") is { Length: > 0 } preview)
+            {
+                await Task.Delay(150);
+                var popup = menu.GetVisualParent();
+                if (popup is not null)
+                {
+                    var bounds = popup.Bounds;
+                    using var shot = new Avalonia.Media.Imaging.RenderTargetBitmap(
+                        new Avalonia.PixelSize(Math.Max(1, (int)bounds.Width), Math.Max(1, (int)bounds.Height)), new Avalonia.Vector(96, 96));
+                    shot.Render(popup);
+                    shot.Save(Path.Combine(Path.GetDirectoryName(preview)!, "remote-file-pane-menu.png"),
+                        Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default);
+                }
+            }
+            menu.Close();
+        }
+        finally { host.Close(); }
+    }
+
+    /// <summary>会话替身：只提供日志读取器，面板用它判断能否查看日志。</summary>
+    private sealed class PaneSession(IRemoteLogReader? logs) : IRemoteSession
+    {
+        public ITerminalChannel Terminal => throw new NotSupportedException();
+        public IRemoteFileSystem? Files => null;
+        public string? FileError => null;
+        public ITunnelService Tunnels => throw new NotSupportedException();
+        public IRemoteLogReader? Logs => logs;
+        public event EventHandler<string>? Disconnected { add { } remove { } }
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    /// <summary>日志读取器替身：面板只判断能不能查看日志，不真的读。</summary>
+    private sealed class StubLogReader : IRemoteLogReader
+    {
+        public Task<LogFileInfo> StatAsync(string path, CancellationToken cancellationToken = default)
+            => Task.FromResult(new LogFileInfo(path, 0, DateTime.UtcNow));
+        public Task<LogReadResult> TailAsync(string path, int lines, CancellationToken cancellationToken = default)
+            => Task.FromResult(LogReadResult.Empty);
+        public Task<LogReadResult> ReadAsync(string path, long fromLine, CancellationToken cancellationToken = default)
+            => Task.FromResult(LogReadResult.Empty);
+        public Task<LogSearchResult> SearchAsync(string path, LogSearchQuery query, CancellationToken cancellationToken = default)
+            => Task.FromResult(LogSearchResult.Empty);
+    }
+
     /// <summary>远程文件系统替身：记录上传和下载。</summary>
     private sealed class RecordingRemoteFileSystem(IReadOnlyDictionary<string, IReadOnlyList<RemoteEntry>> tree) : IRemoteFileSystem
     {
