@@ -72,6 +72,8 @@ public sealed class SharedMonitorTests
         lease.Monitor.ApplyPreferredNetwork("eth1");
         Assert.Equal("eth1", lease.Monitor.SelectedNetwork?.Name);
         Assert.Equal("eth0", saved);
+        lease.Monitor.ApplyPreferredNetwork(null);
+        Assert.Equal("eth1", lease.Monitor.SelectedNetwork?.Name);
     }
     private sealed class NetworkSource : IServerMonitor
     {

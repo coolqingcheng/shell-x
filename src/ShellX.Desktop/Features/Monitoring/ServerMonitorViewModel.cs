@@ -100,7 +100,8 @@ public partial class ServerMonitorViewModel(string host, IDialogService dialogs,
     /// <summary>应用已保存的网卡选择：重启或设置变更后恢复上次使用的网卡。</summary>
     public void ApplyPreferredNetwork(string? name)
     {
-        PreferredNetwork = name ?? "";
+        // 空值表示没有新记录，保留当前选择，避免设置回写慢一拍时把用户刚选的网卡抹掉。
+        if (!string.IsNullOrEmpty(name)) PreferredNetwork = name;
         if (string.IsNullOrEmpty(PreferredNetwork)) return;
         var preferred = Networks.FirstOrDefault(n => string.Equals(n.Name, PreferredNetwork, StringComparison.OrdinalIgnoreCase));
         if (preferred != null && !ReferenceEquals(preferred, SelectedNetwork)) SetSelectedNetwork(preferred);
