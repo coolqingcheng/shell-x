@@ -6,6 +6,8 @@ public readonly record struct ConnectionEndpoint(string Host, int Port, string U
 {
     public static ConnectionEndpoint From(ConnectionProfile profile)
         => new(profile.Host.Trim().TrimEnd('.').ToLowerInvariant(), profile.Port, profile.Username);
+    /// <summary>端点标识：用于按连接区分地保存监控状态等偏好。</summary>
+    public string Key => $"{Host}:{Port}:{Username}";
 }
 
 public static class ConnectionFolders

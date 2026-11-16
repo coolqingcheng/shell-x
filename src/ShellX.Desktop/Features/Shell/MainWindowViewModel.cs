@@ -526,7 +526,7 @@ public partial class MainWindowViewModel : ObservableObject
     {
         WorkspaceTabViewModel? tab = null;
         tab = new WorkspaceTabViewModel(profile, _sessions, _dialogs, _logs, () => SecretAsync(tab!.Profile), VerifyHostAsync,
-            SaveProfileAsync, CloseTabAsync, _settings, _localFiles, SaveProcessSortAsync, _monitors, OpenTerminalAtAsync);
+            SaveProfileAsync, CloseTabAsync, _settings, _localFiles, SaveProcessSortAsync, _monitors, OpenTerminalAtAsync, SaveMonitorNetworkAsync);
         return tab;
     }
 
@@ -590,6 +590,15 @@ public partial class MainWindowViewModel : ObservableObject
             foreach (var tab in Tabs) tab.Monitor.ApplySort(column, descending);
         }
         catch (Exception ex) { Status = "进程排序保存失败：" + ex.Message; }
+    }
+    /// <summary>保存服务器监控里选中的网卡：按连接端点区分，重启后继续沿用。</summary>
+    private async Task SaveMonitorNetworkAsync(string endpointKey, string interfaceName)
+    {
+        if (string.IsNullOrWhiteSpace(endpointKey) || string.IsNullOrWhiteSpace(interfaceName)) return;
+        if (_settings.MonitorNetworkInterfaces.Find(endpointKey) == interfaceName) return;
+        var settings = _settings with { MonitorNetworkInterfaces = _settings.MonitorNetworkInterfaces.With(endpointKey, interfaceName) };
+        try { await _settingsStore.SaveAsync(settings); _settings = settings; }
+        catch (Exception ex) { Status = "监控网卡保存失败：" + ex.Message; }
     }
     private async Task SaveLayoutAsync(Func<AppSettings, AppSettings> update)
     {

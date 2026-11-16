@@ -53,6 +53,36 @@ public sealed class SharedMonitorTests
         Assert.DoesNotContain("失败", second.Monitor.Status);
     }
 
+    [AvaloniaFact]
+    public async Task MonitorRestoresSavedNetworkAndSavesUserSelection()
+    {
+        string? saved = null;
+        var registry = new SharedMonitorRegistry(null!, NullLoggerFactory.Instance);
+        var profile = new ConnectionProfile { Host = "host", Username = "root" };
+        await using var lease = registry.Acquire(profile, () => true, _ => Task.CompletedTask, null,
+            name => { saved = name; return Task.CompletedTask; }, "eth1");
+        await lease.SetSourceAsync(new NetworkSource());
+        await lease.Monitor.RefreshCommand.ExecuteAsync(null);
+        Assert.Equal("eth1", lease.Monitor.SelectedNetwork?.Name);
+        Assert.Null(saved);
+        lease.Monitor.SelectedNetwork = lease.Monitor.Networks.First(n => n.Name == "eth0");
+        Assert.Equal("eth0", saved);
+        await lease.Monitor.RefreshCommand.ExecuteAsync(null);
+        Assert.Equal("eth0", lease.Monitor.SelectedNetwork?.Name);
+        lease.Monitor.ApplyPreferredNetwork("eth1");
+        Assert.Equal("eth1", lease.Monitor.SelectedNetwork?.Name);
+        Assert.Equal("eth0", saved);
+    }
+    private sealed class NetworkSource : IServerMonitor
+    {
+        public Task<ServerSnapshot> ReadAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new ServerSnapshot(DateTimeOffset.UtcNow, "host", "Linux", "kernel", "127.0.0.1",
+                TimeSpan.FromHours(1), "0", new(100, 50), 1024, 512, 0, 0,
+                [new("lo", 10, 10), new("eth0", 1000, 500), new("eth1", 2000, 600)], [new(1, 10, 256, "sshd")], [], 12));
+        }
+    }
     private sealed class CountingSource(string name) : IServerMonitor
     {
         public int Reads { get; private set; }

@@ -34,6 +34,8 @@ public sealed record AppSettings
     public double RemoteTreeWidth { get; init; } = 150;
     /// <summary>本地目录树宽度。</summary>
     public double LocalTreeWidth { get; init; } = 130;
+    /// <summary>各连接端点上次选中的监控网卡，键为端点标识（host:port:用户）。</summary>
+    public MonitorNetworkMap MonitorNetworkInterfaces { get; init; } = MonitorNetworkMap.Empty;
     public bool McpEnabled { get; init; } = true;
     public string McpAddress { get; init; } = "http://127.0.0.1:8765";
     public string McpToken { get; init; } = "";

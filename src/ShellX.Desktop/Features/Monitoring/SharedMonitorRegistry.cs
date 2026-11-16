@@ -11,12 +11,12 @@ public sealed class SharedMonitorRegistry(IDialogService dialogs, ILoggerFactory
 {
     private readonly Dictionary<ConnectionEndpoint, Group> _groups = [];
     public Lease Acquire(ConnectionProfile profile, Func<bool> selected, Func<string, Task> navigate,
-        Func<ProcessSortColumn, bool, Task>? saveSort)
+        Func<ProcessSortColumn, bool, Task>? saveSort, Func<string, Task>? saveNetwork = null, string? preferredNetwork = null)
     {
         var endpoint = ConnectionEndpoint.From(profile);
         if (!_groups.TryGetValue(endpoint, out var group))
         {
-            group = new(profile.Host, dialogs, logs.CreateLogger<ServerMonitorViewModel>(), saveSort);
+            group = new(profile.Host, dialogs, logs.CreateLogger<ServerMonitorViewModel>(), saveSort, saveNetwork, preferredNetwork);
             _groups.Add(endpoint, group);
         }
         var lease = new Lease(group, selected, navigate, () => _groups.Remove(endpoint));
@@ -56,10 +56,12 @@ public sealed class SharedMonitorRegistry(IDialogService dialogs, ILoggerFactory
         public ServerMonitorViewModel Monitor { get; }
         private readonly SemaphoreSlim _updates = new(1, 1);
         private bool _running;
-        public Group(string host, IDialogService dialogs, ILogger log, Func<ProcessSortColumn, bool, Task>? saveSort)
+        public Group(string host, IDialogService dialogs, ILogger log, Func<ProcessSortColumn, bool, Task>? saveSort,
+            Func<string, Task>? saveNetwork = null, string? preferredNetwork = null)
         {
             Monitor = new(host, dialogs, log, path =>
-                (Leases.FirstOrDefault(lease => lease.Selected()) ?? Leases.FirstOrDefault())?.Navigate(path) ?? Task.CompletedTask, saveSort);
+                (Leases.FirstOrDefault(lease => lease.Selected()) ?? Leases.FirstOrDefault())?.Navigate(path) ?? Task.CompletedTask,
+                saveSort, saveNetwork, preferredNetwork);
         }
         public async Task SetSourceAsync(Lease lease, IServerMonitor? source)
         {

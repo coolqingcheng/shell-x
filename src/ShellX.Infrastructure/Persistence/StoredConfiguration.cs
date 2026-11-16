@@ -27,6 +27,11 @@ internal sealed class StoredSettings
     public ProcessSortColumn ProcessSortColumn { get; set; } = Defaults.ProcessSortColumn;
     public bool ProcessSortDescending { get; set; } = Defaults.ProcessSortDescending;
     public double MonitorPaneWidth { get; set; } = Defaults.MonitorPaneWidth;
+    public bool MonitorPaneCollapsed { get; set; } = Defaults.MonitorPaneCollapsed;
+    public bool FilePaneCollapsed { get; set; } = Defaults.FilePaneCollapsed;
+    public double FilePaneWidth { get; set; } = Defaults.FilePaneWidth;
+    public double LocalTreeWidth { get; set; } = Defaults.LocalTreeWidth;
+    public Dictionary<string, string> MonitorNetworkInterfaces { get; set; } = new();
     public double TerminalPaneStar { get; set; } = Defaults.TerminalPaneStar;
     public double LocalPaneStar { get; set; } = Defaults.LocalPaneStar;
     public double RemoteTreeWidth { get; set; } = Defaults.RemoteTreeWidth;
@@ -43,7 +48,10 @@ internal sealed class StoredSettings
         TerminalFontFamily = TerminalFontFamily, EditorFontFamily = EditorFontFamily, EditorFontSize = EditorFontSize,
         LockPasswordHash = LockPasswordHash, AutoLockEnabled = AutoLockEnabled, AutoLockOnlyWhenSystemLocked = AutoLockOnlyWhenSystemLocked, AutoLockMinutes = AutoLockMinutes,
         HighlightTerminalText = HighlightTerminalText, AutoReconnectEnabled = AutoReconnectEnabled, ReconnectIntervalSeconds = ReconnectIntervalSeconds,
-        ProcessSortColumn = ProcessSortColumn, ProcessSortDescending = ProcessSortDescending, MonitorPaneWidth = MonitorPaneWidth, TerminalPaneStar = TerminalPaneStar, LocalPaneStar = LocalPaneStar, RemoteTreeWidth = RemoteTreeWidth, McpEnabled = McpEnabled, McpAddress = McpAddress, McpToken = McpToken, UpdateRepositoryOwner = UpdateRepositoryOwner, UpdateRepositoryName = UpdateRepositoryName, CheckUpdateOnStartup = CheckUpdateOnStartup, CloseToTray = CloseToTray
+        ProcessSortColumn = ProcessSortColumn, ProcessSortDescending = ProcessSortDescending, MonitorPaneWidth = MonitorPaneWidth,
+        MonitorPaneCollapsed = MonitorPaneCollapsed, FilePaneCollapsed = FilePaneCollapsed, FilePaneWidth = FilePaneWidth, LocalTreeWidth = LocalTreeWidth,
+        MonitorNetworkInterfaces = MonitorNetworkMap.From(MonitorNetworkInterfaces),
+        TerminalPaneStar = TerminalPaneStar, LocalPaneStar = LocalPaneStar, RemoteTreeWidth = RemoteTreeWidth, McpEnabled = McpEnabled, McpAddress = McpAddress, McpToken = McpToken, UpdateRepositoryOwner = UpdateRepositoryOwner, UpdateRepositoryName = UpdateRepositoryName, CheckUpdateOnStartup = CheckUpdateOnStartup, CloseToTray = CloseToTray
     };
     public static StoredSettings From(AppSettings model) => new()
     {
@@ -51,7 +59,10 @@ internal sealed class StoredSettings
         TerminalFontFamily = model.TerminalFontFamily, EditorFontFamily = model.EditorFontFamily, EditorFontSize = model.EditorFontSize,
         LockPasswordHash = model.LockPasswordHash, AutoLockEnabled = model.AutoLockEnabled, AutoLockOnlyWhenSystemLocked = model.AutoLockOnlyWhenSystemLocked, AutoLockMinutes = model.AutoLockMinutes,
         HighlightTerminalText = model.HighlightTerminalText, AutoReconnectEnabled = model.AutoReconnectEnabled, ReconnectIntervalSeconds = model.ReconnectIntervalSeconds,
-        ProcessSortColumn = model.ProcessSortColumn, ProcessSortDescending = model.ProcessSortDescending, MonitorPaneWidth = model.MonitorPaneWidth, TerminalPaneStar = model.TerminalPaneStar, LocalPaneStar = model.LocalPaneStar, RemoteTreeWidth = model.RemoteTreeWidth, McpEnabled = model.McpEnabled, McpAddress = model.McpAddress, McpToken = model.McpToken, UpdateRepositoryOwner = model.UpdateRepositoryOwner, UpdateRepositoryName = model.UpdateRepositoryName, CheckUpdateOnStartup = model.CheckUpdateOnStartup, CloseToTray = model.CloseToTray
+        ProcessSortColumn = model.ProcessSortColumn, ProcessSortDescending = model.ProcessSortDescending, MonitorPaneWidth = model.MonitorPaneWidth,
+        MonitorPaneCollapsed = model.MonitorPaneCollapsed, FilePaneCollapsed = model.FilePaneCollapsed, FilePaneWidth = model.FilePaneWidth, LocalTreeWidth = model.LocalTreeWidth,
+        MonitorNetworkInterfaces = model.MonitorNetworkInterfaces.Items.ToDictionary(item => item.Key, item => item.Value),
+        TerminalPaneStar = model.TerminalPaneStar, LocalPaneStar = model.LocalPaneStar, RemoteTreeWidth = model.RemoteTreeWidth, McpEnabled = model.McpEnabled, McpAddress = model.McpAddress, McpToken = model.McpToken, UpdateRepositoryOwner = model.UpdateRepositoryOwner, UpdateRepositoryName = model.UpdateRepositoryName, CheckUpdateOnStartup = model.CheckUpdateOnStartup, CloseToTray = model.CloseToTray
     };
 }
 

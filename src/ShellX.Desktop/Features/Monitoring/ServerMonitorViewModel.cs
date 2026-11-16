@@ -41,7 +41,7 @@ public partial class NetworkViewModel(string name) : ObservableObject
 }
 
 public partial class ServerMonitorViewModel(string host, IDialogService dialogs, ILogger log, Func<string, Task> navigate,
-    Func<ProcessSortColumn, bool, Task>? saveSort = null) : ObservableObject
+    Func<ProcessSortColumn, bool, Task>? saveSort = null, Func<string, Task>? saveNetwork = null, string? preferredNetwork = null) : ObservableObject
 {
     private IServerMonitor? _source;
     private CancellationTokenSource? _cancel;
@@ -51,6 +51,9 @@ public partial class ServerMonitorViewModel(string host, IDialogService dialogs,
     private ServerSnapshot? _latest;
     private int _generation;
     private string? _lastError;
+    private bool _suppressNetworkSave;
+    /// <summary>上次选中的网卡名，重启后按它恢复。</summary>
+    public string PreferredNetwork { get; private set; } = preferredNetwork ?? "";
     public ProcessSortColumn SortColumn { get; private set; } = ProcessSortColumn.Cpu;
     public bool SortDescending { get; private set; } = true;
     public string CpuHeader => "CPU" + (SortColumn == ProcessSortColumn.Cpu ? SortDescending ? " ↓" : " ↑" : "");
@@ -82,6 +85,40 @@ public partial class ServerMonitorViewModel(string host, IDialogService dialogs,
     public ObservableCollection<DiskRow> Disks { get; } = [];
     public ObservableCollection<NetworkViewModel> Networks { get; } = [];
     [ObservableProperty] private NetworkViewModel? _selectedNetwork;
+    /// <summary>用户切换网卡时保存选择，下次连接继续沿用。</summary>
+    partial void OnSelectedNetworkChanged(NetworkViewModel? value)
+    {
+        if (_suppressNetworkSave || value == null) return;
+        PreferredNetwork = value.Name;
+        if (saveNetwork != null) _ = SaveNetworkAsync(value.Name);
+    }
+    private async Task SaveNetworkAsync(string name)
+    {
+        try { if (saveNetwork != null) await saveNetwork(name); }
+        catch (Exception ex) { log.LogWarning(ex, "监控网卡选择保存失败"); }
+    }
+    /// <summary>应用已保存的网卡选择：重启或设置变更后恢复上次使用的网卡。</summary>
+    public void ApplyPreferredNetwork(string? name)
+    {
+        PreferredNetwork = name ?? "";
+        if (string.IsNullOrEmpty(PreferredNetwork)) return;
+        var preferred = Networks.FirstOrDefault(n => string.Equals(n.Name, PreferredNetwork, StringComparison.OrdinalIgnoreCase));
+        if (preferred != null && !ReferenceEquals(preferred, SelectedNetwork)) SetSelectedNetwork(preferred);
+    }
+    private void SetSelectedNetwork(NetworkViewModel? value)
+    {
+        _suppressNetworkSave = true;
+        try { SelectedNetwork = value; } finally { _suppressNetworkSave = false; }
+    }
+    private NetworkViewModel? SelectNetwork()
+    {
+        if (!string.IsNullOrEmpty(PreferredNetwork))
+        {
+            var preferred = Networks.FirstOrDefault(n => string.Equals(n.Name, PreferredNetwork, StringComparison.OrdinalIgnoreCase));
+            if (preferred != null) return preferred;
+        }
+        return Networks.FirstOrDefault(n => n.Name != "lo") ?? Networks.FirstOrDefault();
+    }
     [ObservableProperty] private string _address = host;
     [ObservableProperty] private string _hostname = "未连接";
     [ObservableProperty] private string _status = "连接后显示服务器状态";
@@ -100,7 +137,7 @@ public partial class ServerMonitorViewModel(string host, IDialogService dialogs,
     public void Start(IServerMonitor? source, CancellationToken token)
     {
         _source = source; _previous = null; _latest = null; _lastError = null; ++_generation;
-        Networks.Clear(); Processes.Clear(); Disks.Clear(); SelectedNetwork = null; ResponseHistory = [];
+        Networks.Clear(); Processes.Clear(); Disks.Clear(); SetSelectedNetwork(null); ResponseHistory = [];
         Cpu = Memory = Swap = 0; CpuText = MemoryText = SwapText = Uptime = Load = Response = "—";
         IsMonitoring = source != null;
         if (source == null) { Status = "当前连接不提供系统监控"; return; }
@@ -164,7 +201,7 @@ public partial class ServerMonitorViewModel(string host, IDialogService dialogs,
             network.Add(rate);
         }
         foreach (var old in Networks.Where(n => data.Networks.All(current => current.Name != n.Name)).ToArray()) Networks.Remove(old);
-        if (SelectedNetwork == null || !Networks.Contains(SelectedNetwork)) SelectedNetwork = Networks.FirstOrDefault(n => n.Name != "lo") ?? Networks.FirstOrDefault();
+        if (SelectedNetwork == null || !Networks.Contains(SelectedNetwork)) SetSelectedNetwork(SelectNetwork());
         SortProcesses();
         Disks.Clear(); foreach (var disk in data.Disks) Disks.Add(new(disk));
         Response = $"{data.ResponseMilliseconds:0} ms";

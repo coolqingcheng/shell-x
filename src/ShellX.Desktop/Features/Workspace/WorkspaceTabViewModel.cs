@@ -33,6 +33,8 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
     private ServerMonitorViewModel? _observedMonitor;
     private ConnectionEndpoint _monitorEndpoint;
     private readonly Func<ProcessSortColumn, bool, Task>? _saveProcessSort;
+    private readonly Func<string, string, Task>? _saveMonitorNetwork;
+    private AppSettings _settings = new();
     private CancellationTokenSource? _connection;
     private CancellationTokenSource? _reconnectCancellation;
     private Task _reconnectTask = Task.CompletedTask;
@@ -95,13 +97,14 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
         ILoggerFactory logs, Func<Task<ConnectionSecret?>> getSecret, Func<HostKeyChallenge, Task<bool>> verify,
         Func<ConnectionProfile, Task> save, Func<WorkspaceTabViewModel, Task> close, AppSettings settings, ILocalFileSystem localFiles,
         Func<ProcessSortColumn, bool, Task>? saveProcessSort = null, SharedMonitorRegistry? monitors = null,
-        Func<WorkspaceTabViewModel, string, Task>? openTerminal = null)
+        Func<WorkspaceTabViewModel, string, Task>? openTerminal = null, Func<string, string, Task>? saveMonitorNetwork = null)
     {
         Profile = profile; _sessions = new SessionManager(factory); _dialogs = dialogs; _getSecret = getSecret; _verify = verify; _save = save; _close = close;
         _log = logs.CreateLogger<WorkspaceTabViewModel>(); Files = new(dialogs, logs.CreateLogger<FileBrowserViewModel>(), localFiles);
         // 文件树里“在终端打开”交给外壳处理：它要新建连接，标签自己做不到。
         Files.OpenTerminalHandler = path => openTerminal == null ? Task.CompletedTask : openTerminal(this, path);
         _monitors = monitors ?? new SharedMonitorRegistry(dialogs, logs); _saveProcessSort = saveProcessSort;
+        _saveMonitorNetwork = saveMonitorNetwork; _settings = settings;
         _monitorEndpoint = ConnectionEndpoint.From(profile);
         _monitorLease = AcquireMonitor();
         ObserveMonitor();
@@ -123,8 +126,14 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
         ApplySettings(settings); RebuildTunnels();
         EnsureTunnelRetryLoop();
     }
-    private SharedMonitorRegistry.Lease AcquireMonitor() => _monitors.Acquire(Profile, () => IsSelected,
-        async path => await Files.NavigateAsync(path), _saveProcessSort);
+    private SharedMonitorRegistry.Lease AcquireMonitor()
+    {
+        // 网卡选择按连接端点保存：同一台机器的多个标签共用同一份状态，重启后继续沿用。
+        var endpoint = ConnectionEndpoint.From(Profile);
+        return _monitors.Acquire(Profile, () => IsSelected, async path => await Files.NavigateAsync(path), _saveProcessSort,
+            name => _saveMonitorNetwork?.Invoke(endpoint.Key, name) ?? Task.CompletedTask,
+            _settings.MonitorNetworkInterfaces.Find(endpoint.Key));
+    }
     /// <summary>监控面板与工作区共享同一个采样器，这里跟随它更新连接延迟显示。</summary>
     private void ObserveMonitor()
     {
@@ -155,9 +164,11 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
     public void UpdateProfile(ConnectionProfile profile) { Profile = profile; Commands.Load(profile.QuickCommands); RebuildTunnels(); OnPropertyChanged(nameof(Name)); OnPropertyChanged(nameof(Address)); OnPropertyChanged(nameof(AccentColor)); }
     public void ApplySettings(AppSettings settings)
     {
+        _settings = settings;
         FontSize = settings.TerminalFontSize; FontFamily = settings.TerminalFontFamily; Files.ShowHidden = settings.ShowHiddenFiles;
         Files.Local.ShowHidden = settings.ShowHiddenFiles; HighlightTerminalText = settings.HighlightTerminalText;
         Monitor.ApplySort(settings.ProcessSortColumn, settings.ProcessSortDescending);
+        Monitor.ApplyPreferredNetwork(settings.MonitorNetworkInterfaces.Find(ConnectionEndpoint.From(Profile).Key));
         var changed = _autoReconnectEnabled != settings.AutoReconnectEnabled || _reconnectIntervalSeconds != settings.ReconnectIntervalSeconds;
         _autoReconnectEnabled = settings.AutoReconnectEnabled; _reconnectIntervalSeconds = Math.Clamp(settings.ReconnectIntervalSeconds, 1, 86400);
         if (changed && _reconnectCancellation != null)

@@ -64,6 +64,9 @@ public sealed class PersistenceTests : IDisposable
         Assert.True(old.HighlightTerminalText); Assert.Equal(1, old.Version);
         Assert.True(old.AutoReconnectEnabled); Assert.Equal(5, old.ReconnectIntervalSeconds);
         Assert.Equal(220, old.MonitorPaneWidth); Assert.Equal(1.3, old.TerminalPaneStar);
+        Assert.False(old.MonitorPaneCollapsed); Assert.False(old.FilePaneCollapsed);
+        Assert.Equal(320, old.FilePaneWidth); Assert.Equal(130, old.LocalTreeWidth);
+        Assert.Equal(0, old.MonitorNetworkInterfaces.Count);
         Assert.Equal(1, old.LocalPaneStar); Assert.Equal(150, old.RemoteTreeWidth);
         Assert.True(old.McpEnabled);
         await store.SaveAsync(old with { Theme = AppTheme.Light, ProcessSortColumn = ProcessSortColumn.Memory, ProcessSortDescending = false, AutoReconnectEnabled = false, ReconnectIntervalSeconds = 27, MonitorPaneWidth = 310, TerminalPaneStar = 2.4, LocalPaneStar = 0.8, RemoteTreeWidth = 185, McpEnabled = false });
@@ -75,6 +78,20 @@ public sealed class PersistenceTests : IDisposable
         Assert.Equal(310, restored.MonitorPaneWidth); Assert.Equal(2.4, restored.TerminalPaneStar);
         Assert.Equal(0.8, restored.LocalPaneStar); Assert.Equal(185, restored.RemoteTreeWidth);
         Assert.False(restored.McpEnabled);
+    }
+    [Fact]
+    public async Task PanelStateAndMonitorNetworkSurviveRestart()
+    {
+        var paths = new AppPaths(_root); var store = new JsonSettingsStore(paths);
+        await store.SaveAsync(new AppSettings
+        {
+            MonitorPaneCollapsed = true, FilePaneCollapsed = true, FilePaneWidth = 288, LocalTreeWidth = 144,
+            MonitorNetworkInterfaces = MonitorNetworkMap.From(new Dictionary<string, string> { ["example.com:22:root"] = "eth1" })
+        });
+        var restored = await new JsonSettingsStore(paths).LoadAsync();
+        Assert.True(restored.MonitorPaneCollapsed); Assert.True(restored.FilePaneCollapsed);
+        Assert.Equal(288, restored.FilePaneWidth); Assert.Equal(144, restored.LocalTreeWidth);
+        Assert.Equal("eth1", restored.MonitorNetworkInterfaces.Find("example.com:22:root"));
     }
     [Fact]
     public async Task ConnectionCatalogKeepsEmptyNestedFoldersAcrossLegacyConnectionSaves()
