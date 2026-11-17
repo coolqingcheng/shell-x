@@ -139,7 +139,27 @@ public sealed class TerminalHost : Border
         if (Channel != null)
         {
             _terminal.AttachConnection(new RemotePtyConnection(Channel)); _terminal.Focus();
+            SyncRemoteSize();
         }
+    }
+
+    /// <summary>把本地视口行列数同步给远端 PTY。</summary>
+    /// <remarks>
+    /// 终端库只在视口尺寸发生变化时才把新尺寸推给远端，而控件是先布局、后连接，
+    /// 所以挂载那一刻尺寸不再变化，这次推送不会发生，远端会一直用建连时的 100x30。
+    /// 远端 readline/zsh 按自己的宽度折行并重画命令行，本地却按真实宽度显示，
+    /// 两者一错位，重画就会落到别的行列上：粘贴长命令后整行会错乱（提示符插在命令中间、
+    /// 命令出现两截），补全、历史搜索同样会花。
+    /// </remarks>
+    private void SyncRemoteSize()
+    {
+        var channel = Channel; if (channel == null) return;
+        try
+        {
+            var terminal = _terminal.Terminal;
+            if (terminal.Cols > 0 && terminal.Rows > 0) channel.Resize(terminal.Cols, terminal.Rows);
+        }
+        catch (Exception) { /* 会话刚建立或已断开时忽略：尺寸下次布局变化还会再同步。 */ }
     }
 
     /// <summary>着色由通道负责，控件只把开关和主题同步过去。</summary>
@@ -180,3 +200,5 @@ internal sealed class RemotePtyConnection(ITerminalChannel terminal) : IPtyConne
     public void Resize(int cols, int rows) { try { terminal.Resize(cols, rows); } catch (ObjectDisposedException) { } }
     public void Dispose() { /* 会话由 Workspace 持有，控件不重复释放。 */ }
 }
+
+
