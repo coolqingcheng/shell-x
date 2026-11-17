@@ -13,6 +13,32 @@ public partial class LocalFileBrowserView : UserControl
     {
         InitializeComponent();
         AddHandler(InputElement.KeyDownEvent, SelectAllRows, RoutingStrategies.Tunnel);
+        // 整棵树是一个放置区：落在目录行就下载到那个目录，落在空白处就下载到当前目录。
+        DragDrop.SetAllowDrop(this, true);
+        DragDrop.AddDragEnterHandler(this, TreeDragOver);
+        DragDrop.AddDragOverHandler(this, TreeDragOver);
+        DragDrop.AddDropHandler(this, TreeDrop);
+    }
+
+    /// <summary>拖入悬停：这次拖放能不能接收。</summary>
+    private void TreeDragOver(object? sender, DragEventArgs e)
+    {
+        var accepted = (DataContext as LocalFileBrowserViewModel)?.CanAcceptDrop(e.DataTransfer) == true;
+        e.DragEffects = accepted ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    /// <summary>落在目录行就下载到那个目录，落在空白处就下载到当前目录。</summary>
+    private async void TreeDrop(object? sender, DragEventArgs e)
+    {
+        e.Handled = true;
+        if (DataContext is not LocalFileBrowserViewModel vm) return;
+        if (!vm.CanAcceptDrop(e.DataTransfer)) { e.DragEffects = DragDropEffects.None; return; }
+        e.DragEffects = DragDropEffects.Copy;
+        var node = FileTreeDropTarget.Find(TreeList, e.GetPosition(TreeList));
+        if (node != null && node.CanAcceptDrop(e.DataTransfer)) { await node.HandleDropAsync(e.DataTransfer); return; }
+        if (FileDragDrop.ReadRemoteSelection(e.DataTransfer) is { } remote && vm.Browser != null)
+            await vm.Browser.DownloadEntriesAsync(remote, vm.Path);
     }
 
     private async void ViewLoaded(object? sender, RoutedEventArgs e)

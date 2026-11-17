@@ -9,14 +9,42 @@ namespace ShellX.Desktop.Features.FileBrowser;
 
 public partial class RemoteFileBrowserView : UserControl
 {
+    private FileBrowserViewModel? _files;
+
     [DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, typeof(RemoteEntry))]
     public RemoteFileBrowserView()
     {
         InitializeComponent();
         AddHandler(InputElement.KeyDownEvent, SelectAllRows, RoutingStrategies.Tunnel);
+        // 整棵树是一个放置区：落在目录行就放进那个目录，落在空白处就放进当前目录。
+        DragDrop.SetAllowDrop(this, true);
+        DragDrop.AddDragEnterHandler(this, TreeDragOver);
+        DragDrop.AddDragOverHandler(this, TreeDragOver);
+        DragDrop.AddDropHandler(this, TreeDrop);
         DataContextChanged += (_, _) => AttachFiles();
     }
-    private FileBrowserViewModel? _files;
+
+    /// <summary>拖入悬停：这次拖放能不能接收。</summary>
+    private void TreeDragOver(object? sender, DragEventArgs e)
+    {
+        var accepted = (DataContext as FileBrowserViewModel)?.CanAcceptDrop(e.DataTransfer) == true;
+        e.DragEffects = accepted ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    /// <summary>落在目录行就上传到那个目录，落在空白处就上传到当前目录。</summary>
+    private async void TreeDrop(object? sender, DragEventArgs e)
+    {
+        e.Handled = true;
+        if (DataContext is not FileBrowserViewModel vm) return;
+        if (!vm.CanAcceptDrop(e.DataTransfer)) { e.DragEffects = DragDropEffects.None; return; }
+        e.DragEffects = DragDropEffects.Copy;
+        var node = FileTreeDropTarget.Find(TreeList, e.GetPosition(TreeList));
+        if (node != null && node.CanAcceptDrop(e.DataTransfer)) { await node.HandleDropAsync(e.DataTransfer); return; }
+        var paths = FileDragDrop.ReadLocalPaths(e.DataTransfer) ?? FileDragDrop.ReadFilePaths(e.DataTransfer);
+        if (paths is not { Length: > 0 }) return;
+        await vm.UploadPathsAsync(paths);
+    }
 
     /// <summary>远程文件面板的日志入口：在独立窗口里打开选中的日志文件。</summary>
     private void AttachFiles()

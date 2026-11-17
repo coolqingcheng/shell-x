@@ -32,11 +32,6 @@ public partial class FileTreeNodeView : UserControl
             _pendingReveal = false;
             _ = StartRevealAsync();
         };
-        // 拖放是附加事件，只能在代码里挂；每一行都是独立的放置目标。
-        DragDrop.SetAllowDrop(Row, true);
-        DragDrop.AddDragOverHandler(Row, RowDragOver);
-        DragDrop.AddDragLeaveHandler(Row, RowDragLeave);
-        DragDrop.AddDropHandler(Row, RowDrop);
     }
 
     /// <summary>位移变换：出现动画靠它上滑，属于渲染属性，不触发布局。</summary>
@@ -201,28 +196,4 @@ public partial class FileTreeNodeView : UserControl
         catch (Exception) { }
     }
 
-    private void RowDragOver(object? sender, DragEventArgs e)
-    {
-        if (_node == null) { e.DragEffects = DragDropEffects.None; e.Handled = true; return; }
-        var accepted = _node.CanAcceptDrop(e.DataTransfer) && e.DragEffects.HasFlag(DragDropEffects.Copy);
-        e.DragEffects = accepted ? DragDropEffects.Copy : DragDropEffects.None;
-        e.Handled = true;
-        if (_node.IsDropTarget != accepted) _node.IsDropTarget = accepted;
-    }
-
-    private void RowDragLeave(object? sender, DragEventArgs e)
-    {
-        if (_node != null) _node.IsDropTarget = false;
-    }
-
-    private async void RowDrop(object? sender, DragEventArgs e)
-    {
-        if (_node == null) return;
-        e.Handled = true;
-        _node.IsDropTarget = false;
-        if (!_node.CanAcceptDrop(e.DataTransfer)) { e.DragEffects = DragDropEffects.None; return; }
-        e.DragEffects = DragDropEffects.Copy;
-        try { await _node.HandleDropAsync(e.DataTransfer); }
-        catch (Exception ex) { _node.Sink.ReportError(ex.Message); }
-    }
 }

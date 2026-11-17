@@ -81,5 +81,20 @@
         </Grid>
       </StackPanel>
     </Border>
+
+    <!-- 整块面板就是一个放置区：拖进来时整块高亮，落点不再决定目标目录 -->
+    <Grid Grid.RowSpan="3" IsVisible="{Binding IsDropTarget}" IsHitTestVisible="False">
+      <Border Background="{DynamicResource AccentForeground}" Opacity="0.06" />
+      <Border BorderBrush="{DynamicResource AccentForeground}" BorderThickness="2" CornerRadius="{DynamicResource RadiusSmall}" />
+      <Border VerticalAlignment="Center" HorizontalAlignment="Center"
+              Background="{DynamicResource PanelBackground}" BorderBrush="{DynamicResource AccentForeground}" BorderThickness="1"
+              CornerRadius="{DynamicResource RadiusMedium}" Padding="22,16">
+        <StackPanel Spacing="10" HorizontalAlignment="Center">
+          <controls:StrokeIcon Symbol="upload" Width="30" Height="30" Foreground="{DynamicResource AccentForeground}" />
+          <TextBlock Text="松开鼠标，上传到当前目录" FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Center" />
+          <TextBlock Text="{Binding DropHint}" FontSize="11" Foreground="{DynamicResource MutedForeground}" HorizontalAlignment="Center" />
+        </StackPanel>
+      </Border>
+    </Grid>
   </Grid>
 </UserControl>

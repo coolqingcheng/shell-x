@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Input;
@@ -15,10 +16,13 @@ public partial class RemoteFilesPaneView : UserControl
     public RemoteFilesPaneView()
     {
         InitializeComponent();
-        DragDrop.SetAllowDrop(DropArea, true);
-        DragDrop.AddDragOverHandler(DropArea, DropAreaDragOver);
-        DragDrop.AddDragLeaveHandler(DropArea, DropAreaDragLeave);
-        DragDrop.AddDropHandler(DropArea, DropAreaDrop);
+        // 整块面板就是一个放置区：AllowDrop 往下继承，
+        // 拖到文件行、文件夹行还是空白处都一样，统一上传到当前目录。
+        DragDrop.SetAllowDrop(this, true);
+        DragDrop.AddDragEnterHandler(this, PanelDragOver);
+        DragDrop.AddDragOverHandler(this, PanelDragOver);
+        DragDrop.AddDragLeaveHandler(this, PanelDragLeave);
+        DragDrop.AddDropHandler(this, PanelDrop);
         DataContextChanged += (_, _) => AttachViewModel();
     }
 
@@ -46,24 +50,43 @@ public partial class RemoteFilesPaneView : UserControl
         else window.Show();
     }
 
-    /// <summary>拖到空白处：整个面板高亮成可放置的样子。</summary>
-    private void DropAreaDragOver(object? sender, DragEventArgs e)
+    /// <summary>拖入悬停：整块面板高亮成可放置的样子，落点不再决定目标目录。</summary>
+    private void PanelDragOver(object? sender, DragEventArgs e)
     {
-        var accepted = ViewModel?.CanAcceptDrop(e.DataTransfer) == true;
+        var vm = ViewModel;
+        var accepted = vm?.CanAcceptDrop(e.DataTransfer) == true;
         e.DragEffects = accepted ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
+        if (vm != null && vm.IsDropTarget != accepted) vm.IsDropTarget = accepted;
     }
 
-    private void DropAreaDragLeave(object? sender, DragEventArgs e) => e.Handled = true;
-
-    /// <summary>落在空白处：上传到当前目录。</summary>
-    private async void DropAreaDrop(object? sender, DragEventArgs e)
+    /// <summary>拖出面板：取消高亮。指针还在面板内只是换了个子控件时不取消。</summary>
+    private void PanelDragLeave(object? sender, DragEventArgs e)
     {
         e.Handled = true;
         var vm = ViewModel; if (vm == null) return;
+        if (IsPointerInside(e)) return;
+        vm.IsDropTarget = false;
+    }
+
+    /// <summary>落在面板任意位置：上传到当前目录。</summary>
+    private async void PanelDrop(object? sender, DragEventArgs e)
+    {
+        e.Handled = true;
+        var vm = ViewModel; if (vm == null) return;
+        vm.IsDropTarget = false;
+        if (!vm.CanAcceptDrop(e.DataTransfer)) { e.DragEffects = DragDropEffects.None; return; }
+        e.DragEffects = DragDropEffects.Copy;
         var paths = FileDragDrop.ReadLocalPaths(e.DataTransfer) ?? FileDragDrop.ReadFilePaths(e.DataTransfer);
         if (paths is not { Length: > 0 }) return;
         await vm.UploadDroppedAsync(paths);
+    }
+
+    /// <summary>拖放位置是否还在面板范围内。</summary>
+    private bool IsPointerInside(DragEventArgs e)
+    {
+        var position = e.GetPosition(this);
+        return new Rect(this.Bounds.Size).Contains(position);
     }
 
     /// <summary>面包屑跳转：点哪一段就进入哪一层，也可以直接改成路径。</summary>

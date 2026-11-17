@@ -42,13 +42,8 @@
     <Style Selector="Border.row.current">
       <Setter Property="Background" Value="{DynamicResource SelectionBackground}" />
     </Style>
-    <Style Selector="Border.row.droptarget">
-      <Setter Property="Background" Value="{DynamicResource SelectionBackground}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource AccentForeground}" />
-    </Style>
   </UserControl.Styles>
   <Border Name="Row" Classes="row" Classes.selected="{Binding IsSelected}" Classes.current="{Binding IsCurrent}"
-          Classes.droptarget="{Binding IsDropTarget}"
           PointerPressed="RowPointerPressed" PointerMoved="RowPointerMoved" PointerReleased="RowPointerReleased"
           RightTapped="RowRightTapped">
     <Grid ColumnDefinitions="Auto,20,*,Auto,Auto,Auto" ColumnSpacing="6" Margin="{Binding RowMargin}">

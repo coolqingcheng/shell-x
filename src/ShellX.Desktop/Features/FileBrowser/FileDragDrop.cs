@@ -50,6 +50,10 @@ public static class FileDragDrop
         return paths.Length > 0 ? paths : null;
     }
 
+    /// <summary>是否是从本应用内部拖起来的：载荷里带着本应用的选择令牌。</summary>
+    /// <remarks>系统文件管理器拖进来的文件没有这个令牌；应用内部往外拖时即便挂了真实文件也带着它。</remarks>
+    public static bool IsInternalDrag(IDataTransfer data) => data.Contains(SelectionFormat);
+
     private static Selection? Read(IDataTransfer data)
         => data.TryGetValue(SelectionFormat) is { } id ? ActiveSelections.GetValueOrDefault(id) : null;
 

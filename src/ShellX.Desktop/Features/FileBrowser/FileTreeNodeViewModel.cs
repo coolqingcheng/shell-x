@@ -61,8 +61,6 @@ public abstract partial class FileTreeNodeViewModel : ObservableObject
     [ObservableProperty] private bool _isCurrent;
     /// <summary>是否是当前选中的节点。</summary>
     [ObservableProperty] private bool _isSelected;
-    /// <summary>是否是当前的拖放目标。</summary>
-    [ObservableProperty] private bool _isDropTarget;
     /// <summary>搜索过滤后是否显示。</summary>
     [ObservableProperty] private bool _isVisible = true;
     /// <summary>在树中的层级，0 是根。</summary>

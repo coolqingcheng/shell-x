@@ -79,9 +79,15 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     [ObservableProperty] private double _transferPercent;
     [ObservableProperty] private bool _hasTransfer;
     [ObservableProperty] private bool _isBusy;
+    /// <summary>拖入悬停：整块面板高亮。</summary>
+    [ObservableProperty] private bool _isDropTarget;
 
     public bool HasError => !string.IsNullOrEmpty(Error);
     partial void OnErrorChanged(string value) => OnPropertyChanged(nameof(HasError));
+
+    /// <summary>放置提示：告诉用户这次会放到哪里。</summary>
+    public string DropHint => $"上传到当前目录：{CurrentPath}";
+    partial void OnCurrentPathChanged(string value) => OnPropertyChanged(nameof(DropHint));
 
     /// <summary>切换连接或重连：重新挂上远程文件系统并回到根目录。</summary>
     public void Attach(IRemoteFileSystem? remote, CancellationToken sessionToken, string target = "", IRemoteSession? session = null)
@@ -449,7 +455,12 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     public bool CanAcceptDrop(IDataTransfer data)
     {
         if (!IsAvailable) return false;
+        // 应用内部拖起来的本地路径可以上传。
         if (FileDragDrop.ReadLocalPaths(data) is { Length: > 0 }) return true;
+        // 从本应用往外拖远程文件时载荷里带着选择令牌，
+        // 不能当成“拖进来上传”，否则往外挂文件时面板会自己高亮自己。
+        if (FileDragDrop.IsInternalDrag(data)) return false;
+        // 系统文件管理器拖进来的本地文件。
         if (FileDragDrop.ReadFilePaths(data) is { Length: > 0 }) return true;
         return false;
     }
