@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.VisualTree;
 using Microsoft.Extensions.Logging.Abstractions;
 using ShellX.Core.Connections;
@@ -150,6 +151,30 @@ public sealed class WorkspaceTabTunnelTests
             Assert.NotNull(window.FindControl<CheckBox>("AutoRetryToggle"));   // 失败自动重试开关
         }
         finally { window.Close(); tab.DisposeAsync().GetAwaiter().GetResult(); }
+    }
+
+    [AvaloniaFact]
+    public async Task FlowIconIsGreenOnlyWhileBytesFlow()
+    {
+        var dialogs = new TestDialogs();
+        var tab = await NewTab(Profile(), dialogs);
+        var window = new TunnelWindow(new TunnelWindowViewModel(tab, "隧道测试"));
+        window.Show();
+        try
+        {
+            var tunnel = Assert.Single(tab.Tunnels);
+            var icon = window.GetVisualDescendants().OfType<Controls.StrokeIcon>().First(i => i.Symbol == "flow");
+            // 没有速度时：图标和旁边的文字同色。
+            tunnel.Apply(new TunnelStatus(tunnel.Definition.Id, TunnelState.Connected, true, "ok", DateTimeOffset.Now));
+            await Task.Delay(60);
+            var idle = ((ISolidColorBrush)icon.Foreground!).Color;
+            Assert.Equal(Color.Parse("#9D9D9D"), idle);
+            // 有速度时：图标变绿。
+            tunnel.Apply(new TunnelStatus(tunnel.Definition.Id, TunnelState.Connected, true, "ok", DateTimeOffset.Now, 1024, 1024, 1024, 1024));
+            await Task.Delay(60);
+            Assert.Equal(Color.Parse("#73C991"), ((ISolidColorBrush)icon.Foreground!).Color);
+        }
+        finally { window.Close(); await tab.DisposeAsync(); }
     }
 
     [AvaloniaFact]

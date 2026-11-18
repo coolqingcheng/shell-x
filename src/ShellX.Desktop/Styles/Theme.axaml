@@ -132,8 +132,12 @@
   <Style Selector="DataGridRow:selected /template/ Rectangle#BackgroundRectangle">
     <Setter Property="Fill" Value="{DynamicResource SelectionBackground}" />
   </Style>
-  <Style Selector="Border.flow">
-    <Setter Property="Opacity" Value="0.55" />
+  <!-- 隧道速度图标：有流量时绿色，空闲时跟旁边的文字同色 -->
+  <Style Selector="Border.flow controls|StrokeIcon">
+    <Setter Property="Foreground" Value="{DynamicResource SecondaryForeground}" />
+  </Style>
+  <Style Selector="Border.flow.active controls|StrokeIcon">
+    <Setter Property="Foreground" Value="{DynamicResource SuccessForeground}" />
   </Style>
   <Style Selector="Border.flow.active">
     <Style.Animations>

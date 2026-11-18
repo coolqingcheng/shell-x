@@ -46,13 +46,13 @@
                   <!-- 速度放到状态（TCP 可达）左边：一眼能看到这条规则跑得多快 -->
                   <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                     <Border Classes="flow" Classes.active="{Binding HasTraffic}" Padding="6,2" CornerRadius="{DynamicResource RadiusPill}" Background="{DynamicResource ChartBackground}" ToolTip.Tip="端口转发速度：空闲时显示 0">
-                      <controls:StrokeIcon Symbol="flow" Width="16" Height="16" StrokeThickness="1.4" Foreground="{DynamicResource SuccessForeground}" />
+                      <controls:StrokeIcon Symbol="flow" Width="16" Height="16" StrokeThickness="1.4" />
                     </Border>
-                    <TextBlock Text="{Binding TrafficText}" FontSize="10" FontFamily="Consolas" Foreground="{DynamicResource SecondaryForeground}" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding TrafficText}" FontSize="11" LineHeight="16" FontFamily="Consolas" Foreground="{DynamicResource SecondaryForeground}" VerticalAlignment="Center" />
                   </StackPanel>
                   <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
                     <Ellipse Width="8" Height="8" Fill="{Binding StatusColor}" VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding Status}" Foreground="{Binding StatusColor}" FontSize="11" />
+                    <TextBlock Text="{Binding Status}" Foreground="{Binding StatusColor}" FontSize="11" LineHeight="16" VerticalAlignment="Center" />
                   </StackPanel>
                   <Button Grid.Column="3" Classes="flat icon" Command="{Binding RemoveCommand}" ToolTip.Tip="删除规则" Width="20" Height="20">
                     <controls:StrokeIcon Symbol="close" Width="12" Height="12" />
