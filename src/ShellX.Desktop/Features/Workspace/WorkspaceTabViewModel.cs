@@ -57,6 +57,10 @@ public partial class WorkspaceTabViewModel : ObservableObject, IAsyncDisposable
     /// <summary>标签被关闭（会话已释放）时触发，用于同步关闭该连接的附属窗口。</summary>
     public event EventHandler? Disposed;
     public FileBrowserViewModel Files { get; }
+    /// <summary>远程文件面板在这个标签里最后停留的目录：切回这个标签时接着看。</summary>
+    public string FilePanePath { get; set; } = "/";
+    /// <summary>远程文件面板在这个标签里的滚动位置。</summary>
+    public double FilePaneScroll { get; set; }
     /// <summary>当前会话用的密钥，只在内存里，用于再开一个同主机的连接。</summary>
     public ConnectionSecret? CurrentSecret => _reconnectSecret;
     public SessionTerminalChannel Terminal { get; } = new();

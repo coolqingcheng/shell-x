@@ -58,6 +58,8 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     public string LogTarget { get; private set; } = "";
     /// <summary>用户请求查看某个远程日志文件，由界面负责开窗口。</summary>
     public event Action<string>? LogRequested;
+    /// <summary>目录加载完成：路径变了，外壳要把它记到当前标签上。</summary>
+    public event Action<string>? PathChanged;
     /// <summary>“在终端打开”：由外壳新建连接并切到该目录。</summary>
     public Func<string, Task>? OpenTerminalHandler { get; set; }
     /// <summary>对话框服务：界面开日志窗口时需要登记父窗口。</summary>
@@ -82,6 +84,11 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     /// <summary>拖入悬停：整块面板高亮。</summary>
     [ObservableProperty] private bool _isDropTarget;
 
+    /// <summary>当前列表的滚动位置：切走标签时记下来，切回来时接着用。</summary>
+    public double ScrollOffset { get; set; }
+    /// <summary>要恢复的滚动位置：列表换掉之后由界面用掉；-1 表示没有待恢复的位置。</summary>
+    public double PendingScrollOffset { get; set; } = -1;
+
     public bool HasError => !string.IsNullOrEmpty(Error);
     partial void OnErrorChanged(string value) => OnPropertyChanged(nameof(HasError));
 
@@ -89,28 +96,48 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
     public string DropHint => $"上传到当前目录：{CurrentPath}";
     partial void OnCurrentPathChanged(string value) => OnPropertyChanged(nameof(DropHint));
 
-    /// <summary>切换连接或重连：重新挂上远程文件系统并回到根目录。</summary>
-    public void Attach(IRemoteFileSystem? remote, CancellationToken sessionToken, string target = "", IRemoteSession? session = null)
+    /// <summary>
+    /// 切换连接或重连：重新挂上远程文件系统。
+    /// initialPath / initialScroll 是这个标签上次待的目录和滚动位置，
+    /// 切回这个标签时接着看，别每次都跳回根目录。
+    /// </summary>
+    public void Attach(IRemoteFileSystem? remote, CancellationToken sessionToken, string target = "", IRemoteSession? session = null,
+        string? initialPath = null, double initialScroll = 0)
     {
         files = remote; token = sessionToken; IsAvailable = remote != null;
         Session = session; LogReader = session?.Logs; LogTarget = target;
         Target = target; Error = ""; IsBusy = false;
         Summary = remote == null ? "尚未连接 SFTP" : "SFTP 已就绪";
+        // 要恢复的滚动位置：先记下来，列表换掉时正好被界面取走。
+        // 没有远程文件时没什么可恢复的，别让界面干等。
+        PendingScrollOffset = remote == null ? -1 : Math.Max(0, initialScroll);
+        ScrollOffset = 0;
         Entries = []; selected.Clear(); primary = null;
         history.Clear(); historyIndex = -1;
         CanGoBack = false; CanGoForward = false;
-        CurrentPath = "/"; CanGoUp = false;
+        CanGoUp = false;
         TransferText = ""; HasTransfer = false; TransferPercent = 0;
         OnPropertyChanged(nameof(Selected)); OnPropertyChanged(nameof(SelectedPath));
         ViewLogCommand.NotifyCanExecuteChanged();
-        if (remote == null) return;
-        _ = LoadAsync("/");
+        if (remote == null) { CurrentPath = "/"; return; }
+        var start = string.IsNullOrWhiteSpace(initialPath) ? "/" : initialPath.Trim();
+        if (!start.StartsWith('/')) start = "/" + start;
+        CurrentPath = start;
+        _ = LoadInitialAsync(start);
+    }
+
+    /// <summary>打开上次待的目录：目录没了（被删了）就退回根目录。</summary>
+    private async Task LoadInitialAsync(string path)
+    {
+        if (await LoadAsync(path)) return;
+        Error = "";
+        await LoadAsync("/");
     }
 
     /// <summary>读取一个目录的内容：目录在前，文件按名称排序。</summary>
-    private async Task LoadAsync(string path)
+    private async Task<bool> LoadAsync(string path)
     {
-        var remoteFiles = files; if (remoteFiles == null) return;
+        var remoteFiles = files; if (remoteFiles == null) return false;
         IsBusy = true;
         try
         {
@@ -136,9 +163,11 @@ public sealed partial class RemoteFilesPaneViewModel : ObservableObject, IFileTr
             selected.Clear(); primary = null;
             OnPropertyChanged(nameof(Selected)); OnPropertyChanged(nameof(SelectedPath));
             NotifySelectionCommands();
+            PathChanged?.Invoke(CurrentPath);
+            return true;
         }
-        catch (OperationCanceledException) { }
-        catch (Exception ex) { Error = "目录读取失败：" + ex.Message; }
+        catch (OperationCanceledException) { return false; }
+        catch (Exception ex) { Error = "目录读取失败：" + ex.Message; return false; }
         finally { IsBusy = false; }
     }
 

@@ -74,7 +74,12 @@ public partial class MainWindowViewModel : ObservableObject
 
     public MainWindowViewModel(IConnectionRepository connections, ICredentialStore credentials, IHostKeyStore hosts,
         ISettingsStore settingsStore, IRemoteSessionFactory sessions, IDialogService dialogs, ILoggerFactory logs, ILocalFileSystem localFiles, AppLockService applicationLock, IConfigurationExporter configurationExporter, IConfigurationImporter? configurationImporter = null)
-    { _connections = connections; _credentials = credentials; _hosts = hosts; _settingsStore = settingsStore; _configurationExporter = configurationExporter; _configurationImporter = configurationImporter; _sessions = sessions; _dialogs = dialogs; _logs = logs; _localFiles = localFiles; _applicationLock = applicationLock; _monitors = new(dialogs, logs); FilePane = new(dialogs, logs.CreateLogger<RemoteFilesPaneViewModel>(), localFiles); }
+    {
+        _connections = connections; _credentials = credentials; _hosts = hosts; _settingsStore = settingsStore; _configurationExporter = configurationExporter; _configurationImporter = configurationImporter; _sessions = sessions; _dialogs = dialogs; _logs = logs; _localFiles = localFiles; _applicationLock = applicationLock; _monitors = new(dialogs, logs);
+        FilePane = new(dialogs, logs.CreateLogger<RemoteFilesPaneViewModel>(), localFiles);
+        // 面板换了目录就记到当前标签上：切回这个标签时还是这个目录。
+        FilePane.PathChanged += path => { if (_filePaneTab != null) _filePaneTab.FilePanePath = path; };
+    }
     public async Task InitializeAsync()
     {
         try
@@ -94,7 +99,17 @@ public partial class MainWindowViewModel : ObservableObject
     /// <summary>右侧面板跟着当前标签走：切换标签或重连都重新挂上远程文件系统。</summary>
     private void AttachFilePane(WorkspaceTabViewModel? tab)
     {
-        if (_filePaneTab != null) _filePaneTab.SessionChanged -= FilePaneSessionChanged;
+        if (_filePaneTab != null)
+        {
+            // 切走前先把旧标签的面板状态存下来：目录和滚动位置都按标签各记各的。
+            // 没连上的时候不存，免得把断线前记下的位置覆盖成根目录。
+            if (FilePane.IsAvailable)
+            {
+                _filePaneTab.FilePanePath = FilePane.CurrentPath;
+                _filePaneTab.FilePaneScroll = FilePane.ScrollOffset;
+            }
+            _filePaneTab.SessionChanged -= FilePaneSessionChanged;
+        }
         _filePaneTab = tab;
         if (tab == null) { FilePane.OpenTerminalHandler = null; FilePane.Attach(null, CancellationToken.None, "", null); return; }
         tab.SessionChanged += FilePaneSessionChanged;
@@ -111,7 +126,9 @@ public partial class MainWindowViewModel : ObservableObject
     {
         // 面板跟着当前标签走：会话提供日志读取器，“在终端打开”按这个标签新建连接。
         FilePane.OpenTerminalHandler = path => OpenTerminalAtAsync(tab, path);
-        FilePane.Attach(tab.Session?.Files, tab.ConnectionToken, $"{tab.Name} · {tab.Profile.Host}:{tab.Profile.Port}", tab.Session);
+        // 这个标签上次待的目录和滚动位置：切回来接着看，不跳回根目录。
+        FilePane.Attach(tab.Session?.Files, tab.ConnectionToken, $"{tab.Name} · {tab.Profile.Host}:{tab.Profile.Port}", tab.Session,
+            tab.FilePanePath, tab.FilePaneScroll);
     }
     public IReadOnlyList<string> FolderPaths => ConnectionFolders.Expand(_folders.Concat(_profiles.Select(p => p.Group)));
     private void RefreshGroups()
