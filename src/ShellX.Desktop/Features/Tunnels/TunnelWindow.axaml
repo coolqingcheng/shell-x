@@ -41,13 +41,20 @@
           <DataTemplate x:DataType="vm:TunnelViewModel">
             <Border Classes="card" Margin="10,5" Padding="14,12" Background="{DynamicResource PanelBackground}">
               <StackPanel Spacing="8">
-                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
                   <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding Name}" />
-                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                  <!-- 速度放到状态（TCP 可达）左边：一眼能看到这条规则跑得多快 -->
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" IsVisible="{Binding HasTraffic}">
+                    <Border Classes="flow" Classes.active="{Binding HasTraffic}" Padding="6,2" CornerRadius="{DynamicResource RadiusPill}" Background="{DynamicResource ChartBackground}" ToolTip.Tip="端口转发现有数据经过">
+                      <controls:StrokeIcon Symbol="flow" Width="16" Height="16" StrokeThickness="1.4" Foreground="{DynamicResource SuccessForeground}" />
+                    </Border>
+                    <TextBlock Text="{Binding TrafficText}" FontSize="10" FontFamily="Consolas" Foreground="{DynamicResource SecondaryForeground}" VerticalAlignment="Center" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
                     <Ellipse Width="8" Height="8" Fill="{Binding StatusColor}" VerticalAlignment="Center" />
                     <TextBlock Text="{Binding Status}" Foreground="{Binding StatusColor}" FontSize="11" />
                   </StackPanel>
-                  <Button Grid.Column="2" Classes="flat icon" Command="{Binding RemoveCommand}" ToolTip.Tip="删除规则" Width="20" Height="20">
+                  <Button Grid.Column="3" Classes="flat icon" Command="{Binding RemoveCommand}" ToolTip.Tip="删除规则" Width="20" Height="20">
                     <controls:StrokeIcon Symbol="close" Width="12" Height="12" />
                   </Button>
                 </Grid>
@@ -58,12 +65,6 @@
                   <TextBlock Text="{Binding RetryText}" Foreground="{DynamicResource WarningForeground}" FontSize="11" VerticalAlignment="Center" />
                 </StackPanel>
                 <TextBlock Text="{Binding CheckedText}" Foreground="{DynamicResource MutedForeground}" FontSize="10" />
-                <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding HasTraffic}" VerticalAlignment="Center">
-                  <Border Classes="flow" Classes.active="{Binding HasTraffic}" Padding="6,2" CornerRadius="{DynamicResource RadiusPill}" Background="{DynamicResource ChartBackground}" ToolTip.Tip="端口转发现有数据经过">
-                    <controls:StrokeIcon Symbol="flow" Width="16" Height="16" StrokeThickness="1.4" Foreground="{DynamicResource SuccessForeground}" />
-                  </Border>
-                  <TextBlock Text="{Binding TrafficText}" FontSize="10" FontFamily="Consolas" Foreground="{DynamicResource SecondaryForeground}" VerticalAlignment="Center" />
-                </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="8">
                   <Button Content="{Binding ActionText}" Command="{Binding ToggleCommand}" />
                   <Button Content="检测" Classes="flat" Command="{Binding CheckCommand}" />
