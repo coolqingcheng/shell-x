@@ -15,7 +15,8 @@ public partial class TunnelViewModel(TunnelDefinition definition, Func<TunnelVie
     [ObservableProperty] private string _reason = "";
     [ObservableProperty] private DateTimeOffset? _checkedAt;
     [ObservableProperty] private bool _hasTraffic;
-    [ObservableProperty] private string _trafficText = "";
+    /// <summary>速度文字：一直显示，空闲时就是 0 B/s。</summary>
+    [ObservableProperty] private string _trafficText = "↑ 0 B/s   ↓ 0 B/s";
     [ObservableProperty] private string _retryText = "";
     public string Status => State switch
     {
@@ -48,10 +49,10 @@ public partial class TunnelViewModel(TunnelDefinition definition, Func<TunnelVie
     {
         if (value.TunnelId != definition.Id) return;
         Running = value.IsRunning; State = value.State; Reason = value.Reason; CheckedAt = value.CheckedAt;
-        // 只有上一秒真的有字节经过才显示速度和动画，空闲时保持安静。
-        var active = value.SentRate > 0 || value.ReceivedRate > 0;
-        HasTraffic = active;
-        TrafficText = active ? $"↑ {TunnelSpeed.Format(value.SentRate)}   ↓ {TunnelSpeed.Format(value.ReceivedRate)}" : "";
+        // 速度一直显示：空闲时显示 0 B/s，别让这一行忽隐忽现；
+        // 流动动画只在真的有数据经过时才亮。
+        HasTraffic = value.SentRate > 0 || value.ReceivedRate > 0;
+        TrafficText = $"↑ {TunnelSpeed.Format(value.SentRate)}   ↓ {TunnelSpeed.Format(value.ReceivedRate)}";
     }
     /// <summary>安排下一次自动重试并显示倒计时；传 null 表示不再重试。</summary>
     /// <param name="next">下一次重试时间；为空表示取消。</param>
