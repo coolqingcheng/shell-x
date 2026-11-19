@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Text;
 using System.Threading.Channels;
 using ShellX.Core.Settings;
@@ -11,13 +12,16 @@ public sealed class SessionTerminalChannel : ITerminalChannel, ITerminalHighligh
 {
     // 不能用 SingleReader：终端控件被销毁重建时，旧读线程可能还没退干净，两个读者同时等同一个
     // 通道时单读者优化会让其中一个拿到不完整的数据，ANSI 控制序列会被拆到两边。
-    private readonly Channel<byte[]> _output = Channel.CreateBounded<byte[]>(new BoundedChannelOptions(128)
+    private readonly Channel<TerminalChunk> _output = Channel.CreateBounded<TerminalChunk>(new BoundedChannelOptions(128)
         { SingleReader = false, FullMode = BoundedChannelFullMode.Wait });
 
     // 着色放在通道里做：控制序列不会被拆到两个消费者手里，控件重建时着色状态也不会丢。
     private readonly TerminalHighlighter _highlighter = new();
     private readonly object _pendingGate = new();
-    private ReadOnlyMemory<byte>? _pending;
+    // 还没被读走的字节：记成"哪块缓冲区的哪一段"，切片会分配，所以用下标表示。
+    private byte[]? _pendingArray;
+    private int _pendingOffset;
+    private int _pendingCount;
     private ITerminalChannel? _source;
     private CancellationTokenSource? _readerCancellation;
     private Task _reader = Task.CompletedTask;
@@ -42,7 +46,7 @@ public sealed class SessionTerminalChannel : ITerminalChannel, ITerminalHighligh
             // 上一个读线程可能还没退干净，两个线程共用一个着色器会互相踩状态，先等它收工。
             try { await previous.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false); }
             catch (TimeoutException) { }
-            var buffer = new byte[32 * 1024];
+            var buffer = ArrayPool<byte>.Shared.Rent(32 * 1024);
             var reason = "远程终端已关闭。";
             try
             {
@@ -50,13 +54,18 @@ public sealed class SessionTerminalChannel : ITerminalChannel, ITerminalHighligh
                 while (await stream.ReadAsync(buffer, cancellation.Token) is var count && count > 0)
                 {
                     cancellation.Token.ThrowIfCancellationRequested();
-                    await _output.Writer.WriteAsync(buffer.AsSpan(0, count).ToArray(), cancellation.Token);
+                    // 缓冲区从池子里取，用完由消费者还回去：终端是持续大流量，
+                    // 每次都 new 一块数组只会让堆不断变大。
+                    var chunk = ArrayPool<byte>.Shared.Rent(count);
+                    buffer.AsSpan(0, count).CopyTo(chunk);
+                    await _output.Writer.WriteAsync(new TerminalChunk(chunk, count, true), cancellation.Token);
                 }
             }
             catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
             catch (Exception ex) { reason = ex.Message; }
             finally
             {
+                ArrayPool<byte>.Shared.Return(buffer);
                 if (!cancellation.IsCancellationRequested) Closed?.Invoke(source, reason);
             }
         });
@@ -73,22 +82,73 @@ public sealed class SessionTerminalChannel : ITerminalChannel, ITerminalHighligh
         async Task FinishAsync() { try { await _reader; } finally { cancellation?.Dispose(); } }
     }
 
-    public ValueTask LogAsync(string message, bool error = false, CancellationToken cancellationToken = default)
-        => _output.Writer.WriteAsync(Format(message, error), cancellationToken);
+    public async ValueTask LogAsync(string message, bool error = false, CancellationToken cancellationToken = default)
+    {
+        var chunk = Format(message, error);
+        // 写入失败时数据没有进通道，数组交给 GC 回收即可，绝不能还回池子造成重复归还。
+        await _output.Writer.WriteAsync(chunk, cancellationToken).ConfigureAwait(false);
+    }
 
     /// <summary>写一条本地日志但不等待消费者；终端没有读取方或已关闭时直接丢弃，不拖住调用方。</summary>
     public bool TryLog(string message, bool error = false)
     {
-        try { return _output.Writer.TryWrite(Format(message, error)); }
-        catch (ChannelClosedException) { return false; }
+        var chunk = Format(message, error);
+        bool written;
+        try { written = _output.Writer.TryWrite(chunk); }
+        catch (ChannelClosedException) { written = false; }
+        if (!written) Release(chunk);          // 没写进去的数组可以安全还回池子
+        return written;
     }
 
     // A server error must never inject terminal control sequences into a local log line.
-    private static byte[] Format(string message, bool error)
+    // 整行直接拼进字符缓冲区再转 UTF-8，不经过中间字符串。
+    private static TerminalChunk Format(string message, bool error)
     {
-        var clean = new string(message.Where(c => !char.IsControl(c)).Take(600).ToArray());
-        var color = error ? "31" : "36";
-        return Encoding.UTF8.GetBytes($"\u001b[?47l\u001b[0m\r\n\u001b[{color}m[ShellX {DateTime.Now:HH:mm:ss}] {clean}\u001b[0m\r\n");
+        Span<char> body = stackalloc char[600];
+        var bodyLength = 0;
+        foreach (var c in message)
+        {
+            if (char.IsControl(c)) continue;
+            if (bodyLength == body.Length) break;
+            body[bodyLength++] = c;
+        }
+        var now = DateTime.Now;
+        Span<char> line = stackalloc char[700];
+        var length = 0;
+        Append(line, ref length, "\u001b[?47l\u001b[0m\r\n\u001b[");
+        Append(line, ref length, error ? "31" : "36");
+        Append(line, ref length, "m[ShellX ");
+        WriteTime(now, line[length..]);
+        length += 8;
+        Append(line, ref length, "] ");
+        Append(line, ref length, body[..bodyLength]);
+        Append(line, ref length, "\u001b[0m\r\n");
+        var buffer = ArrayPool<byte>.Shared.Rent(Encoding.UTF8.GetMaxByteCount(length));
+        var count = Encoding.UTF8.GetBytes(line[..length], buffer);
+        return new TerminalChunk(buffer, count, true);
+    }
+
+    /// <summary>往字符缓冲区尾部追加一段内容。</summary>
+    private static void Append(Span<char> line, ref int length, ReadOnlySpan<char> text)
+    {
+        text.CopyTo(line[length..]);
+        length += text.Length;
+    }
+
+    /// <summary>写 HH:mm:ss。</summary>
+    private static void WriteTime(DateTime now, Span<char> target)
+    {
+        WriteTwoDigits(now.Hour, target);
+        target[2] = ':';
+        WriteTwoDigits(now.Minute, target[3..]);
+        target[5] = ':';
+        WriteTwoDigits(now.Second, target[6..]);
+    }
+
+    private static void WriteTwoDigits(int value, Span<char> target)
+    {
+        target[0] = (char)('0' + value / 10);
+        target[1] = (char)('0' + value % 10);
     }
 
     public void Resize(int columns, int rows)
@@ -100,6 +160,10 @@ public sealed class SessionTerminalChannel : ITerminalChannel, ITerminalHighligh
     public async ValueTask DisposeAsync()
     {
         await DetachAsync(); _output.Writer.TryComplete();
+        lock (_pendingGate)
+        {
+            if (_pendingArray is { } array) { ArrayPool<byte>.Shared.Return(array); _pendingArray = null; _pendingCount = 0; _pendingOffset = 0; }
+        }
     }
 
     /// <summary>把通道里已经取出但还没被读走的字节交给下一个读者，取消的读取不会吞掉数据。</summary>
@@ -108,30 +172,48 @@ public sealed class SessionTerminalChannel : ITerminalChannel, ITerminalHighligh
         lock (_pendingGate)
         {
             count = 0;
-            if (_pending is not { Length: > 0 } pending) return false;
-            var take = Math.Min(buffer.Length, pending.Length);
-            pending[..take].CopyTo(buffer);
-            _pending = take == pending.Length ? null : pending[take..];
+            if (_pendingArray is not { } array || _pendingCount <= 0) return false;
+            var take = Math.Min(buffer.Length, _pendingCount);
+            array.AsSpan(_pendingOffset, take).CopyTo(buffer.Span);
+            _pendingOffset += take; _pendingCount -= take;
             count = take;
+            if (_pendingCount == 0)
+            {
+                _pendingArray = null; _pendingOffset = 0;
+                Release(new TerminalChunk(array, take, true));   // 读完了，缓冲区还回池子
+            }
             return true;
         }
     }
 
-    private void SetPending(byte[] chunk)
+    private void SetPending(TerminalChunk chunk)
     {
         lock (_pendingGate)
         {
-            if (_pending is { Length: > 0 } existing)
+            if (_pendingArray is { } existing && _pendingCount > 0)
             {
-                var merged = new byte[existing.Length + chunk.Length];
-                existing.Span.CopyTo(merged.AsSpan(0, existing.Length));
-                chunk.CopyTo(merged.AsSpan(existing.Length));
-                _pending = merged;
+                // 正常读法下残留一定先被读走，走不到这里；真发生了就合并两块并把旧块还回池子。
+                var needed = _pendingCount + chunk.Length;
+                var merged = ArrayPool<byte>.Shared.Rent(needed);
+                existing.AsSpan(_pendingOffset, _pendingCount).CopyTo(merged);
+                chunk.Buffer.AsSpan(0, chunk.Length).CopyTo(merged.AsSpan(_pendingCount));
+                Release(new TerminalChunk(existing, existing.Length, true));
+                Release(chunk);
+                _pendingArray = merged; _pendingOffset = 0; _pendingCount = needed;
                 return;
             }
-            _pending = chunk;
+            _pendingArray = chunk.Buffer; _pendingOffset = 0; _pendingCount = chunk.Length;
         }
     }
+
+    /// <summary>把池子里的缓冲区还回去；不是池子来的数组直接丢掉。</summary>
+    private static void Release(TerminalChunk chunk)
+    {
+        if (chunk.Pooled && chunk.Buffer.Length > 0) ArrayPool<byte>.Shared.Return(chunk.Buffer);
+    }
+
+    /// <summary>通道里的一段字节；来自池子的缓冲区读完后要还回去。</summary>
+    private readonly record struct TerminalChunk(byte[] Buffer, int Length, bool Pooled);
 
     private sealed class DuplexStream(SessionTerminalChannel owner) : Stream
     {

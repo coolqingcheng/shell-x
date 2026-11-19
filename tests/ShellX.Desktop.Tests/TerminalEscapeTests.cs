@@ -53,12 +53,24 @@ public sealed class TerminalEscapeTests
         Assert.NotNull(view);
         window.Focus();
         view!.Focus();
-        await Task.Delay(80);
+        // 机器忙的时候固定等待会不够，改成等条件成立，避免偶发失败。
+        Assert.True(await WaitUntil(() => view.IsFocused), "终端没有拿到焦点。");
 
         view.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape, KeyModifiers = KeyModifiers.None });
-        await Task.Delay(150);
+        Assert.True(await WaitUntil(() => channel.Written.Length > 0), "Esc 没有写进通道。");
         Assert.StartsWith("\u001b[27;0;27;", channel.Written);
         Assert.EndsWith("_", channel.Written);
+    }
+
+    private static async Task<bool> WaitUntil(Func<bool> condition, int timeoutMilliseconds = 5000)
+    {
+        var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMilliseconds);
+        while (DateTime.UtcNow < deadline)
+        {
+            if (condition()) return true;
+            await Task.Delay(25);
+        }
+        return condition();
     }
 
     private sealed class ProbeChannel : ITerminalChannel

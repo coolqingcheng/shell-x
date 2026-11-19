@@ -328,6 +328,8 @@ Desktop 的 ConnectionAccentChoice 提供柔和预设和自定义输入；Connec
 自动重连配置 AutoReconnectEnabled / ReconnectIntervalSeconds 由 Core 定义、StoredSettings 源生成 DTO 持久化，旧配置默认开启、间隔 5 秒。Desktop 的标签拥有唯一的可取消重试循环，只有成功连接后的意外断线启动；复用当前会话的凭据，每次失败后按配置等待，手动断开、关闭和关闭开关取消等待及正在建立的连接。主机指纹仍走原验证，身份拒绝后停止自动重试。首次连接失败仍由用户决定是否重试。
 
 SessionTerminalChannel 是 Desktop 的终端适配层，把 SSH 输出和本地带时间的连接日志合并到有容量限制的队列；终端控件始终连接此稳定通道，SSH 源可替换，因此重连不会替换终端缓冲区。源读取结束也报告断线；关闭源先取消读取，再释放 SSH，最后等待读取结束，避免旧源与新源混写。终端输入仅转发给当前源，日志仅进入本地显示通道，不作为命令发送。断线后取消文件传输，成功重连重新接入 SFTP、共享监控和隧道生命周期；已经终止的远程 Shell 进程不会恢复。
+
+终端与监控的热路径改成零分配实现。语义着色不再用正则（发布版是 Native AOT，正则只能解释执行），改为 `TerminalHighlighter` 的手写扫描器，直接产出 UTF-8 字节并长期复用缓冲区；`HighlightedTerminalStream` 借用着色器的字节缓冲区，省掉每屏一次整块 memcpy；`SessionTerminalChannel` 的队列元素和读缓冲改用 `ArrayPool<byte>` 对象池，读完即归还，不再每块数据 new 一个数组。远端监控采样解析 `LinuxMonitorParser` 改为单趟 Span 扫描，字段直接在原始文本上切分，不再逐行拆成字符串数组。行为一致性由 `TerminalHighlighterParityTests`（与改动前的正则实现逐字节比对）和 `MonitoringParserParityTests`（与改动前的解析实现逐字段比对）锁定。实测的 CPU 与内存占用见 `docs/performance.md`，可用 `scripts/measure-performance.ps1` 复现。
 ## 11. 安装包与自动更新
 
 安装包由 Inno Setup 6 描述（`scripts/installer/ShellX.iss`），只打包 AOT 单文件产物，安装到当前用户的 `%LOCALAPPDATA%/Programs/ShellX`，免管理员，含开始菜单、可选桌面快捷方式和卸载项。版本号的唯一来源是仓库根目录的 `VERSION` 文件（发布时由 `scripts/release.ps1` 自动递增），`Directory.Build.props` 通过 `ShellXVersionFile`/`ShellXVersion` 读取它并写入 `Version`/`AssemblyVersion`/`FileVersion`；`scripts/build-installer.ps1` 优先读取同一文件，`scripts/publish.ps1` 以 `-p:ShellXVersion=` 覆盖，保证 EXE、安装包与发布标签三者版本一致。版本号不再硬编码，因此产物版本会随 `VERSION` 文件变化。

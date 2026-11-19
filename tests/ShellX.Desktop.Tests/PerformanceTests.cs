@@ -27,6 +27,7 @@ namespace ShellX.Desktop.Tests;
 /// 性能测试：量化监控刷新的分配/耗时，以及标签关闭后资源是否真的释放。
 /// 这些用例只做测量，不修改产品行为；阈值放宽到"明显退化"才失败，避免抖动误报。
 /// </summary>
+[Collection("Performance")]
 public sealed class PerformanceTests(ITestOutputHelper output)
 {
     [Fact]
@@ -105,6 +106,9 @@ public sealed class PerformanceTests(ITestOutputHelper output)
         var registry = new SharedMonitorRegistry(new TestDialogs(), NullLoggerFactory.Instance);
         await WarmUp(registry);
         var before = GC.GetTotalMemory(true);
+        var gen0 = GC.CollectionCount(0); var gen1 = GC.CollectionCount(1); var gen2 = GC.CollectionCount(2);
+        var allocatedBefore = GC.GetTotalAllocatedBytes(precise: true);
+        var watch = Stopwatch.StartNew();
         const int cycles = 25;
         for (var i = 0; i < cycles; i++)
         {
@@ -112,6 +116,8 @@ public sealed class PerformanceTests(ITestOutputHelper output)
             await tab.ConnectWithSecretAsync(new ConnectionSecret("secret"));
             await tab.DisposeAsync();
         }
+        watch.Stop();
+        var allocated = GC.GetTotalAllocatedBytes(precise: true) - allocatedBefore;
         await DrainDispatcher();
         GC.Collect();
         GC.WaitForPendingFinalizers();
@@ -119,6 +125,7 @@ public sealed class PerformanceTests(ITestOutputHelper output)
         var after = GC.GetTotalMemory(true);
         var growth = after - before;
         output.WriteLine($"{cycles} 次连接/关闭：托管内存 {before / 1024 / 1024:0.0} MB → {after / 1024 / 1024:0.0} MB（增长 {growth / 1024 / 1024:0.0} MB）");
+        output.WriteLine($"PERF|连接/关闭 {cycles} 次|{cycles} 个标签|{watch.Elapsed.TotalMilliseconds:0} ms|GC0 {GC.CollectionCount(0) - gen0} / GC1 {GC.CollectionCount(1) - gen1} / GC2 {GC.CollectionCount(2) - gen2}|托管内存增长 {growth / 1024 / 1024:0.0} MB，过程分配 {allocated / 1024 / 1024:0.0} MB");
         Assert.True(growth < 24 * 1024 * 1024, $"{cycles} 次连接/关闭后内存增长 {growth / 1024 / 1024:0.0} MB，疑似泄漏。");
     }
 

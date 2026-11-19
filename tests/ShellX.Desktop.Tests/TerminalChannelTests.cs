@@ -75,6 +75,20 @@ public sealed class TerminalChannelTests
     }
 
     [Fact]
+    public async Task LocalLogKeepsTheSameFormat()
+    {
+        // 本地日志带时间戳和颜色，控制字符必须被去掉，不能污染终端。
+        var channel = new SessionTerminalChannel();
+        await channel.LogAsync("连接成功\u001b[31m", cancellationToken: TestContext.Current.CancellationToken);
+        var buffer = new byte[256];
+        var read = await channel.Stream.ReadAsync(buffer, TestContext.Current.CancellationToken);
+        var text = Encoding.UTF8.GetString(buffer, 0, read);
+        // 控制字符被去掉，其余原样保留；时间戳和颜色都不能错位。
+        Assert.Matches(@"^\u001b\[\?47l\u001b\[0m\r\n\u001b\[36m\[ShellX \d{2}:\d{2}:\d{2}\] 连接成功\[31m\u001b\[0m\r\n$", text);
+        await channel.DisposeAsync();
+    }
+
+    [Fact]
     public void RemoteConnectionDeclaresCancellableReads()
     {
         // 不可取消的读线程会在控件销毁后继续挂着，和新控件抢同一个通道，把字节流撕成两半。

@@ -42,7 +42,10 @@ public sealed class TerminalHighlighter
     }
 
     /// <summary>直接产出 UTF-8 字节：终端流不必再经过中间字符串。</summary>
-    /// <remarks>返回的缓冲区由高亮器持有，下次变换时会被覆盖，调用方要立刻取走。</remarks>
+    /// <remarks>
+    /// 返回的缓冲区由高亮器持有，下次变换时会被覆盖。调用方必须在下一次变换之前把内容取走，
+    /// 中途不复制是可以的——终端流正是靠这一点省掉一次整块 memcpy。
+    /// </remarks>
     internal (byte[] Buffer, int Length) TransformToUtf8(ReadOnlySpan<char> input)
     {
         lock (_gate)
@@ -279,9 +282,38 @@ public sealed class TerminalHighlighter
         var end = text.IndexOf(':');
         if (end < 0) end = text.Length;
         if (end > 15) return false;
+        // 标准的点分十进制直接判断，不创建 IPAddress 对象：终端里 IP 到处都是，
+        // 每段创建一个对象会持续产生垃圾。判断不了的写法再交给系统解析，行为保持一致。
+        if (IsCanonicalIpv4(text[..end])) return true;
         Span<char> buffer = stackalloc char[16];
         text[..end].CopyTo(buffer);
         return IPAddress.TryParse(buffer[..end], out _);
+    }
+
+    /// <summary>标准写法 a.b.c.d：四段、十进制、不允许前导零、每段不超过 255。</summary>
+    private static bool IsCanonicalIpv4(ReadOnlySpan<char> text)
+    {
+        var parts = 0; var digits = 0; var value = 0; var leadingZero = false;
+        for (var i = 0; i <= text.Length; i++)
+        {
+            if (i == text.Length || text[i] == '.')
+            {
+                if (digits == 0) return false;
+                if (leadingZero && digits > 1) return false;
+                if (value > 255) return false;
+                parts++;
+                if (i == text.Length) return parts == 4;
+                digits = 0; value = 0; leadingZero = false;
+                continue;
+            }
+            var c = text[i];
+            if (c < '0' || c > '9') return false;
+            if (digits == 0) leadingZero = c == '0';
+            digits++;
+            if (digits > 3) return false;
+            value = value * 10 + (c - '0');
+        }
+        return false;
     }
 
     // ---- 缓冲区 ----
@@ -364,7 +396,8 @@ internal sealed class HighlightedTerminalStream(Stream input, TerminalHighlighte
     private readonly Decoder _decoder = Encoding.UTF8.GetDecoder();
     private readonly byte[] _inputBuffer = new byte[32 * 1024];
     private readonly char[] _characters = new char[32 * 1024 + 2];
-    private byte[] _pending = new byte[64 * 1024];
+    // 借来的缓冲区：内容读完之后才会再次变换，所以期间不会被高亮器覆盖。
+    private byte[]? _pending;
     private int _pendingLength;
     private int _offset;
     private bool _eof;
@@ -381,7 +414,7 @@ internal sealed class HighlightedTerminalStream(Stream input, TerminalHighlighte
             if (_offset < _pendingLength)
             {
                 var available = Math.Min(buffer.Length, _pendingLength - _offset);
-                _pending.AsSpan(_offset, available).CopyTo(buffer.Span);
+                _pending!.AsSpan(_offset, available).CopyTo(buffer.Span);
                 _offset += available;
                 return available;
             }
@@ -391,9 +424,10 @@ internal sealed class HighlightedTerminalStream(Stream input, TerminalHighlighte
             if (length == 0) _eof = true;
             // 解码器跨块保存半个多字节字符，高亮器跨块保存半个控制序列，两者都不会把半个序列吐出去。
             var decoded = _decoder.GetChars(_inputBuffer, 0, length, _characters, 0, _eof);
+            // 直接借用高亮器的字节缓冲区：这段内容被读完之后才会发生下一次变换，
+            // 中间不需要再复制一份，省掉每屏一次整块 memcpy。
             var (bytes, count) = highlighter.TransformToUtf8(_characters.AsSpan(0, decoded));
-            if (_pending.Length < count) _pending = new byte[count];
-            bytes.AsSpan(0, count).CopyTo(_pending);
+            _pending = bytes;
             _pendingLength = count; _offset = 0;
         }
     }
