@@ -596,6 +596,8 @@ public partial class MainWindowViewModel : ObservableObject
         var wasSelected = ReferenceEquals(SelectedTab, tab); Tabs.Remove(tab);
         if (wasSelected || SelectedTab == null) SelectedTab = Tabs.Count == 0 ? null : Tabs[Math.Clamp(index, 0, Tabs.Count - 1)];
         NotifyTabs();
+        // 最后一个连接关掉后把内存还给系统，否则工作集一直停在高位。
+        if (Tabs.Count == 0) MemoryTrim.Release();
     }
     [RelayCommand] private void SelectTab(WorkspaceTabViewModel? tab) { if (tab != null) SelectedTab = tab; }
     private async Task SaveProcessSortAsync(ProcessSortColumn column, bool descending)

@@ -1,15 +1,20 @@
 using System.Net;
 using System.Text;
-using System.Text.RegularExpressions;
 using ShellX.Core.Settings;
 using ShellX.Desktop.Styles;
 
 namespace ShellX.Desktop.Controls;
 
 /// <summary>为无前景色的普通终端文本添加颜色；保留 ANSI 控制字符串及全屏程序输出。</summary>
-public sealed partial class TerminalHighlighter
+/// <remarks>
+/// 语义着色自己扫描文本，不再用正则：发布版本是 Native AOT，正则只能解释执行，
+/// 一屏日志就能吃掉一个核，产生的垃圾还会把堆撑大。扫描规则与原来的正则一一对应，
+/// 由 TerminalHighlighterTests 里的对照用例保证行为一致。
+/// </remarks>
+public sealed class TerminalHighlighter
 {
     private enum ParseState { Text, Escape, Csi, String, StringEscape }
+    private enum Kind { None, Error, Warning, Success, Url, Ip, Path, Host }
     private ParseState _state;
     private readonly StringBuilder _sequence = new();
     private bool _foregroundSet;
@@ -19,59 +24,284 @@ public sealed partial class TerminalHighlighter
     public AppTheme Theme { get; set; } = AppTheme.Dark;
     public bool Enabled { get; set; } = true;
 
-    [GeneratedRegex(@"(?<error>\b(?:error|failed|failure|fatal|denied|exception)\b|错误|失败|拒绝)|(?<warning>\b(?:warning|warn)\b|警告)|(?<success>\b(?:success(?:ful(?:ly)?)?|passed|connected|done)\b|成功|已完成)|(?<url>https?://[^\s<>]+)|(?<ip>\b(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?\b)|(?<path>(?<![\w/])(?:~?/|\.{1,2}/)[\w.\-/~]+)|(?<host>[\w.\-]+@[\w.\-]+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex Tokens();
-
     // 解析状态是共享的：重连时新旧读线程可能短暂并存，串行化避免状态被踩。
     private readonly object _gate = new();
 
+    // 输出缓冲区长期复用：终端是持续的大流量，每次新建缓冲区只会让堆越来越大。
+    private char[] _output = new char[8 * 1024];
+    private int _length;
+    private byte[] _bytes = new byte[64 * 1024];
+
     public string Transform(string input)
     {
-        lock (_gate) return TransformCore(input);
+        lock (_gate)
+        {
+            TransformCore(input.AsSpan());
+            return new string(_output, 0, _length);
+        }
     }
 
-    private string TransformCore(string input)
+    /// <summary>直接产出 UTF-8 字节：终端流不必再经过中间字符串。</summary>
+    /// <remarks>返回的缓冲区由高亮器持有，下次变换时会被覆盖，调用方要立刻取走。</remarks>
+    internal (byte[] Buffer, int Length) TransformToUtf8(ReadOnlySpan<char> input)
     {
-        var output = new StringBuilder(input.Length + 64); var text = new StringBuilder();
-        void Flush()
+        lock (_gate)
         {
-            if (text.Length == 0) return;
-            var value = text.ToString(); text.Clear();
-            output.Append(Enabled && !_foregroundSet && !_alternateScreen ? Tokens().Replace(value, Color) : value);
+            TransformCore(input);
+            var needed = Encoding.UTF8.GetMaxByteCount(_length);
+            if (_bytes.Length < needed) _bytes = new byte[needed];
+            var count = Encoding.UTF8.GetBytes(_output.AsSpan(0, _length), _bytes);
+            return (_bytes, count);
         }
-        foreach (var c in input)
+    }
+
+    private void TransformCore(ReadOnlySpan<char> input)
+    {
+        _length = 0;
+        var palette = ThemeCatalog.Of(Theme).Highlight;
+        var plainStart = -1;                   // 当前纯文本段的起点，-1 表示没有待输出的纯文本
+        var i = 0;
+        while (i < input.Length)
         {
+            var c = input[i];
             switch (_state)
             {
                 case ParseState.Text:
-                    if (c == '\x1b') { Flush(); _sequence.Append(c); _state = ParseState.Escape; }
-                    else text.Append(c);
+                    if (c != '\x1b') { if (plainStart < 0) plainStart = i; i++; break; }
+                    if (plainStart >= 0) { AppendPlain(input, plainStart, i, palette); plainStart = -1; }
+                    _sequence.Append(c); _state = ParseState.Escape; i++;
                     break;
                 case ParseState.Escape:
-                    _sequence.Append(c);
+                    _sequence.Append(c); i++;
                     if (c == '[') _state = ParseState.Csi;
-                    else if (c is ']' or 'P' or '_' or '^') { output.Append(_sequence); _sequence.Clear(); _state = ParseState.String; }
-                    else { output.Append(_sequence); _sequence.Clear(); _state = ParseState.Text; }
+                    else if (c is ']' or 'P' or '_' or '^') { AppendSequence(); _state = ParseState.String; }
+                    else { AppendSequence(); _state = ParseState.Text; }
                     break;
                 case ParseState.Csi:
-                    _sequence.Append(c);
+                    _sequence.Append(c); i++;
                     if (c is >= '@' and <= '~')
                     {
-                        var sequence = _sequence.ToString(); Track(sequence); output.Append(sequence); _sequence.Clear(); _state = ParseState.Text;
+                        var sequence = _sequence.ToString(); Track(sequence); AppendSequence(); _state = ParseState.Text;
                     }
-                    else if (_sequence.Length > 256) { output.Append(_sequence); _sequence.Clear(); _state = ParseState.Text; }
+                    else if (_sequence.Length > 256) { AppendSequence(); _state = ParseState.Text; }
                     break;
                 case ParseState.String:
-                    output.Append(c);
+                    Append(c); i++;
                     if (c == '\a') _state = ParseState.Text;
                     else if (c == '\x1b') _state = ParseState.StringEscape;
                     break;
                 case ParseState.StringEscape:
-                    output.Append(c); _state = c == '\\' ? ParseState.Text : c == '\x1b' ? ParseState.StringEscape : ParseState.String;
+                    Append(c); i++;
+                    _state = c == '\\' ? ParseState.Text : c == '\x1b' ? ParseState.StringEscape : ParseState.String;
                     break;
             }
         }
-        Flush(); return output.ToString();
+        if (plainStart >= 0) AppendPlain(input, plainStart, input.Length, palette);
+    }
+
+    /// <summary>纯文本段：整段扫描出要着色的词，其余原样输出。</summary>
+    private void AppendPlain(ReadOnlySpan<char> text, int start, int end, HighlightPalette palette)
+    {
+        if (end <= start) return;
+        if (!Enabled || _foregroundSet || _alternateScreen) { Append(text[start..end]); return; }
+        var copied = start;
+        var i = start;
+        var hostRunEnd = -1;      // 当前主机名这一段的终点
+        var hostEnd = -1;         // 主机名整体的终点，-1 表示这一段后面没有 @
+        while (i < end)
+        {
+            var c = text[i];
+            var matchStart = -1;
+            var matchEnd = i;
+            var kind = Kind.None;
+            var isWord = IsWordChar(c);
+            // 顺序和原来的正则一致：关键字 → 中文 → 地址 → IP → 路径 → 主机名。
+            var wordStart = isWord && (i == start || !IsWordChar(text[i - 1]));
+            if (wordStart)
+            {
+                var wordEnd = i;
+                while (wordEnd < end && IsWordChar(text[wordEnd])) wordEnd++;
+                if (TryKeyword(text, i, wordEnd, start, out kind)) { matchStart = i; matchEnd = wordEnd; }
+            }
+            if (matchStart < 0 && TryChinese(text, i, end, out matchEnd, out kind)) matchStart = i;
+            if (matchStart < 0 && isWord && TryUrl(text, i, end, out matchEnd)) { matchStart = i; kind = Kind.Url; }
+            if (matchStart < 0 && wordStart && TryIp(text, i, end, start, out matchEnd)) { matchStart = i; kind = Kind.Ip; }
+            if (matchStart < 0 && (c is '/' or '.' or '~') && TryPath(text, i, end, start, out matchEnd)) { matchStart = i; kind = Kind.Path; }
+            if (matchStart < 0 && IsHostChar(c))
+            {
+                // 主机名没有词边界，可以从这一段的任意位置开始；整段的结果缓存下来，避免重复扫描。
+                if (i >= hostRunEnd)
+                {
+                    hostRunEnd = i;
+                    while (hostRunEnd < end && IsHostChar(text[hostRunEnd])) hostRunEnd++;
+                    hostEnd = -1;
+                    if (hostRunEnd < end && text[hostRunEnd] == '@' && hostRunEnd + 1 < end && IsHostChar(text[hostRunEnd + 1]))
+                    {
+                        hostEnd = hostRunEnd + 1;
+                        while (hostEnd < end && IsHostChar(text[hostEnd])) hostEnd++;
+                    }
+                }
+                if (hostEnd > 0 && i < hostRunEnd) { matchStart = i; matchEnd = hostEnd; kind = Kind.Host; }
+            }
+            if (matchStart < 0) { i++; continue; }
+            Append(text[copied..matchStart]);
+            AppendColored(text[matchStart..matchEnd], kind, palette);
+            copied = matchEnd; i = matchEnd;
+        }
+        if (copied < end) Append(text[copied..end]);
+    }
+
+    // ---- 各类词的识别，规则对应原来的正则 ----
+
+    private static readonly string[] ErrorWords = ["error", "failed", "failure", "fatal", "denied", "exception"];
+    private static readonly string[] WarningWords = ["warning", "warn"];
+    private static readonly string[] SuccessWords = ["success", "successful", "successfully", "passed", "connected", "done"];
+
+    /// <summary>整词关键字：\b(error|failed|...)\b，大小写不敏感。</summary>
+    private static bool TryKeyword(ReadOnlySpan<char> text, int start, int end, int segmentStart, out Kind kind)
+    {
+        kind = Kind.None;
+        var length = end - start;
+        if (length == 0 || length > 12) return false;
+        for (var i = start; i < end; i++) if (!char.IsAsciiLetter(text[i])) return false;
+        if (start > segmentStart && IsWordChar(text[start - 1])) return false;   // \b 要求前面不是单词字符
+        foreach (var word in ErrorWords) if (EqualsIgnoreCase(text[start..end], word)) { kind = Kind.Error; return true; }
+        foreach (var word in WarningWords) if (EqualsIgnoreCase(text[start..end], word)) { kind = Kind.Warning; return true; }
+        foreach (var word in SuccessWords) if (EqualsIgnoreCase(text[start..end], word)) { kind = Kind.Success; return true; }
+        return false;
+    }
+
+    /// <summary>中文关键字：原正则里没有词边界，出现在任何位置都算。</summary>
+    private static bool TryChinese(ReadOnlySpan<char> text, int start, int end, out int matchEnd, out Kind kind)
+    {
+        matchEnd = start; kind = Kind.None;
+        if (start + 2 > end) return false;
+        var c = text[start];
+        if (c == '错' && text[start + 1] == '误') { kind = Kind.Error; matchEnd = start + 2; return true; }
+        if (c == '失' && text[start + 1] == '败') { kind = Kind.Error; matchEnd = start + 2; return true; }
+        if (c == '拒' && text[start + 1] == '绝') { kind = Kind.Error; matchEnd = start + 2; return true; }
+        if (c == '警' && text[start + 1] == '告') { kind = Kind.Warning; matchEnd = start + 2; return true; }
+        if (c == '成' && text[start + 1] == '功') { kind = Kind.Success; matchEnd = start + 2; return true; }
+        if (c == '已' && start + 3 <= end && text[start + 1] == '完' && text[start + 2] == '成')
+        { kind = Kind.Success; matchEnd = start + 3; return true; }
+        return false;
+    }
+
+    /// <summary>https?://[^\s&lt;&gt;]+</summary>
+    private static bool TryUrl(ReadOnlySpan<char> text, int start, int end, out int urlEnd)
+    {
+        urlEnd = start;
+        if (start + 7 > end) return false;
+        if (text[start] is not ('h' or 'H')) return false;
+        if (!EqualsIgnoreCase(text[start..(start + 4)], "http")) return false;
+        var p = start + 4;
+        if (p < end && (text[p] == 's' || text[p] == 'S')) p++;
+        if (p + 3 > end || text[p] != ':' || text[p + 1] != '/' || text[p + 2] != '/') return false;
+        var q = p + 3;
+        var body = q;
+        while (q < end && !char.IsWhiteSpace(text[q]) && text[q] != '<' && text[q] != '>') q++;
+        if (q == body) return false;                       // 后面至少要有一个字符
+        urlEnd = q; return true;
+    }
+
+    /// <summary>\b(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?\b</summary>
+    private static bool TryIp(ReadOnlySpan<char> text, int start, int end, int segmentStart, out int ipEnd)
+    {
+        ipEnd = start;
+        if (start > segmentStart && IsWordChar(text[start - 1])) return false;    // \b 要求前面不是单词字符
+        var p = start;
+        for (var group = 0; group < 3; group++)
+        {
+            var digits = 0;
+            while (p < end && text[p] is >= '0' and <= '9' && digits < 3) { p++; digits++; }
+            if (digits == 0 || p >= end || text[p] != '.') return false;
+            p++;
+        }
+        var last = 0;
+        var q = p;
+        while (q < end && text[q] is >= '0' and <= '9' && last < 3) { q++; last++; }
+        if (last == 0) return false;
+        // 端口是可选的：端口不合法时退回不带端口的形式。
+        var withPort = -1;
+        if (q < end && text[q] == ':')
+        {
+            var portDigits = 0; var s = q + 1;
+            while (s < end && text[s] is >= '0' and <= '9' && portDigits < 5) { s++; portDigits++; }
+            if (portDigits > 0) withPort = s;
+        }
+        if (withPort > 0 && !IsWordCharAt(text, withPort, end)) { ipEnd = withPort; return true; }
+        if (IsWordCharAt(text, q, end)) return false;
+        ipEnd = q; return true;
+    }
+
+    /// <summary>(?&lt;![\w/])(?:~?/|\.{1,2}/)[\w.\-/~]+</summary>
+    private static bool TryPath(ReadOnlySpan<char> text, int start, int end, int segmentStart, out int pathEnd)
+    {
+        pathEnd = start;
+        if (start > segmentStart)
+        {
+            var prev = text[start - 1];
+            if (IsWordChar(prev) || prev == '/') return false;                    // 前面不能是单词字符或斜杠
+        }
+        var p = start;
+        if (p < end && text[p] == '~') p++;                                     // ~?/
+        else if (p < end && text[p] == '.')
+        {
+            var dots = 0;
+            while (p < end && text[p] == '.' && dots < 2) { p++; dots++; }
+            if (dots == 0) return false;
+        }
+        if (p >= end || text[p] != '/') return false;
+        p++;
+        var body = p;
+        while (p < end && IsPathChar(text[p])) p++;
+        if (p == body) return false;                                            // 路径至少要有一个字符
+        pathEnd = p; return true;
+    }
+
+    private void AppendColored(ReadOnlySpan<char> text, Kind kind, HighlightPalette palette)
+    {
+        var rgb = kind switch
+        {
+            Kind.Error => palette.Error,
+            Kind.Warning => palette.Warning,
+            Kind.Success or Kind.Host => palette.Success,
+            Kind.Ip => palette.Ip,
+            _ => palette.Link
+        };
+        if (kind == Kind.Ip && !IsRealIp(text)) { Append(text); return; }       // 不是合法 IP 就不着色
+        Append("\x1b[38;2;"); Append(rgb); Append('m'); Append(text); Append("\x1b[39m");
+    }
+
+    /// <summary>IP 文本是否合法：原正则只是形状匹配，合法性由这里把关。</summary>
+    private static bool IsRealIp(ReadOnlySpan<char> text)
+    {
+        var end = text.IndexOf(':');
+        if (end < 0) end = text.Length;
+        if (end > 15) return false;
+        Span<char> buffer = stackalloc char[16];
+        text[..end].CopyTo(buffer);
+        return IPAddress.TryParse(buffer[..end], out _);
+    }
+
+    // ---- 缓冲区 ----
+
+    private void Append(ReadOnlySpan<char> text)
+    {
+        if (text.Length == 0) return;
+        EnsureCapacity(_length + text.Length);
+        text.CopyTo(_output.AsSpan(_length));
+        _length += text.Length;
+    }
+    private void Append(string text) => Append(text.AsSpan());
+    private void Append(char c) { EnsureCapacity(_length + 1); _output[_length++] = c; }
+    private void AppendSequence() { Append(_sequence.ToString()); _sequence.Clear(); }
+    private void EnsureCapacity(int needed)
+    {
+        if (_output.Length >= needed) return;
+        var size = _output.Length;
+        while (size < needed) size *= 2;
+        Array.Resize(ref _output, size);
     }
 
     private void Track(string sequence)
@@ -99,23 +329,6 @@ public sealed partial class TerminalHighlighter
         }
     }
 
-    private string Color(Match match)
-    {
-        var palette = ThemeCatalog.Of(Theme).Highlight;
-        string rgb;
-        if (match.Groups["error"].Success) rgb = palette.Error;
-        else if (match.Groups["warning"].Success) rgb = palette.Warning;
-        else if (match.Groups["success"].Success || match.Groups["host"].Success) rgb = palette.Success;
-        else if (match.Groups["ip"].Success)
-        {
-            if (!IPAddress.TryParse(match.Value.Split(':')[0], out _)) return match.Value;
-            rgb = palette.Ip;
-        }
-        else rgb = palette.Link;
-        // 只恢复前景色，不重置服务器的加粗、下划线或背景色。
-        return $"\x1b[38;2;{rgb}m{match.Value}\x1b[39m";
-    }
-
     /// <summary>清空解析状态：重新连接时用，避免上一次连接末尾残留半个控制序列。</summary>
     public void Reset()
     {
@@ -128,6 +341,21 @@ public sealed partial class TerminalHighlighter
             _savedForeground = false;
         }
     }
+
+    // ---- 字符判定 ----
+
+    /// <summary>正则里的 \w：字母、数字、下划线（CJK 也算单词字符）。</summary>
+    private static bool IsWordChar(char c)
+        => c < 128 ? char.IsAsciiLetterOrDigit(c) || c == '_' : char.IsLetterOrDigit(c);
+    private static bool IsHostChar(char c) => IsWordChar(c) || c == '.' || c == '-';
+    private static bool IsPathChar(char c) => IsWordChar(c) || c == '.' || c == '-' || c == '/' || c == '~';
+    private static bool IsWordCharAt(ReadOnlySpan<char> text, int index, int end) => index < end && IsWordChar(text[index]);
+    private static bool EqualsIgnoreCase(ReadOnlySpan<char> span, string value)
+    {
+        if (span.Length != value.Length) return false;
+        for (var i = 0; i < span.Length; i++) if (char.ToLowerInvariant(span[i]) != value[i]) return false;
+        return true;
+    }
 }
 
 /// <summary>把原始字节流按 UTF-8 解码后交给高亮器，输出仍是带 ANSI 的字节流。</summary>
@@ -136,7 +364,8 @@ internal sealed class HighlightedTerminalStream(Stream input, TerminalHighlighte
     private readonly Decoder _decoder = Encoding.UTF8.GetDecoder();
     private readonly byte[] _inputBuffer = new byte[32 * 1024];
     private readonly char[] _characters = new char[32 * 1024 + 2];
-    private byte[] _pending = [];
+    private byte[] _pending = new byte[64 * 1024];
+    private int _pendingLength;
     private int _offset;
     private bool _eof;
     public override int Read(byte[] buffer, int offset, int count)
@@ -149,9 +378,9 @@ internal sealed class HighlightedTerminalStream(Stream input, TerminalHighlighte
         while (true)
         {
             // 高亮器可能把这一块整个吞掉（半个控制序列还没写完），这种情况不是结束，要继续读。
-            if (_offset < _pending.Length)
+            if (_offset < _pendingLength)
             {
-                var available = Math.Min(buffer.Length, _pending.Length - _offset);
+                var available = Math.Min(buffer.Length, _pendingLength - _offset);
                 _pending.AsSpan(_offset, available).CopyTo(buffer.Span);
                 _offset += available;
                 return available;
@@ -162,8 +391,10 @@ internal sealed class HighlightedTerminalStream(Stream input, TerminalHighlighte
             if (length == 0) _eof = true;
             // 解码器跨块保存半个多字节字符，高亮器跨块保存半个控制序列，两者都不会把半个序列吐出去。
             var decoded = _decoder.GetChars(_inputBuffer, 0, length, _characters, 0, _eof);
-            _pending = Encoding.UTF8.GetBytes(highlighter.Transform(new string(_characters, 0, decoded)));
-            _offset = 0;
+            var (bytes, count) = highlighter.TransformToUtf8(_characters.AsSpan(0, decoded));
+            if (_pending.Length < count) _pending = new byte[count];
+            bytes.AsSpan(0, count).CopyTo(_pending);
+            _pendingLength = count; _offset = 0;
         }
     }
     public override bool CanRead => true;
