@@ -17,16 +17,16 @@ public static class XshellSessionImporter
 {
     public const string DefaultGroup = "Xshell";
 
-    public static XshellImportResult ParseFile(string path, string? credentialKey = null)
+    public static XshellImportResult ParseFile(string path, string? credentialKey = null, bool includeCredentials = true)
     {
         if (string.IsNullOrWhiteSpace(path)) throw new ArgumentException("请选择 Xshell 会话文件。", nameof(path));
         if (!File.Exists(path)) throw new FileNotFoundException("Xshell 会话文件不存在。", path);
         var content = Decode(File.ReadAllBytes(path));
         var name = Path.GetFileNameWithoutExtension(path).Trim();
-        return Parse(content, name, Path.GetDirectoryName(path), credentialKey);
+        return Parse(content, name, Path.GetDirectoryName(path), credentialKey, includeCredentials);
     }
 
-    public static XshellImportResult Parse(string content, string sourceName, string? sourceDirectory = null, string? credentialKey = null)
+    public static XshellImportResult Parse(string content, string sourceName, string? sourceDirectory = null, string? credentialKey = null, bool includeCredentials = true)
     {
         if (string.IsNullOrWhiteSpace(content)) throw new InvalidDataException("文件内容为空，不是有效的 Xshell 会话。");
         var sections = ParseSections(content);
@@ -59,7 +59,7 @@ public static class XshellSessionImporter
 
         var secret = new ConnectionSecret();
         var warnings = new List<string>();
-        if (keyRequested)
+        if (includeCredentials && keyRequested)
         {
             var encodedPassphrase = GetValue(authentication, "Passphrase").Trim();
             if (encodedPassphrase.Length > 0)
@@ -68,7 +68,7 @@ public static class XshellSessionImporter
                 secret = new ConnectionSecret("", passphrase);
             }
         }
-        else
+        else if (includeCredentials)
         {
             var encodedPassword = GetValue(authentication, "Password").Trim();
             if (encodedPassword.Length == 0)

@@ -298,6 +298,18 @@ public sealed class DialogService(ITextCodec codec, AppLockService? appLock = nu
         return files.Select(file => file.TryGetLocalPath()).OfType<string>().ToArray();
     }
 
+    public async Task<string?> PickXshellFolderAsync()
+    {
+        var owner = DialogOwner;
+        var startFolder = FindXshellSessionsDirectory();
+        using var location = startFolder == null ? null : await owner.StorageProvider.TryGetFolderFromPathAsync(startFolder);
+        var folders = await owner.StorageProvider.OpenFolderPickerAsync(new()
+        {
+            Title = "导入 Xshell 文件夹及其子目录", SuggestedStartLocation = location
+        });
+        return folders.FirstOrDefault()?.TryGetLocalPath();
+    }
+
     private static string? FindXshellSessionsDirectory()
     {
         var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "NetSarang Computer");

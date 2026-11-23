@@ -32,6 +32,7 @@ public interface IDialogService
     void UntrackOwnerWindow(Avalonia.Controls.Window window) { }
     Task<string?> PickConfigurationImportAsync() => Task.FromResult<string?>(null);
     Task<IReadOnlyList<string>> PickXshellSessionsAsync() => PickUploadAsync();
+    Task<string?> PickXshellFolderAsync() => Task.FromResult<string?>(null);
     Task<string?> PickDownloadFolderAsync() => Task.FromResult<string?>(null);
     Task EditFileAsync(TextDocument document, Func<TextDocument, string, Task<TextDocument>> save);
     Task<int?> PermissionsAsync(RemoteEntry entry);

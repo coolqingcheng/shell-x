@@ -43,7 +43,7 @@ public partial class MainWindowViewModel : ObservableObject
     public ObservableCollection<ConnectionProfile> VisibleConnections { get; } = [];
     public event Action<ConnectionProfile>? ConnectionPicked;
     [ObservableProperty] private ConnectionGroupViewModel? _selectedGroup;
-    public bool CanManageFolder => SelectedGroup is { Path.Length: > 0 };
+    public bool CanManageFolder => SelectedGroup is { Path.Length: > 0, IsDirectConnections: false };
     public string FolderCaption => SelectedGroup?.Name ?? "全部连接";
     /// <summary>品牌区展示的版本号，与窗口标题、设置页保持一致。</summary>
     public string VersionText => $"v{Core.AppVersion.Value}";
@@ -145,7 +145,16 @@ public partial class MainWindowViewModel : ObservableObject
                 _profiles.Count(p => ConnectionFolders.Contains(path, ConnectionFolders.Normalize(p.Group))));
             nodes.Add(path, node); nodes[parent].Children.Add(node);
         }
-        Groups.Clear(); Groups.Add(root); SelectedGroup = nodes.GetValueOrDefault(selected, root);
+        foreach (var direct in _profiles.GroupBy(p => ConnectionFolders.Normalize(p.Group)))
+        {
+            var parent = nodes[direct.Key];
+            if (parent.Children.Count > 0)
+                parent.Children.Insert(0, new(parent.Path, "（本级连接）", direct.Count(), isDirectConnections: true));
+        }
+        var selection = nodes.GetValueOrDefault(selected, root);
+        if (SelectedGroup?.IsDirectConnections == true)
+            selection = selection.Children.FirstOrDefault(n => n.IsDirectConnections) ?? selection;
+        Groups.Clear(); Groups.Add(root); SelectedGroup = selection;
         RefreshVisibleConnections(); OnPropertyChanged(nameof(FolderPaths)); OnPropertyChanged(nameof(HasMcpConnections));
     }
     private void RefreshVisibleConnections()
@@ -331,6 +340,40 @@ public partial class MainWindowViewModel : ObservableObject
         catch (Exception ex) { await _dialogs.ShowErrorAsync("配置导入失败：\n" + ex.Message); }
     }
     [RelayCommand]
+    private async Task ImportXshellFolderAsync()
+    {
+        if (_applicationLock.IsLocked || !_configurationLoaded) return;
+        try
+        {
+            var group = SelectedGroup is { Path.Length: > 0 } folder ? folder.Path : XshellSessionImporter.DefaultGroup;
+            var path = await _dialogs.PickXshellFolderAsync();
+            if (path == null || _applicationLock.IsLocked) return;
+            var import = await Task.Run(() => XshellFolderImport.Read(path, group));
+            if (_applicationLock.IsLocked) return;
+            var added = 0;
+            var tunnels = 0;
+            var folders = 0;
+            await CommitCatalogAsync(catalog =>
+            {
+                if (_applicationLock.IsLocked) throw new InvalidOperationException("应用已锁定。");
+                static (string, string, ConnectionEndpoint) Key(ConnectionProfile p) =>
+                    (ConnectionFolders.Normalize(p.Group), p.Name, ConnectionEndpoint.From(p));
+                var known = catalog.Connections.Select(Key).ToHashSet();
+                var additions = import.Profiles.Where(p => known.Add(Key(p))).ToArray();
+                added = additions.Length;
+                tunnels = additions.Sum(p => p.Tunnels.Count);
+                folders = import.Folders.Except(catalog.Folders).Count();
+                return new([.. catalog.Connections, .. additions], [.. catalog.Folders, .. import.Folders]);
+            });
+            Search = "";
+            Status = $"已从 Xshell 导入 {added} 个连接、{tunnels} 条隧道，新增 {folders} 个文件夹";
+            var message = $"{Status}。跳过重复连接 {import.Profiles.Count - added} 个。\n导入位置：{import.Folders[0]}。首次连接时请输入密码或私钥口令。";
+            if (import.Notices.Count > 0) message += "\n" + string.Join('\n', import.Notices);
+            await _dialogs.ShowInformationAsync("Xshell 文件夹导入完成", message);
+        }
+        catch (Exception ex) { await _dialogs.ShowErrorAsync("Xshell 文件夹导入失败：\n" + ex.Message); }
+    }
+    [RelayCommand]
     private async Task ImportXshellSessionsAsync()
     {
         if (_applicationLock.IsLocked || !_configurationLoaded) return;
@@ -448,7 +491,7 @@ public partial class MainWindowViewModel : ObservableObject
     [RelayCommand]
     private async Task RenameFolderAsync()
     {
-        if (_applicationLock.IsLocked || SelectedGroup is not { Path.Length: > 0 } folder) return;
+        if (_applicationLock.IsLocked || SelectedGroup is not { Path.Length: > 0, IsDirectConnections: false } folder) return;
         var name = await _dialogs.PromptAsync("重命名连接文件夹", "新名称", folder.Name); if (name == null) return;
         try
         {
@@ -471,7 +514,7 @@ public partial class MainWindowViewModel : ObservableObject
     [RelayCommand]
     private async Task DeleteFolderAsync()
     {
-        if (_applicationLock.IsLocked || SelectedGroup is not { Path.Length: > 0 } folder) return;
+        if (_applicationLock.IsLocked || SelectedGroup is not { Path.Length: > 0, IsDirectConnections: false } folder) return;
         try
         {
             await CommitCatalogAsync(catalog =>

@@ -42,7 +42,12 @@ public sealed class ConnectionManagerTests
             Assert.Empty(vm.VisibleConnections);
             var export = view.FindControl<Button>("ExportConfiguration")!; Assert.Same(vm.ExportConfigurationCommand, export.Command);
             Assert.Same(vm.ImportConfigurationCommand, view.FindControl<Button>("ImportConfiguration")!.Command);
-            Assert.Same(vm.ImportXshellSessionsCommand, view.FindControl<Button>("ImportXshellSessions")!.Command);
+            var importButton = view.FindControl<Button>("ImportXshellSessions")!;
+            Click(window, importButton);
+            var menu = Assert.IsType<MenuFlyout>(importButton.Flyout);
+            Assert.Same(vm.ImportXshellSessionsCommand, Assert.IsType<MenuItem>(menu.Items[0]).Command);
+            Assert.Same(vm.ImportXshellFolderCommand, Assert.IsType<MenuItem>(menu.Items[1]).Command);
+            menu.Hide();
             Assert.Same(vm.SettingsCommand, view.FindControl<Button>("ManagerSettings")!.Command);
             Click(window, export); await Until(() => dialogs.Information.Count == 1);
             using var json = JsonDocument.Parse(await File.ReadAllTextAsync(dialogs.ExportPath));
@@ -122,6 +127,44 @@ public sealed class ConnectionManagerTests
         }
         finally { await vm.ShutdownAsync(); window.Close(); Directory.Delete(root, true); }
     }
+    [AvaloniaFact]
+    public async Task FolderImportPreservesMixedLevelsEmptyFoldersAndSameEndpointAcrossGroups()
+    {
+        var root = Directory.CreateTempSubdirectory();
+        var source = root.CreateSubdirectory("会话");
+        var nested = source.CreateSubdirectory("生产/数据库");
+        source.CreateSubdirectory("归档/空目录");
+        const string session = "[CONNECTION]\nProtocol=SSH\nHost=example.test\nPort=22\n[CONNECTION:SSH]\nFwdReq_0_Port=3307\nFwdReq_0_HostPort=3306";
+        File.WriteAllText(Path.Combine(source.FullName, "主机.xsh"), session);
+        File.WriteAllText(Path.Combine(nested.FullName, "主机.XSH"), session);
+        File.WriteAllText(Path.Combine(nested.FullName, "坏文件.xsh"), "invalid");
+        File.WriteAllText(Path.Combine(nested.FullName, "忽略.txt"), session);
+        var store = new JsonConnectionRepository(new(root.FullName));
+        var dialogs = new Dialogs { XshellFolder = source.FullName };
+        var vm = Model(root.FullName, store, dialogs);
+        try
+        {
+            await vm.InitializeAsync();
+            await vm.ImportXshellFolderCommand.ExecuteAsync(null);
+            await vm.ImportXshellFolderCommand.ExecuteAsync(null);
+            var catalog = await store.LoadCatalogAsync();
+            Assert.Empty(dialogs.Errors);
+            Assert.Contains("坏文件.xsh", dialogs.Information[0]);
+            Assert.Contains("跳过重复连接 2 个", dialogs.Information[1]);
+            Assert.Contains("Xshell/会话/归档/空目录", catalog.Folders);
+            Assert.Equal(2, catalog.Connections.Count);
+            Assert.All(catalog.Connections, p => Assert.Single(p.Tunnels));
+            var parent = vm.FindFolder("Xshell/会话")!;
+            vm.SelectedGroup = parent;
+            Assert.Empty(vm.VisibleConnections);
+            vm.SelectedGroup = Assert.Single(parent.Children, child => child.IsDirectConnections);
+            Assert.Equal(parent.Path, Assert.Single(vm.VisibleConnections).Group);
+            vm.SelectedGroup = vm.FindFolder("Xshell/会话/生产/数据库");
+            Assert.Equal("主机", Assert.Single(vm.VisibleConnections).Name);
+        }
+        finally { await vm.ShutdownAsync(); root.Delete(true); }
+    }
+
     [AvaloniaFact]
     public async Task XshellMasterPasswordPromptDecryptsSessionAndStoresPassword()
     {
@@ -425,6 +468,8 @@ public sealed class ConnectionManagerTests
     {
         public string? ExportPath { get; set; }
         public string? ConfigurationImportPath { get; set; }
+        public string? XshellFolder { get; set; }
+        public Task<string?> PickXshellFolderAsync() => Task.FromResult(XshellFolder);
         public List<string> XshellPaths { get; set; } = [];
         public List<string> Information { get; } = [];
         public Queue<string> Prompts { get; } = [];
