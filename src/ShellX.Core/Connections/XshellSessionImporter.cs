@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using ShellX.Core.Tunnels;
 
 namespace ShellX.Core.Connections;
 
@@ -57,7 +58,7 @@ public static class XshellSessionImporter
             throw new FileNotFoundException($"Xshell 会话引用的私钥“{userKey}”在本机未找到，请先放置私钥文件。");
 
         var secret = new ConnectionSecret();
-        string? warning = null;
+        var warnings = new List<string>();
         if (keyRequested)
         {
             var encodedPassphrase = GetValue(authentication, "Passphrase").Trim();
@@ -72,7 +73,7 @@ public static class XshellSessionImporter
             var encodedPassword = GetValue(authentication, "Password").Trim();
             if (encodedPassword.Length == 0)
             {
-                warning = "Xshell 会话本身没有保存登录密码，首次连接时仍需输入。";
+                warnings.Add("Xshell 会话本身没有保存登录密码，首次连接时仍需输入。");
             }
             else
             {
@@ -81,6 +82,8 @@ public static class XshellSessionImporter
             }
         }
 
+        var (tunnels, tunnelWarning) = ParseTunnels(ssh);
+        if (tunnelWarning != null) warnings.Add(tunnelWarning);
         var initialDirectory = GetValue(ssh, "InitRemoteDirectory").Trim();
         var name = sourceName.Trim();
         if (name.Length == 0) name = host;
@@ -95,9 +98,80 @@ public static class XshellSessionImporter
             Authentication = keyPath == null ? AuthenticationKind.Password : AuthenticationKind.PrivateKey,
             PrivateKeyPath = keyPath ?? "",
             RememberSecret = hasSecret,
-            InitialDirectory = initialDirectory.Length == 0 ? "." : initialDirectory
+            InitialDirectory = initialDirectory.Length == 0 ? "." : initialDirectory,
+            Tunnels = tunnels
         };
-        return new(profile, secret, warning);
+        return new(profile, secret, warnings.Count == 0 ? null : string.Join('\n', warnings));
+    }
+
+    /// <summary>解析 Xshell 会话里的端口转发（FwdReq_*），转换为 ShellX 隧道定义。</summary>
+    private static (List<TunnelDefinition> Tunnels, string? Warning) ParseTunnels(IReadOnlyDictionary<string, string> ssh)
+    {
+        var indexes = new SortedSet<int>();
+        foreach (var key in ssh.Keys)
+        {
+            if (!key.StartsWith("FwdReq_", StringComparison.OrdinalIgnoreCase)) continue;
+            var rest = key.AsSpan("FwdReq_".Length);
+            var separator = rest.IndexOf('_');
+            if (separator <= 0) continue;
+            if (!int.TryParse(rest[..separator], NumberStyles.None, CultureInfo.InvariantCulture, out var index)) continue;
+            indexes.Add(index);
+        }
+        if (indexes.Count == 0) return ([], null);
+
+        var tunnels = new List<TunnelDefinition>();
+        var skipped = new List<string>();
+        foreach (var index in indexes)
+        {
+            var prefix = $"FwdReq_{index}_";
+            var description = GetValue(ssh, prefix + "Description").Trim();
+            // Incoming=0 表示本机监听端口转发到远端，1 表示由远端监听端口转发回本机；其他取值属于暂不支持的类型。
+            var incoming = GetValue(ssh, prefix + "Incoming").Trim();
+            if (incoming.Length > 0 && incoming != "0" && incoming != "1")
+            {
+                skipped.Add($"第 {index + 1} 条转发（类型 {incoming}）暂不支持");
+                continue;
+            }
+            if (!TryParsePort(GetValue(ssh, prefix + "Port"), out var bindPort))
+            {
+                skipped.Add($"第 {index + 1} 条转发缺少有效的监听端口");
+                continue;
+            }
+            if (!TryParsePort(GetValue(ssh, prefix + "HostPort"), out var targetPort))
+            {
+                skipped.Add($"第 {index + 1} 条转发缺少有效的目标端口");
+                continue;
+            }
+            var targetHost = GetValue(ssh, prefix + "Host").Trim();
+            if (targetHost.Length == 0) targetHost = "127.0.0.1";
+            var definition = new TunnelDefinition
+            {
+                Name = description.Length > 0 ? description : $"Xshell 转发 {index + 1}",
+                Direction = incoming == "1" ? TunnelDirection.Remote : TunnelDirection.Local,
+                BindHost = ResolveBindHost(GetValue(ssh, prefix + "Source"), GetValue(ssh, prefix + "LocalOnly")),
+                BindPort = bindPort,
+                TargetHost = targetHost,
+                TargetPort = targetPort
+            };
+            try { definition.Validate(); }
+            catch (ArgumentException) { skipped.Add($"第 {index + 1} 条转发配置无效，已跳过"); continue; }
+            tunnels.Add(definition);
+        }
+        var warning = skipped.Count == 0 ? null : "部分转发未能导入：" + string.Join("；", skipped) + "。";
+        return (tunnels, warning);
+    }
+
+    private static bool TryParsePort(string value, out int port)
+        => int.TryParse(value.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out port) && port is >= 1 and <= 65535;
+
+    // LocalOnly=1 表示只绑定回环地址，0 表示绑定所有网卡；Source 是具体地址时按原值保留。
+    private static string ResolveBindHost(string source, string localOnly)
+    {
+        var value = source.Trim();
+        var any = localOnly.Trim() == "0" ? "0.0.0.0" : "127.0.0.1";
+        if (value.Length == 0) return any;
+        if (value.Equals("localhost", StringComparison.OrdinalIgnoreCase) || value == "127.0.0.1" || value == "::1") return any;
+        return value;
     }
 
     private static string DecryptCredential(string encrypted, string label, string? credentialKey)

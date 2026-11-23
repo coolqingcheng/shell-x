@@ -1,5 +1,6 @@
 using System.Text;
 using ShellX.Core.Connections;
+using ShellX.Core.Tunnels;
 
 namespace ShellX.Core.Tests;
 
@@ -112,6 +113,97 @@ public sealed class XshellSessionImporterTests
         Assert.Equal("运维", parsed.Profile.Username);
         Assert.Equal("生产 / 华东", parsed.Profile.Name);
         Assert.Contains("没有保存登录密码", parsed.Warning);
+    }
+
+    [Fact]
+    public void ImportsForwardingRulesAsTunnels()
+    {
+        var content = """
+            [CONNECTION]
+            Host=iot99.xiaolab.cn
+            Port=22
+            Protocol=SSH
+            [CONNECTION:SSH]
+            FwdReqCount=3
+            FwdReq_0_Description=emqx面板
+            FwdReq_0_Incoming=0
+            FwdReq_0_Source=localhost
+            FwdReq_0_Port=18083
+            FwdReq_0_Host=localhost
+            FwdReq_0_HostPort=18083
+            FwdReq_0_LocalOnly=1
+            FwdReq_1_Incoming=0
+            FwdReq_1_Source=localhost
+            FwdReq_1_Port=3307
+            FwdReq_1_Host=127.0.0.1
+            FwdReq_1_HostPort=3306
+            FwdReq_1_LocalOnly=1
+            FwdReq_2_Incoming=1
+            FwdReq_2_Source=0.0.0.0
+            FwdReq_2_Port=8080
+            FwdReq_2_Host=127.0.0.1
+            FwdReq_2_HostPort=80
+            FwdReq_2_LocalOnly=0
+            [CONNECTION:AUTHENTICATION]
+            UserName=root
+            AuthMethodList=01
+            Password=
+            UserKey=
+            """;
+
+        var result = XshellSessionImporter.Parse(content, "转发测试");
+        var tunnels = result.Profile.Tunnels;
+        Assert.Equal(3, tunnels.Count);
+
+        Assert.Equal("emqx面板", tunnels[0].Name);
+        Assert.Equal(TunnelDirection.Local, tunnels[0].Direction);
+        Assert.Equal("127.0.0.1", tunnels[0].BindHost);
+        Assert.Equal(18083, tunnels[0].BindPort);
+        Assert.Equal("localhost", tunnels[0].TargetHost);
+        Assert.Equal(18083, tunnels[0].TargetPort);
+
+        Assert.Equal("Xshell 转发 2", tunnels[1].Name);
+        Assert.Equal(TunnelDirection.Local, tunnels[1].Direction);
+        Assert.Equal(3307, tunnels[1].BindPort);
+        Assert.Equal("127.0.0.1", tunnels[1].TargetHost);
+        Assert.Equal(3306, tunnels[1].TargetPort);
+
+        Assert.Equal(TunnelDirection.Remote, tunnels[2].Direction);
+        Assert.Equal("0.0.0.0", tunnels[2].BindHost);
+        Assert.Equal(8080, tunnels[2].BindPort);
+        Assert.Equal("127.0.0.1", tunnels[2].TargetHost);
+        Assert.Equal(80, tunnels[2].TargetPort);
+        Assert.Equal(3, tunnels.Select(item => item.Id).Distinct().Count());
+    }
+
+    [Fact]
+    public void SkipsUnsupportedForwardingRulesAndReportsWarning()
+    {
+        var content = """
+            [CONNECTION]
+            Host=server.test
+            Port=22
+            Protocol=SSH
+            [CONNECTION:SSH]
+            FwdReq_0_Incoming=2
+            FwdReq_0_Port=1080
+            FwdReq_0_Host=127.0.0.1
+            FwdReq_0_HostPort=1080
+            FwdReq_1_Incoming=0
+            FwdReq_1_Port=0
+            FwdReq_1_Host=127.0.0.1
+            FwdReq_1_HostPort=22
+            [CONNECTION:AUTHENTICATION]
+            UserName=root
+            AuthMethodList=01
+            Password=
+            UserKey=
+            """;
+
+        var result = XshellSessionImporter.Parse(content, "跳过测试");
+        Assert.Empty(result.Profile.Tunnels);
+        Assert.Contains("暂不支持", result.Warning);
+        Assert.Contains("监听端口", result.Warning);
     }
 
     private static string Session(string protocol = "SSH", string host = "server.test", string port = "22",

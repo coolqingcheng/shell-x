@@ -422,8 +422,12 @@ public partial class MainWindowViewModel : ObservableObject
 
             SelectedGroup = FindFolder(ConnectionFolders.Normalize(group));
             Search = "";
-            Status = added > 0 ? $"已从 Xshell 导入 {added} 个连接" : "Xshell 会话均为重复连接";
+            var tunnelCount = parsed.Where(item => addedIds.Contains(item.Profile.Id)).Sum(item => item.Profile.Tunnels.Count);
+            Status = added > 0
+                ? $"已从 Xshell 导入 {added} 个连接" + (tunnelCount > 0 ? $"、{tunnelCount} 条隧道" : "")
+                : "Xshell 会话均为重复连接";
             var summary = $"新增 {added} 个连接，跳过重复 {duplicates} 个，已解密并保存凭据 {restoredSecrets} 条。";
+            if (tunnelCount > 0) summary += $"同时导入 {tunnelCount} 条隧道配置。";
             if (warnings.Count > 0) summary += "\n注意：\n" + string.Join('\n', warnings);
             if (credentialFailures.Count > 0) summary += "\n凭据未能写入本机安全存储：\n" + string.Join('\n', credentialFailures);
             if (failures.Count > 0) summary += $"\n未导入 {failures.Count} 个文件：\n" + string.Join('\n', failures);
