@@ -515,17 +515,18 @@ public partial class MainWindowViewModel : ObservableObject
     private async Task DeleteFolderAsync()
     {
         if (_applicationLock.IsLocked || SelectedGroup is not { Path.Length: > 0, IsDirectConnections: false } folder) return;
-        try
+        bool InFolder(string path) => ConnectionFolders.Contains(folder.Path, path);
+        var folders = FolderPaths.Where(InFolder).ToHashSet(StringComparer.Ordinal);
+        var ids = _profiles.Where(p => InFolder(ConnectionFolders.Normalize(p.Group))).Select(p => p.Id).ToHashSet();
+        var message = $"删除文件夹“{folder.Path}”？包含 {folders.Count - 1} 个子文件夹、{ids.Count} 个连接。";
+        await ConfirmDeletionAsync("删除文件夹", message, ids, catalog =>
         {
-            await CommitCatalogAsync(catalog =>
-            {
-                if (catalog.Connections.Any(p => ConnectionFolders.Contains(folder.Path, ConnectionFolders.Normalize(p.Group))) ||
-                    catalog.Folders.Any(p => p != folder.Path && ConnectionFolders.Contains(folder.Path, p)))
-                    throw new ArgumentException("请先移走连接和子文件夹，再删除这个文件夹。");
-                return catalog with { Folders = catalog.Folders.Where(p => p != folder.Path).ToArray() };
-            });
-        }
-        catch (Exception ex) { await _dialogs.ShowErrorAsync(ex.Message); }
+            var currentIds = catalog.Connections.Where(p => InFolder(ConnectionFolders.Normalize(p.Group))).Select(p => p.Id);
+            if (!ids.SetEquals(currentIds) || !folders.SetEquals(catalog.Folders.Where(InFolder)))
+                throw new InvalidOperationException("文件夹内容已改变，请重新确认删除范围。");
+            return new(catalog.Connections.Where(p => !ids.Contains(p.Id)).ToArray(),
+                catalog.Folders.Where(path => !InFolder(path)).ToArray());
+        });
     }
     [RelayCommand] private void PickConnection(ConnectionProfile? profile)
     { if (profile != null && !_applicationLock.IsLocked) ConnectionPicked?.Invoke(profile); }
@@ -561,13 +562,37 @@ public partial class MainWindowViewModel : ObservableObject
     }
     [RelayCommand] private Task EditConnectionAsync(ConnectionProfile? profile) => profile == null ? Task.CompletedTask : EditAsync(profile);
     [RelayCommand]
-    private async Task DeleteConnectionAsync(ConnectionProfile? profile)
+    private Task DeleteConnectionAsync(ConnectionProfile? profile) =>
+        profile == null ? Task.CompletedTask : DeleteConnectionsAsync([profile]);
+
+    public Task DeleteConnectionsAsync(IReadOnlyList<ConnectionProfile> profiles)
     {
-        if (profile == null || !await _dialogs.ConfirmAsync("删除连接", $"删除“{profile.Name}”的连接配置？已打开的标签不受影响。", true)) return;
+        var ids = profiles.Select(p => p.Id).ToHashSet();
+        if (ids.Count == 0) return Task.CompletedTask;
+        var message = ids.Count == 1 ? $"删除连接“{profiles[0].Name}”？" : $"删除选中的 {ids.Count} 个连接？";
+        return ConfirmDeletionAsync("删除连接", message, ids, catalog => catalog with
+        {
+            Connections = catalog.Connections.Where(p => !ids.Contains(p.Id)).ToArray()
+        });
+    }
+
+    private async Task ConfirmDeletionAsync(string title, string message, HashSet<Guid> ids,
+        Func<ConnectionCatalog, ConnectionCatalog> update)
+    {
+        if (_applicationLock.IsLocked) return;
         try
         {
-            await CommitCatalogAsync(catalog => catalog with { Connections = catalog.Connections.Where(p => p.Id != profile.Id).ToArray() });
-            await _credentials.DeleteAsync(profile.Id); _secrets.Remove(profile.Id); RefreshGroups();
+            if (!await _dialogs.ConfirmAsync(title, message + " 已打开的标签不受影响。", true)) return;
+            await CommitCatalogAsync(catalog => !_applicationLock.IsLocked ? update(catalog)
+                : throw new InvalidOperationException("应用已锁定。"));
+            var failures = 0;
+            foreach (var id in ids)
+            {
+                _secrets.Remove(id);
+                try { await _credentials.DeleteAsync(id); }
+                catch (Exception) { failures++; }
+            }
+            if (failures > 0) await _dialogs.ShowErrorAsync($"配置已删除，但有 {failures} 个连接的本地凭据未能清除。");
         }
         catch (Exception ex) { await _dialogs.ShowErrorAsync(ex.Message); }
     }
@@ -590,7 +615,9 @@ public partial class MainWindowViewModel : ObservableObject
     {
         WorkspaceTabViewModel? tab = null;
         tab = new WorkspaceTabViewModel(profile, _sessions, _dialogs, _logs, () => SecretAsync(tab!.Profile), VerifyHostAsync,
-            SaveProfileAsync, CloseTabAsync, _settings, _localFiles, SaveProcessSortAsync, _monitors, OpenTerminalAtAsync, SaveMonitorNetworkAsync);
+            p => CommitCatalogAsync(catalog => catalog.Connections.Any(existing => existing.Id == p.Id)
+                ? catalog with { Connections = catalog.Connections.Select(existing => existing.Id == p.Id ? p : existing).ToArray() }
+                : throw new InvalidOperationException("此连接配置已删除。")), CloseTabAsync, _settings, _localFiles, SaveProcessSortAsync, _monitors, OpenTerminalAtAsync, SaveMonitorNetworkAsync);
         return tab;
     }
 

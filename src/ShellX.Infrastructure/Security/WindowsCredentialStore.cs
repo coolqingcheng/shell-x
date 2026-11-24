@@ -44,6 +44,7 @@ public sealed class WindowsCredentialStore(AppPaths paths) : ICredentialStore
     {
         await _gate.WaitAsync(cancellationToken);
         try { File.Delete(PathFor(id)); }
+        catch (DirectoryNotFoundException) { /* No credentials have been stored yet. */ }
         finally { _gate.Release(); }
     }
 }

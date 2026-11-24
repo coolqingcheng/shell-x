@@ -249,7 +249,7 @@ public sealed class ConnectionManagerTests
         }
     }
     [AvaloniaFact]
-    public async Task EmptyAndNestedFoldersPersistRenameConnectionsAndRejectDeletingNonemptyFolders()
+    public async Task EmptyAndNestedFoldersPersistAndDeletionRequiresConfirmation()
     {
         var root = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "shellx-catalog-" + Guid.NewGuid().ToString("N"))).FullName;
         var store = new JsonConnectionRepository(new(root));
@@ -273,8 +273,10 @@ public sealed class ConnectionManagerTests
             await vm.RenameFolderCommand.ExecuteAsync(null);
             Assert.Null(vm.FindFolder("生产")); Assert.NotNull(vm.FindFolder("线上/华东"));
             Assert.Empty(vm.VisibleConnections); Assert.True(vm.NeedsLeafFolder);
+            dialogs.Confirm = false;
             await vm.DeleteFolderCommand.ExecuteAsync(null);
-            Assert.Contains(dialogs.Errors, error => error.Contains("先移走"));
+            Assert.Contains("1 个子文件夹、1 个连接", Assert.Single(dialogs.Confirmations));
+            dialogs.Confirm = true;
             vm.SelectedGroup = vm.FindFolder("线上/华东");
             Assert.Equal("线上/华东", Assert.Single(vm.VisibleConnections).Group);
             vm.SelectedGroup = vm.FindFolder("空目录/子目录"); await vm.DeleteFolderCommand.ExecuteAsync(null);
@@ -285,9 +287,44 @@ public sealed class ConnectionManagerTests
             restored.SelectedGroup = restored.FindFolder("线上/华东");
             Assert.Equal(profile.Id, Assert.Single(restored.VisibleConnections).Id);
             restored.Search = "missing"; Assert.True(restored.HasNoResults);
+            restored.SelectedGroup = restored.FindFolder("线上");
+            await restored.DeleteFolderCommand.ExecuteAsync(null);
+            Assert.Null(restored.FindFolder("线上/华东"));
+            Assert.Empty((await store.LoadCatalogAsync()).Connections);
+            Assert.NotNull(restored.FindFolder("空目录"));
+            Assert.Empty(dialogs.Errors);
             await restored.ShutdownAsync();
         }
         finally { await vm.ShutdownAsync(); Directory.Delete(root, true); }
+    }
+
+    [AvaloniaFact]
+    public async Task CheckingRowsDeletesOnlyVisibleCheckedConnectionsWithOneConfirmation()
+    {
+        var root = Directory.CreateTempSubdirectory("shellx-selection-").FullName;
+        var store = new JsonConnectionRepository(new(root));
+        await store.SaveAsync([new() { Name = "a", Group = "test" }, new() { Name = "b", Group = "test" }, new() { Name = "c", Group = "test" }]);
+        var dialogs = new Dialogs(); var vm = Model(root, store, dialogs);
+        var view = new ConnectionManagerView { DataContext = vm };
+        var window = new Window { Content = view, Width = 900, Height = 620 }; window.Show();
+        var opened = 0; vm.ConnectionPicked += _ => opened++;
+        try
+        {
+            await vm.InitializeAsync(); vm.SelectedGroup = vm.FindFolder("test");
+            await Until(() => view.GetVisualDescendants().OfType<CheckBox>().Count() == 3);
+            CheckBox Check(string name) => view.GetVisualDescendants().OfType<CheckBox>().Single(c => c.DataContext is ConnectionProfile p && p.Name == name);
+            var delete = view.FindControl<Button>("DeleteSelected")!;
+            Click(window, Check("b")); Assert.True(delete.IsVisible);
+            vm.Search = "missing"; Assert.False(delete.IsVisible);
+            vm.Search = ""; await Until(() => view.GetVisualDescendants().OfType<CheckBox>().Count() == 3);
+            Click(window, Check("a")); Click(window, Check("c"));
+            Assert.Equal("删除所选（2）", delete.Content); Assert.Equal(0, opened);
+            window.UpdateLayout(); Click(window, delete);
+            await Until(() => vm.VisibleConnections.Count == 1);
+            Assert.Equal("b", Assert.Single(await store.LoadAsync()).Name);
+            Assert.Single(dialogs.Confirmations); Assert.Empty(dialogs.Errors);
+        }
+        finally { window.Close(); await vm.ShutdownAsync(); Directory.Delete(root, true); }
     }
 
     [AvaloniaFact]
@@ -474,7 +511,10 @@ public sealed class ConnectionManagerTests
         public List<string> Information { get; } = [];
         public Queue<string> Prompts { get; } = [];
         public List<string> Errors { get; } = [];
-        public Task<bool> ConfirmAsync(string title, string message, bool danger = false) => Task.FromResult(true);
+        public bool Confirm { get; set; } = true;
+        public List<string> Confirmations { get; } = [];
+        public Task<bool> ConfirmAsync(string title, string message, bool danger = false)
+        { Confirmations.Add(message); return Task.FromResult(Confirm); }
         public Task ShowErrorAsync(string message) { Errors.Add(message); return Task.CompletedTask; }
         public Task<ConnectionEditResult?> EditConnectionAsync(ConnectionProfile? profile, ConnectionSecret? secret) => Task.FromResult<ConnectionEditResult?>(null);
         public Task<string?> PromptAsync(string title, string label, string value = "", bool secret = false) => Task.FromResult<string?>(Prompts.Dequeue());
